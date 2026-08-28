@@ -1,8 +1,8 @@
-// 삼성전기 (009150) 매출 추정 모델 — 데이터 블록
+// 삼성전기 (009150) 영업이익 추정 모델 — 데이터 블록
 //
 // 실적: 사업보고서 연결 손익계산서·영업부문 주석에서 확정 (dart_extract.json)
-// 추정: 부문별 물량·단가 성장률 가정 (전부 [주관], 시나리오 분기 대상)
-// 설계: 01_revenue_methodology.md
+// 추정: 부문별 물량·단가 성장률, 감가상각 증가율, 기타비용률 (전부 [주관])
+// 설계: 01_revenue_methodology.md (매출) · 02_cost_methodology.md (비용)
 //
 // 실적 구간은 공시 확정값이므로 계산하지 않고 그대로 쓴다. 추정 구간만
 // 전년값에 성장률을 곱해 굴린다. 부문별 성장률을 물량과 단가로 나눈 것이
@@ -11,7 +11,7 @@
 
 const META={
   modelId:'samsung_em_revenue',
-  title:'삼성전기 매출 추정 모델',
+  title:'삼성전기 영업이익 추정 모델',
   brand:'삼성전기 009150',
   logo:'S',
 };
@@ -24,7 +24,7 @@ const _isFc=i=>i>=HIST_N;
 const UNITS={
   money:'억원',
   moneyAbbrev:[{min:10000, div:10000, suffix:'조원', digits:2}],
-  scope:'매출 레이어',
+  scope:'영업이익 = 매출 − 비용',
   excelMoneyFormat:'_-* #,##0_-;-* #,##0_-;_-* "-"_-;_-@_-',
   excelOneDecimal:[],
   excelTwoDecimal:[],
@@ -34,21 +34,34 @@ const MODEL={
 
   // ═══ 루트 ═══════════════════════════════════════════════════
   root: {
-    label:'삼성전기 총매출', sub:'컴포넌트 + 광학 + 패키지',
+    label:'영업이익', sub:'매출 − 비용',
     parent:null, type:'computed',
+    formula:'total_revenue - total_cost',
+    v:[0,0,0,0,0,0,0,0,0,0], u:'억원',
+    desc:'연결 영업이익. 실적 5개년은 부문별 영업이익 합계로 확정했고 '
+        +'연결 손익계산서 영업이익과 전 연도 오차 0으로 일치한다. '
+        +'2021~2025: 14,869 → 11,828 → 6,605 → 7,350 → 9,133억원. '
+        +'2021 고점 대비 2023 반토막 후 2년 연속 회복 중이나 아직 고점의 61%.',
+    bg:'#1E2185', fg:'#FFFFFF', sfg:'#A1B8FF',
+  },
+
+  // ═══ 매출 ═══════════════════════════════════════════════════
+  total_revenue: {
+    label:'매출', sub:'3개 사업부문 합계',
+    parent:'root', type:'computed',
     formula:'component_total + optics_total + package_total',
     v:[0,0,0,0,0,0,0,0,0,0], u:'억원',
-    desc:'3개 사업부문 합계. 실적 5개년은 사업보고서 영업부문 주석 확정값이며 '
-        +'전 연도 부문합 = 연결 손익계산서 매출액으로 오차 0 검증됨. '
-        +'2021~2025 실적: 96,750 → 94,246 → 88,924 → 102,941 → 113,145억원.',
-    bg:'#1E2185', fg:'#FFFFFF', sfg:'#A1B8FF',
+    desc:'실적 5개년은 사업보고서 영업부문 주석 확정값이며 전 연도 부문합 = '
+        +'연결 손익계산서 매출액으로 오차 0 검증됨. '
+        +'2021~2025: 96,750 → 94,246 → 88,924 → 102,941 → 113,145억원.',
+    bg:'#282CA8', fg:'#FFFFFF', sfg:'#A1B8FF',
   },
 
   // ═══ ① 컴포넌트 (MLCC) ══════════════════════════════════════
   // 수요 바인딩. 2023 저점 후 AI·서버·전장이 끌어올리는 국면.
   component_total: {
     label:'① 컴포넌트', sub:'MLCC · 수동소자',
-    parent:'root', type:'computed',
+    parent:'total_revenue', type:'computed',
     formula:'IF(comp_actual > 0, comp_actual, PREV(component_total) * (1 + comp_vol_g) * (1 + comp_price_g))',
     v:[0,0,0,0,0,0,0,0,0,0], u:'억원', c:'#3332D0',
     desc:'MLCC·인덕터 등 수동소자. 실적이 있는 연도는 공시값을 그대로 쓰고, '
@@ -84,7 +97,7 @@ const MODEL={
   // 수요 바인딩 · 고객사 종속. 성숙 국면이라 성장 여력이 제한적.
   optics_total: {
     label:'② 광학솔루션', sub:'카메라모듈',
-    parent:'root', type:'computed',
+    parent:'total_revenue', type:'computed',
     formula:'IF(optics_actual > 0, optics_actual, PREV(optics_total) * (1 + optics_vol_g) * (1 + optics_price_g))',
     v:[0,0,0,0,0,0,0,0,0,0], u:'억원', c:'#3332D0',
     desc:'카메라모듈. 주요 고객사 스마트폰 물량에 종속돼 top-down 추정만 타당하다. '
@@ -120,7 +133,7 @@ const MODEL={
   // 공급 바인딩. 증설된 만큼 판다 — 성장축이자 감가상각 부담의 원천.
   package_total: {
     label:'③ 패키지솔루션', sub:'반도체 패키지기판',
-    parent:'root', type:'computed',
+    parent:'total_revenue', type:'computed',
     formula:'IF(pkg_actual > 0, pkg_actual, PREV(package_total) * (1 + pkg_vol_g) * (1 + pkg_price_g))',
     v:[0,0,0,0,0,0,0,0,0,0], u:'억원', c:'#3332D0',
     desc:'FC-BGA·FC-CSP 등 반도체 패키지기판. 서버·AI용 고부가 기판은 수요가 '
@@ -149,5 +162,188 @@ const MODEL={
     v:[0,0,0,0,0, 0.03, 0.03, 0.02, 0.02, 0.02], u:'%', pct:1, c:'#7C91FD',
     desc:'[주관] 블렌디드 단가 상승률. 서버·AI용 FC-BGA 비중이 오르면 단가가 '
         +'오른다. 모바일 AP용 범용 기판은 경쟁이 심해 단가 방어가 어렵다.',
+  },
+
+  // ═══ 비용 ═══════════════════════════════════════════════════
+  // 부문별로 감가상각비와 그 외 비용을 나눈다.
+  //   감가상각비  이미 집행된 투자가 만드는 고정 부담. 매출과 무관하게 발생한다.
+  //   기타비용    원재료·인건비·경비 등. 매출에 거의 비례한다.
+  // 이 둘을 나누지 않으면 "왜 매출이 느는데 이익이 안 느는가"에 답할 수 없다.
+  // 삼성전기는 장치산업이고, 지금이 정확히 그 국면이다.
+  total_cost: {
+    label:'비용', sub:'감가상각 + 기타비용',
+    parent:'root', type:'computed',
+    formula:'comp_cost + optics_cost + pkg_cost',
+    v:[0,0,0,0,0,0,0,0,0,0], u:'억원',
+    desc:'부문별 총비용 합계 = 매출 − 영업이익. 실적 구간은 공시 확정값에서 '
+        +'역산한 것이며 별도 가정이 없다. '
+        +'2021~2025: 81,882 → 82,417 → 82,319 → 95,591 → 104,011억원.',
+    bg:'#374151', fg:'#FFFFFF', sfg:'#D1D5DB',
+  },
+
+  // ── ① 컴포넌트 비용 ──────────────────────────────────────────
+  comp_cost: {
+    label:'① 컴포넌트 비용', sub:'감가 + 기타',
+    parent:'total_cost', type:'computed',
+    formula:'comp_dep + comp_other',
+    v:[0,0,0,0,0,0,0,0,0,0], u:'억원', c:'#4B5563',
+    desc:'컴포넌트 부문 총비용. 영업이익률이 2021년 22.3%에서 2025년 11.7%로 '
+        +'반토막 났는데, 감가상각은 오히려 줄었으므로 원인은 기타비용이다.',
+    bg:'#4B5563', fg:'#FFFFFF', sfg:'#D1D5DB',
+  },
+  comp_dep: {
+    label:'컴포넌트 감가상각비',
+    parent:'comp_cost', type:'computed',
+    formula:'IF(comp_dep_actual > 0, comp_dep_actual, PREV(comp_dep) * (1 + comp_dep_g))',
+    v:[0,0,0,0,0,0,0,0,0,0], u:'억원', c:'#6B7280',
+    desc:'[계산] 실적은 공시값, 추정은 전년 × (1 + 증가율). '
+        +'실적: 5,417 → 5,699 → 4,922 → 4,243 → 4,392억원. '
+        +'2022 정점 후 감소했으나 CAPEX가 다시 늘고 있어 재상승 국면.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  comp_dep_actual: {
+    label:'컴포넌트 감가 실적', parent:'comp_dep', type:'input',
+    v:[5416.62, 5699.00, 4921.87, 4242.86, 4392.41, 0, 0, 0, 0, 0], u:'억원', c:'#6B7280',
+    desc:'[객관·확정] 사업보고서 영업부문 주석의 부문별 감가상각비.',
+  },
+  comp_dep_g: {
+    label:'컴포넌트 감가 증가율', parent:'comp_dep', type:'input',
+    v:[0,0,0,0,0, 0.02, 0.02, 0.02, 0.01, 0.01], u:'%', pct:1, c:'#9CA3AF',
+    desc:'[주관] 감가상각비 증가율. 전사 CAPEX가 2024년 7,760억에서 2025년 '
+        +'11,921억으로 늘어 상각 부담이 다시 커지는 방향이나, 컴포넌트는 '
+        +'증설 강도가 패키지보다 낮아 완만한 증가로 본다.',
+  },
+  comp_other: {
+    label:'컴포넌트 기타비용',
+    parent:'comp_cost', type:'computed',
+    formula:'IF(comp_other_actual > 0, comp_other_actual, component_total * comp_other_ratio)',
+    v:[0,0,0,0,0,0,0,0,0,0], u:'억원', c:'#6B7280',
+    desc:'[계산] 원재료·인건비·경비 등 감가상각 외 비용. 실적은 '
+        +'매출 − 영업이익 − 감가상각비로 확정값에서 역산했고, 추정은 매출 × 비율.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  comp_other_actual: {
+    label:'컴포넌트 기타비용 실적', parent:'comp_other', type:'input',
+    v:[31666.28, 29546.44, 30492.41, 35980.20, 41499.01, 0, 0, 0, 0, 0], u:'억원', c:'#6B7280',
+    desc:'[객관·확정] 매출 − 영업이익 − 감가상각비. 세 항목 모두 공시 확정값이라 '
+        +'이 값도 확정이다. 별도 가정이 들어가지 않았다.',
+  },
+  comp_other_ratio: {
+    label:'컴포넌트 기타비용률', parent:'comp_other', type:'input',
+    v:[0,0,0,0,0, 0.796, 0.792, 0.788, 0.784, 0.780], u:'%', pct:1, c:'#9CA3AF',
+    desc:'[주관·시나리오] 매출 대비 기타비용 비율. '
+        +'실적: 66.4% → 71.5% → 78.1% → 80.6% → 79.8%. '
+        +'5년간 13%p 악화된 것이 이 부문 마진 하락의 주범이다. '
+        +'Base는 5년간 1.8%p 회복을 가정한다 — 악화 폭의 약 7분의 1만 되돌리는 '
+        +'보수적 설정이다. 그래도 이 가정이 전사 이익 추정을 가장 크게 흔드는 '
+        +'변수이므로, 2025년 수준 고정 시나리오를 반드시 함께 본다.',
+  },
+
+  // ── ② 광학 비용 ─────────────────────────────────────────────
+  optics_cost: {
+    label:'② 광학 비용', sub:'감가 + 기타',
+    parent:'total_cost', type:'computed',
+    formula:'optics_dep + optics_other',
+    v:[0,0,0,0,0,0,0,0,0,0], u:'억원', c:'#4B5563',
+    desc:'광학 부문 총비용. 기타비용률이 92~94%로 고착돼 영업이익률이 '
+        +'5년 내내 3~5%를 벗어나지 못한다. 구조적으로 마진이 얇은 부문이다.',
+    bg:'#4B5563', fg:'#FFFFFF', sfg:'#D1D5DB',
+  },
+  optics_dep: {
+    label:'광학 감가상각비',
+    parent:'optics_cost', type:'computed',
+    formula:'IF(optics_dep_actual > 0, optics_dep_actual, PREV(optics_dep) * (1 + optics_dep_g))',
+    v:[0,0,0,0,0,0,0,0,0,0], u:'억원', c:'#6B7280',
+    desc:'[계산] 실적: 957 → 1,210 → 888 → 723 → 513억원. '
+        +'5년간 거의 절반으로 줄었다 — 투자가 끝난 성숙 부문이라는 증거다.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  optics_dep_actual: {
+    label:'광학 감가 실적', parent:'optics_dep', type:'input',
+    v:[957.36, 1209.65, 888.44, 722.89, 513.11, 0, 0, 0, 0, 0], u:'억원', c:'#6B7280',
+    desc:'[객관·확정] 사업보고서 영업부문 주석의 부문별 감가상각비.',
+  },
+  optics_dep_g: {
+    label:'광학 감가 증가율', parent:'optics_dep', type:'input',
+    v:[0,0,0,0,0, -0.05, -0.03, 0.00, 0.00, 0.00], u:'%', pct:1, c:'#9CA3AF',
+    desc:'[주관] 감소 추세가 완만해지다 멈추는 것으로 본다. 신규 증설 계획이 '
+        +'확인되면 상향해야 한다.',
+  },
+  optics_other: {
+    label:'광학 기타비용',
+    parent:'optics_cost', type:'computed',
+    formula:'IF(optics_other_actual > 0, optics_other_actual, optics_total * optics_other_ratio)',
+    v:[0,0,0,0,0,0,0,0,0,0], u:'억원', c:'#6B7280',
+    desc:'[계산] 이미지센서 등 매입 부품 비중이 커 매출 연동성이 가장 높은 부문.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  optics_other_actual: {
+    label:'광학 기타비용 실적', parent:'optics_other', type:'input',
+    v:[29671.91, 29725.37, 30608.17, 35874.87, 35941.48, 0, 0, 0, 0, 0], u:'억원', c:'#6B7280',
+    desc:'[객관·확정] 매출 − 영업이익 − 감가상각비.',
+  },
+  optics_other_ratio: {
+    label:'광학 기타비용률', parent:'optics_other', type:'input',
+    v:[0,0,0,0,0, 0.942, 0.941, 0.940, 0.939, 0.938], u:'%', pct:1, c:'#9CA3AF',
+    desc:'[주관] 실적: 92.0% → 92.8% → 93.5% → 94.5% → 94.2%. '
+        +'고객사 원가절감 압력이 상시적이라 개선 여지가 거의 없는 것으로 본다. '
+        +'거의 고정으로 두는 것이 보수적이다.',
+  },
+
+  // ── ③ 패키지 비용 ───────────────────────────────────────────
+  pkg_cost: {
+    label:'③ 패키지 비용', sub:'감가 + 기타',
+    parent:'total_cost', type:'computed',
+    formula:'pkg_dep + pkg_other',
+    v:[0,0,0,0,0,0,0,0,0,0], u:'억원', c:'#4B5563',
+    desc:'패키지 부문 총비용. 이 모델에서 가장 중요한 노드다 — 매출이 37% 느는 '
+        +'동안 감가상각비가 3.3배 늘어 영업이익이 오히려 반토막 났다.',
+    bg:'#4B5563', fg:'#FFFFFF', sfg:'#D1D5DB',
+  },
+  pkg_dep: {
+    label:'패키지 감가상각비',
+    parent:'pkg_cost', type:'computed',
+    formula:'IF(pkg_dep_actual > 0, pkg_dep_actual, PREV(pkg_dep) * (1 + pkg_dep_g))',
+    v:[0,0,0,0,0,0,0,0,0,0], u:'억원', c:'#6B7280',
+    desc:'[계산] 실적: 1,119 → 1,166 → 1,844 → 2,673 → 3,727억원. 3.3배. '
+        +'매출 대비 비중이 6.7%에서 16.2%로 올랐다. FC-BGA 증설이 손익계산서에 '
+        +'나타나는 방식이며, 2025년 말 건설중인자산 잔액이 1조 2,165억원 남아 있어 '
+        +'상각 부담은 더 늘어난다.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  pkg_dep_actual: {
+    label:'패키지 감가 실적', parent:'pkg_dep', type:'input',
+    v:[1119.20, 1165.95, 1843.56, 2673.14, 3726.62, 0, 0, 0, 0, 0], u:'억원', c:'#6B7280',
+    desc:'[객관·확정] 사업보고서 영업부문 주석의 부문별 감가상각비.',
+  },
+  pkg_dep_g: {
+    label:'패키지 감가 증가율', parent:'pkg_dep', type:'input',
+    v:[0,0,0,0,0, 0.12, 0.10, 0.07, 0.05, 0.03], u:'%', pct:1, c:'#9CA3AF',
+    desc:'[주관·시나리오] 이 모델에서 가장 민감한 가정 하나다. '
+        +'2025년 말 건설중인자산 1조 2,165억원이 순차 가동되며 상각이 시작되므로 '
+        +'증가는 이어지되 증가율은 둔화하는 것으로 본다. 증설이 계속되면 상향해야 하고, '
+        +'그 경우 pkg_vol_g(물량)도 함께 올라야 정합적이다 — 같은 증설이 매출과 '
+        +'비용을 동시에 만든다.',
+  },
+  pkg_other: {
+    label:'패키지 기타비용',
+    parent:'pkg_cost', type:'computed',
+    formula:'IF(pkg_other_actual > 0, pkg_other_actual, package_total * pkg_other_ratio)',
+    v:[0,0,0,0,0,0,0,0,0,0], u:'억원', c:'#6B7280',
+    desc:'[계산] 원재료·인건비·경비. 가동률이 오르면 단위 고정비가 희석돼 '
+        +'이 비율이 내려간다.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  pkg_other_actual: {
+    label:'패키지 기타비용 실적', parent:'pkg_other', type:'input',
+    v:[13050.26, 15070.75, 13564.23, 16097.01, 17938.65, 0, 0, 0, 0, 0], u:'억원', c:'#6B7280',
+    desc:'[객관·확정] 매출 − 영업이익 − 감가상각비.',
+  },
+  pkg_other_ratio: {
+    label:'패키지 기타비용률', parent:'pkg_other', type:'input',
+    v:[0,0,0,0,0, 0.775, 0.770, 0.765, 0.760, 0.755], u:'%', pct:1, c:'#9CA3AF',
+    desc:'[주관·시나리오] 실적: 77.7% → 72.2% → 79.0% → 79.1% → 77.9%. '
+        +'2022년 72.2%는 가동률이 높았던 해다. 증설 라인이 정상 가동되면 '
+        +'그 수준으로 회복하는 경로를 가정했다.',
   },
 };

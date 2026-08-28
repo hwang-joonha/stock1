@@ -4031,7 +4031,11 @@ function renderSummary(){
     legendHTML(series) + chartSVG(series, { stacked:isSumOfChildren(r), height:36 }));
 
   var mixRows = '';
-  var tot = val(r, t);
+  // 합계 트리에서만 부모값이 구성비의 분모가 된다. 뺄셈 루트에서는
+  // 자식 절대값 합을 쓴다 — 그러지 않으면 비중이 100%를 넘는다.
+  var mixIsSum = isSumOfChildren(r);
+  var tot = mixIsSum ? val(r, t)
+    : kids.reduce(function(s, k){ return s + Math.abs(val(k, t)); }, 0);
   kids.forEach(function(k){
     var v = val(k, t), sh = tot ? v / tot : 0;
     mixRows += '<tr><td><span class="cellrow"><i class="legend-dot" style="background:' + nodeColor(k) + '"></i>' +
@@ -4041,7 +4045,7 @@ function renderSummary(){
       Math.min(100, Math.abs(sh) * 100).toFixed(1) + '%;background:' + nodeColor(k) + '"></i></span>' +
       (tot ? (sh * 100).toFixed(1) + '%' : '—') + '</span></td></tr>';
   });
-  h += card(YRS[t] + ' 구성비', '', MODEL[r].u || '',
+  h += card(YRS[t] + (mixIsSum ? ' 구성비' : ' 구성 (절대값 기준)'), '', MODEL[r].u || '',
     '<div class="table-wrap"><table class="fm"><tr><th>계정</th><th>' + esc(YRS[t]) + '</th><th>비중</th></tr>' +
     mixRows + '</table></div>');
   h += '</div>';

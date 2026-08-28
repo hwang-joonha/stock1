@@ -447,6 +447,32 @@ function initShell(){
 # 모델(영업이익 루트 등)에서는 뜻 없는 문자열이다. 루트와 그 직계로 바꾼다.
 # ─────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────────
+# P2  구성비 계산이 합계 트리를 전제하던 문제
+#
+# 부모값 대비 비중은 부모가 자식의 합일 때만 구성비다. 루트가 뺄셈인 모델
+# (영업이익 = 매출 − 비용)에서는 자식 비중이 100%를 넘어 뜻 없는 숫자가 된다.
+# 합계 트리가 아니면 자식 절대값 합을 분모로 쓰고 카드 제목도 바꾼다.
+# ─────────────────────────────────────────────────────────────
+
+OLD_MIX = """  var mixRows = '';
+  var tot = val(r, t);
+  kids.forEach(function(k){
+    var v = val(k, t), sh = tot ? v / tot : 0;"""
+
+NEW_MIX = """  var mixRows = '';
+  // 합계 트리에서만 부모값이 구성비의 분모가 된다. 뺄셈 루트에서는
+  // 자식 절대값 합을 쓴다 — 그러지 않으면 비중이 100%를 넘는다.
+  var mixIsSum = isSumOfChildren(r);
+  var tot = mixIsSum ? val(r, t)
+    : kids.reduce(function(s, k){ return s + Math.abs(val(k, t)); }, 0);
+  kids.forEach(function(k){
+    var v = val(k, t), sh = tot ? v / tot : 0;"""
+
+OLD_MIX_TITLE = """  h += card(YRS[t] + ' 구성비', '', MODEL[r].u || '',"""
+NEW_MIX_TITLE = """  h += card(YRS[t] + (mixIsSum ? ' 구성비' : ' 구성 (절대값 기준)'), '', MODEL[r].u || '',"""
+
+
 OLD_TOGGLE_ALL = """function toggleAll(open){nodeOffsets={};function walk(n){if(canToggle(n)){if(open)openSet.add(n.id);else if(n.id!=='root'&&n.id!=='rev')openSet.delete(n.id)}if(n.children)n.children.forEach(walk)}walk(TREE);if(!open){openSet.add('root');openSet.add('rev')}fitAll()}"""
 
 NEW_TOGGLE_ALL = """function toggleAll(open){
@@ -599,6 +625,8 @@ def main() -> None:
     p.sub("P1-1 assumptions bfmt 제거", OLD_ASSUM_FMT, NEW_ASSUM_FMT)
     p.sub("P1-1 excel 숫자서식", OLD_EXCEL_FMT, NEW_EXCEL_FMT)
     p.sub("P1-1 footSub 마크업", OLD_FOOTSUB, NEW_FOOTSUB)
+    p.sub("P2 구성비 분모", OLD_MIX, NEW_MIX)
+    p.sub("P2 구성비 제목", OLD_MIX_TITLE, NEW_MIX_TITLE)
     p.sub("P1-2 toggleAll", OLD_TOGGLE_ALL, NEW_TOGGLE_ALL)
     p.sub("P1-2 openSet 초기화", OLD_OPENSET, NEW_OPENSET)
     p.sub("P1-3 html 태그", OLD_HTML_TAG, NEW_HTML_TAG)
