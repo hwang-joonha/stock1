@@ -1370,7 +1370,9 @@ function renderICReport(){
 
   // 9. 심사 결론
   h += icSec('09', '심사 결론', (MEMO && MEMO.verdict) ? MEMO.verdict.sub : '',
-    '<div class="card pad">' + icMemoBody('verdict') + '</div>');
+    '<div class="card pad">' + icMemoBody('verdict') + '</div>' +
+    ((typeof MEMO === 'object' && MEMO && MEMO.revision)
+      ? card('가정 개정 이력', MEMO.revision.sub || '', '', icPoints(MEMO.revision)) : ''));
 
   // 10. 가정 일람 — 근거 태그와 함께. 무엇이 사실이고 무엇이 판단인지 드러난다.
   var arows = '';
@@ -1402,6 +1404,9 @@ function renderICVerdict(){"""
 OLD_IC4_VERDICT = """  h += icMemoCard('verdict', '투자의견');
   h += icMemoCard('bull', '상방 논리');"""
 NEW_IC4_VERDICT = """  h += icMemoCard('verdict', '투자의견');
+  // 가정을 바꿨다면 무엇을 왜 바꿨는지가 결론과 같은 자리에 있어야 한다.
+  // 이 기록이 없으면 모델이 주가를 뒤쫓아도 아무도 알 수 없다.
+  h += icMemoCard('revision', '가정 개정 이력');
   h += icDebateCard();
   h += icMemoCard('bull', '상방 논리');"""
 
