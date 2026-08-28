@@ -449,6 +449,157 @@ function initShell(){
 
 
 
+
+# ─────────────────────────────────────────────────────────────
+# IC-3  피어 비교 · 시나리오 뷰
+#
+# 계획서는 심사 뷰 6종을 적었는데 3종으로 합쳐 냈다. Thesis와 리스크는
+# 다른 뷰의 카드로 들어가 있어 내용이 빠지지 않았지만, **시나리오는 화면이
+# 아예 없었다** — 문서에만 있고 모델에는 없었다. Bull/Base/Bear를 나란히
+# 놓고 보는 것이 심사에서 가장 자주 하는 일인데 그게 빠져 있었다.
+#
+# 피어 비교는 목표배수의 근거를 화면에 붙이는 일이다. 목표배수가 결과를
+# 지배하는 가정인데 그 근거가 코드 주석에만 있으면 검증받을 수 없다.
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC2_ROUTE = """function renderView(view){
+  if(view === 'ic_overview') return renderICOverview();"""
+
+NEW_IC2_ROUTE = """function renderView(view){
+  if(view === 'ic_overview') return renderICOverview();
+  if(view === 'ic_scenario') return renderICScenario();"""
+
+OLD_IC2_TITLES = """  ic_overview:'투자 개요', ic_valuation:'밸류에이션', ic_verdict:'심사 결론',"""
+NEW_IC2_TITLES = """  ic_overview:'투자 개요', ic_valuation:'밸류에이션',
+  ic_scenario:'시나리오', ic_verdict:'심사 결론',"""
+
+OLD_IC2_NAV = """      navBtn('ic_valuation', 'trending-up', '밸류에이션') +
+      navBtn('ic_verdict', 'file-text', '심사 결론') +"""
+NEW_IC2_NAV = """      navBtn('ic_valuation', 'trending-up', '밸류에이션') +
+      navBtn('ic_scenario', 'layers', '시나리오',
+             (typeof SCENARIOS === 'object' && SCENARIOS)
+               ? String(Object.keys(SCENARIOS).length + 1) : '') +
+      navBtn('ic_verdict', 'file-text', '심사 결론') +"""
+
+# 시나리오 값은 미리 계산해 둘 수 없다. 케이스마다 SV를 갈아끼우고 다시
+# 풀어야 한다. 화면을 그릴 때 그 자리에서 계산하고 원래 상태로 되돌린다.
+OLD_IC2_ANCHOR = """function renderICVerdict(){"""
+
+NEW_IC2_ANCHOR = """// 케이스별로 모델을 다시 풀어 지정한 노드의 값을 읽는다.
+// SV를 임시로 갈아끼우므로 반드시 원래대로 되돌린다.
+function icSolve(overrides, nodeIds, t){
+  var backup = {};
+  for(var k in SV) backup[k] = SV[k].slice();
+  try{
+    if(overrides){
+      for(var k2 in overrides){
+        if(SV[k2] && overrides[k2].length === YRS.length) SV[k2] = overrides[k2].slice();
+      }
+    }
+    simCalc();
+    var out = {};
+    nodeIds.forEach(function(id){ out[id] = val(id, t); });
+    return out;
+  } finally {
+    for(var k3 in backup) SV[k3] = backup[k3];
+    simCalc();      // 화면에 남은 상태를 원래대로
+  }
+}
+
+function renderICScenario(){
+  var t = icLastIdx(), h = '<div class="page">';
+  h += '<div class="page-head"><div class="eyebrow caps">' + ic('layers', 16) +
+    ' Investment case</div><h1>시나리오</h1></div>';
+  if(typeof SCENARIOS !== 'object' || !SCENARIOS){
+    return h + '<div class="notice">SCENARIOS가 data.js에 없습니다.</div></div>';
+  }
+  h += '<div class="notice">Base는 초안값 그 자체입니다. ' +
+    '시뮬레이터 케이스 바에서 전환하면 이 값들이 실제 모델에 적용됩니다. ' +
+    '시나리오는 <b>[주관] 노드만</b> 흔듭니다 — 공시 확정 실적은 어느 케이스에서도 같습니다.</div>';
+
+  var want = ['total_revenue', 'op_profit', 'ebitda', rootId()];
+  var cases = [{ name:'Base', ov:null }];
+  for(var nm in SCENARIOS) cases.push({ name:nm, ov:SCENARIOS[nm] });
+  var solved = cases.map(function(c){ return icSolve(c.ov, want, t); });
+
+  var mc = (typeof MARKET === 'object' && MARKET) ? MARKET.mktcap : 0;
+  var rows = '';
+  cases.forEach(function(c, i){
+    var s = solved[i];
+    var up = mc ? s[rootId()] / mc - 1 : null;
+    var tone = c.name === 'Base' ? ' class="hl"' : '';
+    rows += '<tr' + tone + '><td><b>' + esc(c.name) + '</b></td>' +
+      '<td>' + esc(fmtSmart(s.total_revenue)) + '</td>' +
+      '<td>' + esc(fmtSmart(s.op_profit)) + '</td>' +
+      '<td>' + (s.total_revenue ? (s.op_profit / s.total_revenue * 100).toFixed(1) + '%' : '—') + '</td>' +
+      '<td>' + esc(fmtSmart(s.ebitda)) + '</td>' +
+      '<td>' + esc(fmtSmart(s[rootId()])) + '</td>' +
+      (up === null ? '<td>—</td>'
+        : '<td class="' + (up >= 0 ? 'pos' : 'neg') + '">' +
+          (up >= 0 ? '+' : '') + (up * 100).toFixed(0) + '%</td>') + '</tr>';
+  });
+  h += card(YRS[t] + ' 시나리오 비교', '굵은 행이 Base(초안값)', UNITS.money,
+    '<div class="table-wrap"><table class="fm"><tr><th>시나리오</th><th>매출</th>' +
+    '<th>영업이익</th><th>OPM</th><th>EBITDA</th><th>적정 시총</th>' +
+    '<th>현재가 대비</th></tr>' + rows + '</table></div>');
+
+  // 무엇을 흔들었는지 — 가정을 감추지 않는다
+  var diff = '';
+  for(var nm2 in SCENARIOS){
+    var ov = SCENARIOS[nm2];
+    for(var k in ov){
+      var d = MODEL[k];
+      if(!d || !DEFAULTS_S[k]) continue;
+      diff += '<tr><td>' + esc(nm2) + '</td><td>' + esc(d.label || k) + '</td>' +
+        '<td>' + esc(fmtNum(DEFAULTS_S[k][t], d.u, d.pct)) + '</td>' +
+        '<td>' + esc(fmtNum(ov[k][t], d.u, d.pct)) + '</td></tr>';
+    }
+  }
+  h += card('시나리오별로 흔든 가정', YRS[t] + ' 기준 · Base 대비', '',
+    '<div class="table-wrap"><table class="fm"><tr><th>시나리오</th><th>가정변수</th>' +
+    '<th>Base</th><th>시나리오</th></tr>' + diff + '</table></div>');
+  return h + '</div>';
+}
+
+// 피어 비교 — 목표배수의 근거를 화면에 붙인다.
+function icPeerCard(){
+  if(typeof PEERS !== 'object' || !PEERS || !PEERS.list) return '';
+  var self = null, rows = '';
+  PEERS.list.forEach(function(p){
+    if(p.group === 'self') self = p;
+    var ev = p.evEbitda || [], per = p.per || [];
+    var f = function(x){ return (x === null || x === undefined) ? '—' : x.toFixed(1) + '배'; };
+    rows += '<tr' + (p.group === 'self' ? ' class="hl"' : '') + '>' +
+      '<td>' + esc(p.name) + '</td>' +
+      '<td>' + esc(p.group === 'self' ? '—' : p.group) + '</td>' +
+      '<td>' + esc(fmtMoney(p.mktcap)) + '</td>' +
+      '<td>' + f(ev[0]) + '</td><td>' + f(ev[1]) + '</td>' +
+      '<td>' + f(per[1]) + '</td>' +
+      '<td>' + esc(p.ret1y || '—') + '</td></tr>';
+  });
+  var note = '<div class="notice">' + esc(PEERS.note || '') +
+    ' 기준일 <b>' + esc(PEERS.asOf) + '</b> · ' + esc(PEERS.source || '') + '</div>';
+  return note + card('피어 그룹 비교', 'EV/EBITDA는 실적(A)과 당해 컨센서스(E)', UNITS.money,
+    '<div class="table-wrap"><table class="fm"><tr><th>종목</th><th>구분</th>' +
+    '<th>시가총액</th><th>EV/EBITDA (A)</th><th>EV/EBITDA (E)</th>' +
+    '<th>PER (E)</th><th>1년 수익률</th></tr>' + rows + '</table></div>');
+}
+
+function renderICVerdict(){"""
+
+# 밸류에이션 뷰에 피어 카드를 끼운다.
+OLD_IC2_VAL = """  h += icMemoCard('valuation', '밸류에이션 판단');
+  return h + '</div>';
+}"""
+NEW_IC2_VAL = """  h += icPeerCard();
+  h += icMemoCard('valuation', '밸류에이션 판단');
+  return h + '</div>';
+}"""
+
+OLD_IC2_ICON = """  target:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',"""
+NEW_IC2_ICON = OLD_IC2_ICON + """
+  scenario:'<polygon points="12 2 2 7 12 12 22 7 12 2"/>',"""
+
 # ─────────────────────────────────────────────────────────────
 # P1-4  CDN 의존 제거
 #
@@ -968,6 +1119,11 @@ def main() -> None:
     p.sub("IC 뷰 구현", OLD_IC_ANCHOR, NEW_IC_ANCHOR)
     p.sub("IC 스타일", OLD_STYLE_ANCHOR, NEW_STYLE_ANCHOR)
     p.sub("IC 아이콘", OLD_ICON, NEW_ICON)
+    p.sub("IC-3 시나리오 라우팅", OLD_IC2_ROUTE, NEW_IC2_ROUTE)
+    p.sub("IC-3 뷰 제목", OLD_IC2_TITLES, NEW_IC2_TITLES)
+    p.sub("IC-3 사이드바", OLD_IC2_NAV, NEW_IC2_NAV)
+    p.sub("IC-3 시나리오·피어 구현", OLD_IC2_ANCHOR, NEW_IC2_ANCHOR)
+    p.sub("IC-3 밸류에이션에 피어 카드", OLD_IC2_VAL, NEW_IC2_VAL)
     p.sub("P2 구성비 분모", OLD_MIX, NEW_MIX)
     p.sub("P2 구성비 제목", OLD_MIX_TITLE, NEW_MIX_TITLE)
     p.sub("P1-2 toggleAll", OLD_TOGGLE_ALL, NEW_TOGGLE_ALL)
