@@ -1773,6 +1773,21 @@ function renderICSensitivity(){
 function icConsensusCard(){
   if(typeof CONSENSUS !== 'object' || !CONSENSUS || !CONSENSUS.items) return '';
   var rows = '';
+  // 목표주가 컨센서스 — 증권사 애널리스트들의 평균 목표가와 본 모델의 주당 가치를
+  // 같은 행에 둔다. "시장(주가)과 다르다"와 "애널리스트들과 다르다"는 별개의
+  // 정보다. 전자는 어느 모델이든 말해주지만 후자는 이 비교가 있어야 보인다.
+  if(CONSENSUS.targetPrice && typeof MARKET === 'object' && MARKET && MARKET.shares){
+    var tp = CONSENSUS.targetPrice;
+    var myPS = val(rootId(), icLastIdx()) * 1e8 / MARKET.shares;
+    var upTp = tp / MARKET.price - 1, upMy = myPS / MARKET.price - 1;
+    rows += '<tr><td>애널리스트 평균 목표주가' +
+      (CONSENSUS.nAnalysts ? ' (' + CONSENSUS.nAnalysts + '개 기관)' : '') + '</td>' +
+      '<td>' + Math.round(tp).toLocaleString('ko-KR') + '원</td>' +
+      '<td>' + Math.round(myPS).toLocaleString('ko-KR') + '원</td>' +
+      '<td class="' + (upTp >= upMy ? 'neg' : 'pos') + '">' +
+        '컨센 ' + (upTp >= 0 ? '+' : '') + (upTp * 100).toFixed(0) + '% / 모델 ' +
+        (upMy >= 0 ? '+' : '') + (upMy * 100).toFixed(0) + '%</td></tr>';
+  }
   CONSENSUS.items.forEach(function(it){
     var yi = YRS.indexOf(String(it.year));
     var mine = (yi >= 0 && MODEL[it.node]) ? val(it.node, yi) : null;
