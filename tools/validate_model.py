@@ -413,7 +413,8 @@ def g11_memo(rep: dict) -> Result:
             elif x.get("d") is not None and not isinstance(x["d"], list):
                 bad.append(f"{tag}[{j}].d 는 배열이어야 한다")
 
-    for key in ("company", "thesis", "valuation", "verdict", "bull", "bear", "risk"):
+    for key in ("company", "thesis", "valuation", "verdict",
+                "bull", "bear", "risk", "revision"):
         blk = memo.get(key)
         if isinstance(blk, dict):
             check_items(blk.get("points"), f"MEMO.{key}.points")
