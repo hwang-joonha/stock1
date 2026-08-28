@@ -447,6 +447,284 @@ function initShell(){
 # 모델(영업이익 루트 등)에서는 뜻 없는 문자열이다. 루트와 그 직계로 바꾼다.
 # ─────────────────────────────────────────────────────────────
 
+
+# ─────────────────────────────────────────────────────────────
+# IC  투자심사 뷰
+#
+# 심사 보고서를 별도 문서로 만들지 않는다. 문서로 뽑는 순간 모델과 어긋나고,
+# "가정을 바꾸면 목표가가 얼마가 되나"에 답할 수 없게 된다. 엔진에 이미
+# 뷰 라우팅이 있으므로 그룹 하나를 더한다 (ic_memo_framework §1).
+#
+# 데이터는 두 곳에서 온다.
+#   MODEL   계산되는 모든 수치 — 슬라이더를 움직이면 즉시 따라 움직인다
+#   MEMO    판단·서술 (data.js에 선언). 모델 수치와 섞지 않는다
+# 둘 중 하나가 없으면 해당 뷰는 조용히 비지 않고 없다고 말한다.
+# ─────────────────────────────────────────────────────────────
+
+OLD_NEG = """  var negs = [];
+  Object.keys(MODEL).forEach(function(k){
+    for(var t = 0; t < HIST_N; t++){ if(val(k, t) < 0){ negs.push((MODEL[k].label || k) + ' @' + YRS[t]); break; } }
+  });"""
+
+NEW_NEG = """  // 음수가 정상인 계정이 있다 — 순차입금(순현금), 영업손실 등.
+  // 노드에 allowNegative를 달면 이 검사에서 빠진다.
+  var negs = [];
+  Object.keys(MODEL).forEach(function(k){
+    if(MODEL[k].allowNegative) return;
+    for(var t = 0; t < HIST_N; t++){ if(val(k, t) < 0){ negs.push((MODEL[k].label || k) + ' @' + YRS[t]); break; } }
+  });"""
+
+OLD_RENDER_VIEW = """function renderView(view){
+  if(view === 'summary') return renderSummary();"""
+
+NEW_RENDER_VIEW = """function renderView(view){
+  if(view === 'ic_overview') return renderICOverview();
+  if(view === 'ic_valuation') return renderICValuation();
+  if(view === 'ic_verdict') return renderICVerdict();
+  if(view === 'summary') return renderSummary();"""
+
+OLD_VIEW_TITLES = """var VIEW_TITLES = { canvas:'전체 캔버스', summary:'요약 대시보드', assumptions:'가정·근거',"""
+NEW_VIEW_TITLES = """var VIEW_TITLES = { canvas:'전체 캔버스', summary:'요약 대시보드', assumptions:'가정·근거',
+  ic_overview:'투자 개요', ic_valuation:'밸류에이션', ic_verdict:'심사 결론',"""
+
+# 사이드바에 Investment case 그룹 추가
+OLD_SIDEBAR_CTRL = """  html += '<div class="nav-group"><div class="nav-caption">Model control</div>' +"""
+NEW_SIDEBAR_CTRL = """  // Investment case — MARKET이 선언된 모델에서만 뜬다.
+  if(typeof MARKET === 'object' && MARKET){
+    html += '<div class="nav-group"><div class="nav-caption">Investment case</div>' +
+      navBtn('ic_overview', 'target', '투자 개요', icUpsideLabel()) +
+      navBtn('ic_valuation', 'trending-up', '밸류에이션') +
+      navBtn('ic_verdict', 'file-text', '심사 결론') +
+      '</div>';
+  }
+
+  html += '<div class="nav-group"><div class="nav-caption">Model control</div>' +"""
+
+OLD_IC_ANCHOR = """// ── 가정·근거 페이지 ──"""
+
+NEW_IC_ANCHOR = """// ══ 투자심사 뷰 ═══════════════════════════════════════════════
+// 아래 세 뷰의 숫자는 전부 MODEL에서 나온다. 시뮬레이터에서 가정을 바꾸면
+// 목표가와 상승여력이 그 자리에서 따라 움직인다.
+
+// 마지막 추정 연도 인덱스
+function icLastIdx(){ return YRS.length - 1; }
+
+// 적정가치와 현재 시총의 괴리. 모델 루트가 시가총액일 때만 뜻이 있다.
+function icUpside(t){
+  if(typeof MARKET !== 'object' || !MARKET || !MARKET.mktcap) return null;
+  var fair = val(rootId(), t);
+  if(!fair) return null;
+  return fair / MARKET.mktcap - 1;
+}
+function icUpsideLabel(){
+  var u = icUpside(icLastIdx());
+  return u === null ? '' : (u >= 0 ? '+' : '') + (u * 100).toFixed(0) + '%';
+}
+// 현재 시총이 함의하는 EV/EBITDA 배수 — 역산.
+// "적정가가 얼마인가"보다 "지금 가격이 무엇을 전제하는가"가 심사에서 더 유용하다.
+function icImpliedMultiple(t){
+  if(typeof MARKET !== 'object' || !MARKET || !MODEL.ebitda) return null;
+  var e = val('ebitda', t);
+  if(!e) return null;
+  var nd = MODEL.net_debt ? val('net_debt', t) : 0;
+  return (MARKET.mktcap + nd) / e;
+}
+
+// fmtMoney는 축약할 때 이미 단위를 붙인다(예: "10.35조원"). 그 뒤에 UNITS.money를
+// 다시 붙이면 "조원억원"이 된다. 축약되지 않았을 때만 단위를 붙인다.
+function icMoney(v){
+  var s = fmtMoney(v);
+  return /[가-힣]$/.test(s) ? s : s + UNITS.money;
+}
+
+function icStat(label, value, sub, tone){
+  return '<div class="kpi' + (tone ? ' ' + tone : '') + '">' +
+    '<div class="k">' + esc(label) + '</div>' +
+    '<div class="v">' + esc(value) + '</div>' +
+    (sub ? '<div class="s">' + esc(sub) + '</div>' : '') + '</div>';
+}
+
+function icMarketNote(){
+  if(typeof MARKET !== 'object' || !MARKET) return '';
+  return '<div class="notice">시장 관측치 기준일 <b>' + esc(MARKET.asOf) + '</b> · ' +
+    esc(MARKET.source || '') + ' — 심사 시점에 반드시 갱신할 것.</div>';
+}
+
+function renderICOverview(){
+  var t = icLastIdx(), h = '<div class="page">';
+  h += '<div class="page-head"><div class="eyebrow caps">' + ic('target', 16) +
+    ' Investment case</div><h1>투자 개요</h1></div>';
+  if(typeof MARKET !== 'object' || !MARKET){
+    return h + '<div class="notice">MARKET 블록이 없어 시장 대비 비교를 할 수 없습니다.</div></div>';
+  }
+  h += icMarketNote();
+
+  var fair = val(rootId(), t), up = icUpside(t), im = icImpliedMultiple(t);
+  var fairPS = MARKET.shares ? fair * 1e8 / MARKET.shares : 0;
+
+  h += '<div class="kpi-row">';
+  h += icStat('현재 시가총액', icMoney(MARKET.mktcap),
+    MARKET.price.toLocaleString('ko-KR') + '원 × ' + MARKET.shares.toLocaleString('ko-KR') + '주');
+  h += icStat(YRS[t] + ' 적정 시가총액', icMoney(fair),
+    '주당 ' + Math.round(fairPS).toLocaleString('ko-KR') + '원');
+  h += icStat('괴리', (up >= 0 ? '+' : '') + (up * 100).toFixed(0) + '%',
+    up >= 0 ? '적정가치가 현재가를 상회' : '현재가가 적정가치를 상회',
+    up >= 0 ? 'pos' : 'neg');
+  h += icStat('현재가 함의 배수', im ? im.toFixed(1) + '배' : '—',
+    YRS[t] + ' EBITDA 기준 EV/EBITDA');
+  h += '</div>';
+
+  // 연도별 적정가치 vs 현재 시총
+  var rows = '';
+  for(var i = HIST_N; i < YRS.length; i++){
+    var f2 = val(rootId(), i), u2 = icUpside(i), m2 = icImpliedMultiple(i);
+    rows += '<tr><td>' + esc(YRS[i]) + '</td>' +
+      '<td>' + esc(fmtV('ebitda', i)) + '</td>' +
+      '<td>' + esc(fmtV(rootId(), i)) + '</td>' +
+      '<td class="' + (u2 >= 0 ? 'pos' : 'neg') + '">' + (u2 >= 0 ? '+' : '') + (u2 * 100).toFixed(0) + '%</td>' +
+      '<td>' + (m2 ? m2.toFixed(1) + '배' : '—') + '</td></tr>';
+  }
+  h += card('추정 연도별 적정가치', '현재 시가총액 ' + icMoney(MARKET.mktcap) + ' 고정 비교',
+    UNITS.money,
+    '<div class="table-wrap"><table class="fm"><tr><th>연도</th><th>EBITDA</th>' +
+    '<th>적정 시총</th><th>괴리</th><th>현재가 함의 배수</th></tr>' + rows + '</table></div>');
+
+  h += icMemoCard('thesis', '투자 논거');
+  return h + '</div>';
+}
+
+function renderICValuation(){
+  var t = icLastIdx(), h = '<div class="page">';
+  h += '<div class="page-head"><div class="eyebrow caps">' + ic('trending-up', 16) +
+    ' Investment case</div><h1>밸류에이션</h1></div>';
+  if(typeof MARKET !== 'object' || !MARKET || !MODEL.ebitda){
+    return h + '<div class="notice">MARKET 또는 ebitda 노드가 없어 밸류에이션을 계산할 수 없습니다.</div></div>';
+  }
+  h += icMarketNote();
+
+  // 배수 민감도 — 목표배수 × 추정연도
+  var muls = [8, 10, 12, 15, 20, 25, 30];
+  var head = '<tr><th>목표 EV/EBITDA</th>';
+  for(var i = HIST_N; i < YRS.length; i++) head += '<th>' + esc(YRS[i]) + '</th>';
+  head += '</tr>';
+  var body = '';
+  muls.forEach(function(m){
+    var cur = MODEL.target_ev_ebitda ? val('target_ev_ebitda', t) : null;
+    body += '<tr' + (cur && Math.abs(cur - m) < 0.01 ? ' class="hl"' : '') + '><td>' + m + '배</td>';
+    for(var i = HIST_N; i < YRS.length; i++){
+      var nd = MODEL.net_debt ? val('net_debt', i) : 0;
+      var fair = val('ebitda', i) * m - nd;
+      var up = fair / MARKET.mktcap - 1;
+      body += '<td class="' + (up >= 0 ? 'pos' : 'neg') + '">' +
+        (up >= 0 ? '+' : '') + (up * 100).toFixed(0) + '%</td>';
+    }
+    body += '</tr>';
+  });
+  h += card('목표배수 민감도', '칸 값 = 현재 시가총액 대비 괴리. 굵은 행이 현재 가정.', '',
+    '<div class="table-wrap"><table class="fm">' + head + body + '</table></div>');
+
+  // 역산 — 현재 가격이 무엇을 전제하는가
+  var need = [];
+  [8, 12, 15, 20].forEach(function(m){
+    var nd = MODEL.net_debt ? val('net_debt', t) : 0;
+    var reqE = (MARKET.mktcap + nd) / m;
+    var gap = reqE / val('ebitda', t);
+    need.push('<tr><td>' + m + '배</td><td>' + esc(icMoney(reqE)) + '</td>' +
+      '<td>' + gap.toFixed(2) + '배</td></tr>');
+  });
+  h += card('역산 — 현재 가격이 전제하는 것',
+    '현재 시가총액을 정당화하려면 ' + YRS[t] + '에 필요한 EBITDA', UNITS.money,
+    '<div class="table-wrap"><table class="fm"><tr><th>목표배수 가정</th>' +
+    '<th>필요 EBITDA</th><th>모델 대비</th></tr>' + need.join('') + '</table></div>');
+
+  h += icMemoCard('valuation', '밸류에이션 판단');
+  return h + '</div>';
+}
+
+function renderICVerdict(){
+  var h = '<div class="page">';
+  h += '<div class="page-head"><div class="eyebrow caps">' + ic('file-text', 16) +
+    ' Investment case</div><h1>심사 결론</h1></div>';
+  h += icMemoCard('verdict', '투자의견');
+  h += icMemoCard('bull', '상방 논리');
+  h += icMemoCard('bear', '하방 논리');
+  h += icMemoCard('risk', '리스크와 모니터링 지표');
+  h += '<div class="notice">본 자료는 공시·시장 데이터를 바탕으로 한 내부 검토용 모델이며 ' +
+    '투자권유가 아닙니다. 모든 수치는 최신 공시로 재확인하십시오.</div>';
+  return h + '</div>';
+}
+
+// MEMO는 판단 텍스트다. data.js에 없으면 없다고 말한다 — 조용히 비우지 않는다.
+function icMemoCard(key, title){
+  var m = (typeof MEMO === 'object' && MEMO) ? MEMO[key] : null;
+  if(!m) return card(title, '', '',
+    '<div class="notice">MEMO.' + esc(key) + ' 가 data.js에 없습니다.</div>');
+  var body = '';
+  if(m.lead) body += '<p class="lead">' + esc(m.lead) + '</p>';
+  if(m.points && m.points.length){
+    body += '<ul class="memo">';
+    m.points.forEach(function(x){ body += '<li>' + esc(x) + '</li>'; });
+    body += '</ul>';
+  }
+  return card(title, m.sub || '', '', body);
+}
+
+// ── 가정·근거 페이지 ──"""
+
+# 심사 뷰 스타일
+OLD_STYLE_ANCHOR = """/* 근거 / 노트 */"""
+NEW_STYLE_ANCHOR = """/* 투자심사 뷰 */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:#FFFFFF;border:1px solid #E5E5E8;border-radius:10px;padding:14px 16px}
+.kpi .k{font-size:11px;color:#6B7280;letter-spacing:.04em;margin-bottom:6px}
+.kpi .v{font-size:22px;font-weight:700;color:#0F0F12;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kpi .s{font-size:11px;color:#9CA3AF;margin-top:4px}
+.kpi.pos .v{color:#1E7A48}
+.kpi.neg .v{color:#DC2626}
+td.pos{color:#1E7A48;font-weight:600}
+td.neg{color:#DC2626;font-weight:600}
+table.fm tr.hl td{background:#EDF3FF;font-weight:700}
+p.lead{font-size:14px;color:#374151;line-height:1.7;margin:0 0 10px}
+ul.memo{margin:0;padding-left:18px}
+ul.memo li{font-size:13px;color:#4B5563;line-height:1.75;margin-bottom:6px}
+
+/* 근거 / 노트 */"""
+
+# target 아이콘 추가 (Feather)
+OLD_ICON = """  'file-text':'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>',"""
+NEW_ICON = OLD_ICON + """
+  target:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  'trending-up':'<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',"""
+
+
+
+# ─────────────────────────────────────────────────────────────
+# IC-2  시나리오 프리셋
+#
+# 엔진에 케이스 저장·전환이 이미 있다. Bull/Base/Bear는 새 기능이 아니라
+# 프리셋을 미리 올려두는 일이다 (ic_memo_framework §3).
+# Base는 초안값 그 자체이므로 케이스로 두지 않는다 — "기본값" 버튼이 곧 Base다.
+# ─────────────────────────────────────────────────────────────
+
+OLD_CASES = """let _cases={}; // {name: {sv: deep copy of SV}}"""
+
+NEW_CASES = """let _cases={}; // {name: {sv: deep copy of SV}}
+
+// data.js가 SCENARIOS를 선언하면 케이스로 미리 올린다. 각 시나리오는
+// 덮어쓸 입력만 적으면 되고, 나머지는 초안값(Base)을 그대로 쓴다.
+// [주관] 노드만 흔드는 것이 규약이다 — [객관]을 흔들면 다른 모델이 된다.
+function seedScenarios(){
+  if(typeof SCENARIOS !== 'object' || !SCENARIOS) return;
+  for(let name in SCENARIOS){
+    let snap={};
+    for(let k in DEFAULTS_S) snap[k]=DEFAULTS_S[k].slice();
+    let ov=SCENARIOS[name];
+    for(let k in ov){ if(snap[k] && ov[k].length===YRS.length) snap[k]=ov[k].slice(); }
+    _cases[name]=snap;
+  }
+}
+seedScenarios();"""
+
 # ─────────────────────────────────────────────────────────────
 # P2  구성비 계산이 합계 트리를 전제하던 문제
 #
@@ -625,6 +903,14 @@ def main() -> None:
     p.sub("P1-1 assumptions bfmt 제거", OLD_ASSUM_FMT, NEW_ASSUM_FMT)
     p.sub("P1-1 excel 숫자서식", OLD_EXCEL_FMT, NEW_EXCEL_FMT)
     p.sub("P1-1 footSub 마크업", OLD_FOOTSUB, NEW_FOOTSUB)
+    p.sub("IC-2 시나리오 프리셋", OLD_CASES, NEW_CASES)
+    p.sub("IC 음수 허용 플래그", OLD_NEG, NEW_NEG)
+    p.sub("IC 뷰 라우팅", OLD_RENDER_VIEW, NEW_RENDER_VIEW)
+    p.sub("IC 뷰 제목", OLD_VIEW_TITLES, NEW_VIEW_TITLES)
+    p.sub("IC 사이드바 그룹", OLD_SIDEBAR_CTRL, NEW_SIDEBAR_CTRL)
+    p.sub("IC 뷰 구현", OLD_IC_ANCHOR, NEW_IC_ANCHOR)
+    p.sub("IC 스타일", OLD_STYLE_ANCHOR, NEW_STYLE_ANCHOR)
+    p.sub("IC 아이콘", OLD_ICON, NEW_ICON)
     p.sub("P2 구성비 분모", OLD_MIX, NEW_MIX)
     p.sub("P2 구성비 제목", OLD_MIX_TITLE, NEW_MIX_TITLE)
     p.sub("P1-2 toggleAll", OLD_TOGGLE_ALL, NEW_TOGGLE_ALL)
