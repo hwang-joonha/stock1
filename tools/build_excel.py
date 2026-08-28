@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import os
 import sys
 
@@ -41,6 +42,10 @@ THIN = Side(style="thin", color="D8DCE3")
 BOX = Border(bottom=THIN)
 
 DATA_COL0 = 4          # D열부터 연도. astToExcel의 _colLetter(3+yr)와 같은 약속.
+
+# 문서 속성 타임스탬프를 고정한다. 빌드를 재현 가능하게 만들기 위한 것이고,
+# 실제 빌드 정보는 Metadata 시트에 남는다.
+_EPOCH = datetime.datetime(2000, 1, 1)
 SHEETS = ["Index", "Control", "Assumptions", "Model",
           "Formula Audit", "Structure", "Checks", "Metadata"]
 
@@ -328,12 +333,20 @@ def _sheet_index(wb: Workbook, payload: dict) -> None:
 
 
 def _sheet_metadata(wb: Workbook, payload: dict, src: str) -> None:
+    """빌드 정보.
+
+    빌드 시각은 넣지 않는다. 넣으면 같은 입력에서 매번 다른 파일이 나와
+    "재빌드 후 diff 없음"이라는 검증이 성립하지 않는다. 대신 소스의 내용
+    해시를 남긴다 — 어느 model.html에서 나왔는지가 시각보다 유용하기도 하다.
+    """
     ws = wb["Metadata"]
     ws["A1"] = "빌드 정보"
     ws["A1"].font = TITLE
+    with open(src, "rb") as fh:
+        src_hash = hashlib.sha256(fh.read()).hexdigest()[:16]
     rows = [
         ("소스", os.path.basename(src)),
-        ("빌드 시각", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        ("소스 해시 (sha256 앞 16자리)", src_hash),
         ("빌더", "tools/build_excel.py"),
         ("수식 변환", "엔진 astToExcel (JS) — 파이썬은 배치만 한다"),
         ("노드 수", len(payload["order"])),
@@ -363,8 +376,42 @@ def build(html_path: str, out_path: str) -> dict:
     _sheet_structure(wb, payload)
     _sheet_checks(wb, payload)
     _sheet_metadata(wb, payload, html_path)
+    wb.properties.created = wb.properties.modified = _EPOCH
+    wb.properties.creator = "tools/build_excel.py"
     wb.save(out_path)
+    _freeze_timestamps(out_path)
     return payload
+
+
+def _freeze_timestamps(path: str) -> None:
+    """저장 시각을 문서 속성에서 걷어낸다.
+
+    openpyxl은 save() 안에서 modified를 현재 시각으로 다시 덮는다. 그대로 두면
+    같은 입력에서 매번 다른 바이트가 나오고, "재빌드 후 git diff 없음"이라는
+    검증이 성립하지 않는다. 저장된 zip의 core.xml만 다시 쓴다.
+    """
+    import re
+    import shutil
+    import zipfile
+
+    stamp = _EPOCH.strftime("%Y-%m-%dT%H:%M:%SZ")
+    tmp = path + ".tmp"
+    with zipfile.ZipFile(path) as src, \
+            zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as dst:
+        for item in src.infolist():
+            data = src.read(item.filename)
+            if item.filename == "docProps/core.xml":
+                text = data.decode("utf-8")
+                # 그룹 참조는 반드시 \g<n> 형태로. \1 뒤에 숫자가 오면
+                # 8진 이스케이프로 읽혀 여는 태그가 통째로 사라진다.
+                text = re.sub(r"(<dcterms:(?:created|modified)[^>]*>)[^<]*(</)",
+                              rf"\g<1>{stamp}\g<2>", text)
+                data = text.encode("utf-8")
+            info = zipfile.ZipInfo(item.filename, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = item.external_attr
+            dst.writestr(info, data)
+    shutil.move(tmp, path)
 
 
 def main(argv: list[str]) -> int:
