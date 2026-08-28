@@ -653,6 +653,88 @@ NEW_XLSX_BTN = """  document.getElementById('btnXlsx').onclick = function(){
   };"""
 
 # ─────────────────────────────────────────────────────────────
+# P1-5  모바일에서 사이드바가 열리지 않던 결함
+#
+# 폭 1100px 이하에서 사이드바는 transform:translateX(-100%)로 화면 밖에
+# 밀려나고, 그것을 되돌릴 유일한 수단인 ☰ 버튼에는 인라인 style="display:none"이
+# 박혀 있었다. 그 인라인 스타일을 걷어내는 코드가 어디에도 없다.
+# 결과적으로 좁은 화면에서는 사이드바 전체 — 트리와 투자심사 그룹 — 에
+# 도달할 방법이 없었다. 뷰는 존재하는데 갈 수가 없는 상태였다.
+#
+# 고치는 방법: 버튼의 표시 여부를 인라인이 아니라 CSS 미디어쿼리가 정하게 한다.
+# 여는 수단이 생겼으니 닫는 수단도 함께 둔다 (스크림 탭 · 항목 선택 시 자동 닫힘).
+# ─────────────────────────────────────────────────────────────
+
+OLD_MEDIA = """@media (max-width:1100px){
+  .app{grid-template-columns:1fr}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:272px;transform:translateX(-100%);
+    transition:transform .25s}
+  .sidebar.open{transform:none}
+  .grid.two{grid-template-columns:minmax(0,1fr)}
+}"""
+
+NEW_MEDIA = """/* ☰ 는 좁은 화면에서만 의미가 있다. 표시 여부를 인라인 style이 아니라
+   여기서 정한다 — 인라인으로 숨기면 미디어쿼리가 되살릴 수 없다. */
+#menuBtn{display:none}
+#scrim{display:none;position:fixed;inset:0;background:rgba(15,23,42,.38);
+  z-index:39;opacity:0;transition:opacity .25s}
+#scrim.show{display:block;opacity:1}
+
+@media (max-width:1100px){
+  .app{grid-template-columns:1fr}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:272px;transform:translateX(-100%);
+    transition:transform .25s;z-index:40;box-shadow:0 0 32px rgba(15,23,42,.18)}
+  .sidebar.open{transform:none}
+  .grid.two{grid-template-columns:minmax(0,1fr)}
+  #menuBtn{display:inline-flex}
+  /* 툴바 버튼이 화면 폭을 넘으면 줄바꿈 대신 가로로 밀어 본다 */
+  .topbar{overflow-x:auto;scrollbar-width:none}
+  .topbar::-webkit-scrollbar{display:none}
+  .crumb{min-width:0}
+  #docView{padding:16px 14px 60px}
+  /* .notice는 flex라 좁은 폭에서 <b> 조각이 한 글자씩 접힌다.
+     좌우 배치가 목적이었으니 좌우가 없으면 그냥 본문처럼 흘려보낸다. */
+  .notice{display:block}
+  .kpi-row{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+}"""
+
+OLD_MENUBTN = '<button class="tb-btn" id="menuBtn" style="display:none" title="\uba54\ub274">\u2630</button>'
+NEW_MENUBTN = '<button class="tb-btn" id="menuBtn" title="\uba54\ub274" aria-label="\uba54\ub274" aria-expanded="false">\u2630</button>'
+
+OLD_ASIDE_END = """  </aside>
+
+  <div class="main">"""
+
+NEW_ASIDE_END = """  </aside>
+  <div id="scrim"></div>
+
+  <div class="main">"""
+
+OLD_MENU_JS = """  document.getElementById('menuBtn').onclick = function(){ document.getElementById('sidebar').classList.toggle('open'); };"""
+
+NEW_MENU_JS = """  document.getElementById('menuBtn').onclick = function(){ setDrawer(!document.getElementById('sidebar').classList.contains('open')); };
+  document.getElementById('scrim').onclick = function(){ setDrawer(false); };
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') setDrawer(false); });"""
+
+OLD_GO_TAIL = """  buildSidebar();
+}"""
+
+NEW_GO_TAIL = """  buildSidebar();
+  setDrawer(false);   // \uc881\uc740 \ud654\uba74\uc5d0\uc11c\ub294 \ud56d\ubaa9\uc744 \uace0\ub974\uba74 \uc11c\ub78d\uc774 \ube44\ucf1c\uc57c \ubcf8\ubb38\uc774 \ubcf4\uc778\ub2e4
+}
+
+// \uc0ac\uc774\ub4dc\ubc14 \uc11c\ub78d. \ub113\uc740 \ud654\uba74\uc5d0\uc11c\ub294 \uc0ac\uc774\ub4dc\ubc14\uac00 \ud56d\uc0c1 \ubcf4\uc774\ubbc0\ub85c \uc544\ubb34 \uc77c\ub3c4 \ud558\uc9c0 \uc54a\ub294\ub2e4.
+function setDrawer(open){
+  var sb = document.getElementById('sidebar'), sc = document.getElementById('scrim'),
+      mb = document.getElementById('menuBtn');
+  if(!sb || !sc) return;
+  sb.classList.toggle('open', !!open);
+  sc.classList.toggle('show', !!open);
+  if(mb) mb.setAttribute('aria-expanded', open ? 'true' : 'false');
+}"""
+
+
+# ─────────────────────────────────────────────────────────────
 # IC  투자심사 뷰
 #
 # 심사 보고서를 별도 문서로 만들지 않는다. 문서로 뽑는 순간 모델과 어긋나고,
@@ -1111,6 +1193,11 @@ def main() -> None:
     p.sub("P1-4 본문 폰트 폴백", OLD_BODY_FONT, NEW_BODY_FONT)
     p.sub("P1-4 CDN 스크립트 제거", OLD_CDN, NEW_CDN)
     p.sub("P1-4 Excel 버튼 안내", OLD_XLSX_BTN, NEW_XLSX_BTN)
+    p.sub("P1-5 모바일 미디어쿼리", OLD_MEDIA, NEW_MEDIA)
+    p.sub("P1-5 ☰ 인라인 숨김 제거", OLD_MENUBTN, NEW_MENUBTN)
+    p.sub("P1-5 스크림 엘리먼트", OLD_ASIDE_END, NEW_ASIDE_END)
+    p.sub("P1-5 서랍 열고 닫기", OLD_MENU_JS, NEW_MENU_JS)
+    p.sub("P1-5 항목 선택 시 닫기", OLD_GO_TAIL, NEW_GO_TAIL)
     p.sub("IC-2 시나리오 프리셋", OLD_CASES, NEW_CASES)
     p.sub("IC 음수 허용 플래그", OLD_NEG, NEW_NEG)
     p.sub("IC 뷰 라우팅", OLD_RENDER_VIEW, NEW_RENDER_VIEW)

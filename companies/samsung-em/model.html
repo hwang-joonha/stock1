@@ -346,12 +346,29 @@ ul.memo li{font-size:13px;color:#4B5563;line-height:1.75;margin-bottom:6px}
 .dot-err{width:7px;height:7px;border-radius:50%;background:#DC2626;display:inline-block}
 .dot-neutral{width:7px;height:7px;border-radius:50%;background:#9CA3AF;display:inline-block}
 
+/* ☰ 는 좁은 화면에서만 의미가 있다. 표시 여부를 인라인 style이 아니라
+   여기서 정한다 — 인라인으로 숨기면 미디어쿼리가 되살릴 수 없다. */
+#menuBtn{display:none}
+#scrim{display:none;position:fixed;inset:0;background:rgba(15,23,42,.38);
+  z-index:39;opacity:0;transition:opacity .25s}
+#scrim.show{display:block;opacity:1}
+
 @media (max-width:1100px){
   .app{grid-template-columns:1fr}
   .sidebar{position:fixed;left:0;top:0;bottom:0;width:272px;transform:translateX(-100%);
-    transition:transform .25s}
+    transition:transform .25s;z-index:40;box-shadow:0 0 32px rgba(15,23,42,.18)}
   .sidebar.open{transform:none}
   .grid.two{grid-template-columns:minmax(0,1fr)}
+  #menuBtn{display:inline-flex}
+  /* 툴바 버튼이 화면 폭을 넘으면 줄바꿈 대신 가로로 밀어 본다 */
+  .topbar{overflow-x:auto;scrollbar-width:none}
+  .topbar::-webkit-scrollbar{display:none}
+  .crumb{min-width:0}
+  #docView{padding:16px 14px 60px}
+  /* .notice는 flex라 좁은 폭에서 <b> 조각이 한 글자씩 접힌다.
+     좌우 배치가 목적이었으니 좌우가 없으면 그냥 본문처럼 흘려보낸다. */
+  .notice{display:block}
+  .kpi-row{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
 }
 
 </style>
@@ -373,10 +390,11 @@ ul.memo li{font-size:13px;color:#4B5563;line-height:1.75;margin-bottom:6px}
       <p id="footSub"></p>
     </div>
   </aside>
+  <div id="scrim"></div>
 
   <div class="main">
     <header class="topbar">
-      <button class="tb-btn" id="menuBtn" style="display:none" title="메뉴">☰</button>
+      <button class="tb-btn" id="menuBtn" title="메뉴" aria-label="메뉴" aria-expanded="false">☰</button>
       <div class="crumb"><small id="crumbPath">Model</small><strong id="crumbTitle">전체 캔버스</strong></div>
       <div class="top-spacer"></div>
       <button class="tb-btn" id="btnPL" title="전체 P&amp;L 테이블"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> 테이블</button>
@@ -4286,6 +4304,17 @@ function go(view){
     bindDoc();
   }
   buildSidebar();
+  setDrawer(false);   // 좁은 화면에서는 항목을 고르면 서랍이 비켜야 본문이 보인다
+}
+
+// 사이드바 서랍. 넓은 화면에서는 사이드바가 항상 보이므로 아무 일도 하지 않는다.
+function setDrawer(open){
+  var sb = document.getElementById('sidebar'), sc = document.getElementById('scrim'),
+      mb = document.getElementById('menuBtn');
+  if(!sb || !sc) return;
+  sb.classList.toggle('open', !!open);
+  sc.classList.toggle('show', !!open);
+  if(mb) mb.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 function bindDoc(){
   var root = document.getElementById('docView');
@@ -5066,7 +5095,9 @@ function initShell(){
   };
   document.getElementById('btnJson').onclick = function(){ exportToJSON(); };
   document.getElementById('btnReset').onclick = function(){ resetToDraft(); };
-  document.getElementById('menuBtn').onclick = function(){ document.getElementById('sidebar').classList.toggle('open'); };
+  document.getElementById('menuBtn').onclick = function(){ setDrawer(!document.getElementById('sidebar').classList.contains('open')); };
+  document.getElementById('scrim').onclick = function(){ setDrawer(false); };
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') setDrawer(false); });
   renderCanvasLegend();
   buildSidebar();
   // 캔버스가 아직 보이는 동안 한 번 맞춰둔다 (숨긴 뒤에는 clientWidth=0이라 계산 불가)
