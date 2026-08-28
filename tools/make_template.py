@@ -2552,7 +2552,9 @@ function icBizRevBlock(compact){
     '<th>비중</th><th>' + esc(YRS[0]) + '→' + esc(YRS[hEnd]) + '</th>' +
     '<th>' + esc(YRS[t]) + 'E 비중</th><th style="text-align:left">내용</th></tr>';
   return icChartCard('매출 구성 — 무엇을 파는가',
-      '구성비 100% 기준 · ' + YRS[0] + '~' + YRS[hEnd] + ' 실적, 이후 모델 추정',
+      '구성비 100% 기준 · ' + YRS[0] + '~' + YRS[hEnd] + ' 실적(공시 확정) · ' +
+      YRS[HIST_N] + '~' + YRS[t] + ' 구간은 부문별 성장률 가정으로 굴린 모델 추정 — ' +
+      '근거·태그는 가정·근거 뷰와 리포트 §10 가정 일람, 개정 이력은 §9',
       icSvgStack(YRS, series)) +
     card('', '', UNITS.money,
       '<div class="table-wrap"><table class="fm">' + head + rows + '</table></div>') +
