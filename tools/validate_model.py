@@ -429,6 +429,13 @@ def g11_memo(rep: dict) -> Result:
             if not (d.get(field) or "").strip():
                 bad.append(f"MEMO.debate[{i}]: {field} 없음 — 한쪽만 적은 것은 논거가 아니다")
 
+    # 3b) 목표배수·할인율의 근거인 피어가 있는가
+    #     한 번 편집 중에 PEERS 블록이 통째로 사라졌는데 전 게이트가 통과했다.
+    #     선택 블록이라도 "있다가 없어진 것"은 잡아야 한다.
+    if rep.get("memo") and not rep.get("peers"):
+        bad.append("PEERS 없음 — 심사 레이어를 쓰는 모델은 배수·할인율 근거로 "
+                   "피어를 둔다 (tools/peer_fetch.py)")
+
     # 4) 출처가 붙어 있는가
     for name, blk, keys in (("PEERS", rep.get("peers"), ("asOf", "source")),
                             ("CONSENSUS", rep.get("consensus"), ("asOf", "source"))):

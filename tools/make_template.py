@@ -588,7 +588,8 @@ function icPeerCard(){
     rows += '<tr' + (p.group === 'self' ? ' class="hl"' : '') + '>' +
       '<td>' + esc(p.name) + '</td>' +
       '<td>' + esc(p.group === 'self' ? '—' : p.group) + '</td>' +
-      '<td>' + esc(p.mktcap == null ? '—' : fmtMoney(p.mktcap)) + '</td>' +
+      // 해외 피어는 현지 통화라 원화 축약에 태울 수 없다. 문자열 그대로 보여준다.
+      '<td>' + esc(p.mktcap == null ? (p.cap || '—') : fmtMoney(p.mktcap)) + '</td>' +
       '<td>' + f(ev[0]) + '</td><td>' + f(ev[1]) + '</td>' +
       '<td>' + f(per[1]) + '</td>' +
       '<td>' + esc(p.ret1y || '—') + '</td></tr>';

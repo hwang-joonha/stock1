@@ -101,61 +101,42 @@ IR 자료·컨퍼런스콜에서 회사가 밝힌 비중. 없으면 추정으로
 
 ---
 
-## 미해결 — 해외 피어 밸류에이션
+## 해외 피어 — 해결됨 (2026-08-28)
 
-목표배수 15배의 근거가 지금은 국내 피어에만 기대고 있다. MLCC의 세계 선발주자는
-무라타이고 FC-BGA는 이비덴·신코덴키다. 이들의 배수 없이는 "삼성전기가 이 업종에서
-어디쯤 있는가"에 절반만 답한 것이다.
+`stockanalysis.com`이 허용 목록에 추가돼 열렸다(`query1.finance.yahoo.com`도 함께).
+`tools/peer_fetch.py --foreign`이 다섯 종목을 수집한다.
 
-**막힌 이유.** 이 컨테이너의 이그레스 정책이 해외 시세 출처를 전부 막고 있다.
-2026-08-28에 20개 호스트를 확인했고 **현재 열려 있는 것은 두 곳뿐**이다 —
-`dart.fss.or.kr`(공시)과 `comp.wisereport.co.kr`(국내 시세). 나머지는 전부
-프록시가 CONNECT에 403을 돌려준다(= 정책 거부).
+| 종목 | 구분 | EV/EBITDA (TTM) | PER | Forward PE | 1Y |
+|---|---|---|---|---|---|
+| 무라타 (TYO:6981) | MLCC | 23.5 | 50.8 | 34.8 | +204.8% |
+| 야게오 (TPE:2327) | MLCC | 24.5 | 37.4 | 22.0 | +337.4% |
+| TDK (TYO:6762) | MLCC·부품 | 11.3 | 25.2 | 22.3 | +61.7% |
+| 이비덴 (TYO:4062) | FC-BGA | 39.1 | 86.6 | 62.1 | +450.1% |
+| 신코덴키 (TYO:6967) | FC-BGA | 14.3 | 44.6 | 28.5 | +4.9% |
+
+**읽을 때의 제약 두 가지.**
+
+- 출처가 국내(WISEreport)와 해외(stockanalysis)로 갈린다. EBITDA 정의와 기준일이
+  달라 **국내끼리·해외끼리만** 나란히 놓는다. 교차 비교는 방향을 읽는 데 쓰고
+  소수점을 다투지 않는다.
+- 해외 EV/EBITDA는 TTM이라 국내 "실적(A)" 열과 성격이 같다. 해외 "PER (E)"는
+  당해 컨센서스가 아니라 Forward PE다.
+- 시가총액은 현지 통화 그대로 둔다. 원화로 환산하면 환율 기준일이 하나 더 늘고
+  대사할 것도 하나 더 늘어난다. 비교에 필요한 것은 배수뿐이다.
+
+**검산.** 수집기가 EV ÷ EBITDA를 직접 계산해 사이트가 표기한 배수와 대조한다.
+2% 넘게 어긋나면 파싱이 틀린 것으로 보고 표시한다. 다섯 종목 전부 통과했다.
+
+**갱신.**
 
 ```
-$ python3 tools/peer_fetch.py --probe
-  차단  무라타 6981.T     CONNECT tunnel failed, response 403
-  차단  TDK 6762.T        CONNECT tunnel failed, response 403
-  차단  야게오 2327.TW     CONNECT tunnel failed, response 403
-  차단  이비덴 4062.T      CONNECT tunnel failed, response 403
-  차단  신코덴키 6967.T     CONNECT tunnel failed, response 403
-  차단  investing.com     ·  marketwatch  ·  finviz
-  차단  JPX (도쿄증권)     ·  네이버 해외증시
+python3 tools/peer_fetch.py --probe              # 출처 도달 확인
+python3 tools/peer_fetch.py --foreign            # 표로 보기
+python3 tools/peer_fetch.py --foreign --json     # data.js에 옮길 값
 ```
 
-같이 막혀 있는 것들: `finance.yahoo.com`, `stockanalysis.com`, `reuters.com`,
-`wsj.com`, `google.com/finance`, `finance.naver.com`, `data.krx.co.kr`,
-그리고 각 회사의 IR 사이트(`murata.com`, `global.tdk.com`, `ibiden.co.jp`,
-`yageo.com`, `shinko.co.jp`)까지.
+### 아직 막혀 있는 것
 
-403은 정책 거부다. 우회하지 않고 비워 뒀다 — `PEERS.missing`에 그 사실을 적어
-심사 화면에도 공백이 드러나게 했다.
-
-**여는 방법 (둘 중 하나).**
-
-1. **환경 네트워크 정책 허용 목록에 한 줄을 추가한다.** DART를 열었을 때와 같은 절차다
-   (claude.ai → 이 환경 설정 → 네트워크 허용 목록).
-
-   | 우선순위 | 호스트 | 이유 |
-   |---|---|---|
-   | 1 | `stockanalysis.com` | HTML 한 장에 EV/EBITDA·PER·PBR이 다 있다. 파서가 가장 짧다 |
-   | 2 | `query1.finance.yahoo.com` | JSON API. 시세·시총은 정확하나 EV/EBITDA는 별도 모듈 호출이 필요하다 |
-   | 3 | `www.investing.com` | 종목 페이지에 배수가 있으나 봇 차단이 있어 파싱이 불안정하다 |
-
-   추가한 뒤 `python3 tools/peer_fetch.py --probe`로 확인한다. "도달"이 뜨면
-   그때 파서를 붙인다. 하나만 열려도 다섯 종목을 전부 채울 수 있다.
-
-2. 값을 직접 넣는다. `data.js`의 `PEERS.list`에 아래 형태로 추가하고
-   `market`·`source`·`asOf`를 반드시 함께 적는다.
-
-   ```js
-   {market:'해외', code:'6981.T', name:'무라타', group:'MLCC',
-    mktcap:null,            // 통화가 달라 비워 둔다. 비교는 배수로만 한다
-    evEbitda:[null, null, null], per:[null, null, null], ret1y:null},
-   ```
-
-   `mktcap`을 원화로 환산해 넣지 않는다. 환율 기준일이 하나 더 늘어나면
-   대사할 것이 하나 더 늘어난다. 비교에 필요한 것은 배수뿐이다.
-
-**주의.** 검색 스니펫으로 채우지 않는다. 이 레포에서 이미 세 번 틀렸다
-(FY2021 매출, FY2022 영업이익, 시가총액). 원문 아니면 비워 둔다.
+`investing.com` · `marketwatch.com` · `finviz.com` · `jpx.co.jp` ·
+`m.stock.naver.com` 은 여전히 403이다. 지금은 필요하지 않다 —
+`stockanalysis.com` 하나로 다섯 종목이 다 채워졌다.
