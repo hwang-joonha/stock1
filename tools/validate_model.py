@@ -170,10 +170,55 @@ def g6_unused(rep: dict) -> Result:
 
 
 # ── G7 ────────────────────────────────────────────────────────
-def g7_excel(rep: dict) -> Result:
-    """HTML 산출값과 Excel 수식 평가값의 셀 단위 대사."""
+def g7_excel(html_path: str, rep: dict) -> Result:
+    """HTML 산출값과 Excel 수식 평가값을 셀 단위로 대사한다.
+
+    Excel을 만들고 끝내면 수식이 옳은지 아무도 모른다. 만든 파일의 셀 수식을
+    셀 참조를 따라가며 다시 계산해, HTML 엔진의 산출값과 같은지 확인한다.
+    행 배치가 어긋났거나 PREV가 엉뚱한 열을 가리키면 여기서 갈라진다.
+    """
     r = Result("G7", "HTML ↔ Excel 대사")
-    return r.skip("build_excel.py 미구현 — Phase 3에서 연결")
+    try:
+        import openpyxl  # noqa: F401
+    except ImportError:
+        return r.skip("openpyxl 미설치 — pip install openpyxl")
+
+    from build_excel import DATA_COL0, build
+    from xlsx_eval import Evaluator, FormulaError
+    from openpyxl import load_workbook
+    from openpyxl.utils import get_column_letter
+
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as fh:
+        tmp = fh.name
+    try:
+        payload = build(html_path, tmp)
+        wb = load_workbook(tmp)
+        ev = Evaluator(wb, "Model")
+        bad, worst, cells = [], 0.0, 0
+        for node_id in payload["order"]:
+            row = payload["rowMap"][node_id]
+            want = payload["nodes"][node_id]["values"]
+            for i in range(len(payload["YRS"])):
+                addr = f"{get_column_letter(DATA_COL0 + i)}{row}"
+                try:
+                    got = ev.cell("Model", addr)
+                except FormulaError as e:
+                    bad.append(f"{node_id}@{payload['YRS'][i]}: {e}")
+                    continue
+                cells += 1
+                d = abs(got - want[i])
+                scale = max(1.0, abs(want[i]))
+                worst = max(worst, d / scale)
+                if d / scale > 1e-9:
+                    bad.append(f"{node_id}@{payload['YRS'][i]} "
+                               f"xlsx {got:,.4f} ≠ html {want[i]:,.4f}")
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+    if bad:
+        return r.fail(_fmt_cells(bad))
+    return r.ok(f"{cells}셀 일치 · 최대 상대오차 {worst:.1e}")
 
 
 # ── G8 ────────────────────────────────────────────────────────
@@ -279,7 +324,7 @@ def validate(html_path: str, skip_golden: bool = False) -> list[Result]:
         g4_defaults(rep),
         g5_lengths(rep),
         g6_unused(rep),
-        g7_excel(rep),
+        g7_excel(html_path, rep),
         g8_structure(html_path, rep),
         g_desc_tags(rep),
     ]

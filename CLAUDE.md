@@ -23,8 +23,11 @@ templates/
 tools/
   make_template.py    예시 → 템플릿 재생성 (엔진 패치가 여기 산다)
   build_model.py      템플릿 + data.js → model.html
-  validate_model.py   검증 게이트
+  build_excel.py      model.html → model.xlsx (수식 내장)
+  validate_model.py   검증 게이트 G1~G10
   harness.py          모델을 Node에서 평가 (브라우저 없이)
+  xlsx_eval.py        xlsx 셀 수식 독립 평가 (G7용)
+  dart_fetch.py       DART 공시 원문 추출
   extract_engine.py   HTML에서 JS 선언 추출
   fixtures/           Tesla 회귀 고정 데이터·골든값
 companies/<종목>/
@@ -45,7 +48,10 @@ vi companies/samsung-em/data.js
 # 2. 빌드
 python3 tools/build_model.py companies/samsung-em/data.js
 
-# 3. 검증 — 전 게이트 통과해야 함
+# 3. Excel
+python3 tools/build_excel.py companies/samsung-em/model.html
+
+# 4. 검증 — 전 게이트 통과해야 함
 python3 tools/validate_model.py companies/samsung-em/model.html
 ```
 
@@ -85,7 +91,7 @@ python3 tools/validate_model.py --all   # G9가 Tesla 회귀를 잡는다
 | 0 | 엔진 정비 — 템플릿 추출, P0 결함 수정, 검증 게이트 | 완료 |
 | 1 | 매출 레이어 — 삼성전기 3개 부문 | 완료 |
 | 2 | 비용 · 영업이익 | 완료 |
-| 3 | 밸류에이션 · 심사 뷰 · 시나리오 | 완료 (Excel·스킬화는 남음) |
+| 3 | 밸류에이션 · 심사 뷰 · 시나리오 · Excel · 스킬화 | 완료 |
 
 ### Phase 1 결과
 
@@ -104,6 +110,15 @@ python3 tools/validate_model.py --all   # G9가 Tesla 회귀를 잡는다
 **주의 — 회계 기준 변경**: 통신모듈 중단영업 분류로 2022·2023이 소급 재작성됐다.
 차이는 전액 광학 부문(총매출의 0.19%)이며 모델은 2021~2022 최초 공시,
 2023~2025 재작성 기준을 쓴다. `historicals.json`의 `_기준` 참조.
+
+### Phase 3 결과 (2차)
+
+- `tools/build_excel.py` — 8시트 Excel. 수식 변환은 JS `astToExcel`이 정본이고
+  파이썬은 배치만 한다. 변환기가 둘이 되면 G7이 자기 자신을 검사하게 된다.
+- **게이트 G7 통과** — 42노드 × 10년 = 420셀, `xlsx_eval.py`가 셀 수식을
+  참조를 따라가며 재계산해 대사. 오차 0. **이제 건너뛰는 게이트가 없다.**
+- CDN 스크립트 3종과 웹폰트 2종 제거 — `model.html`이 **외부 요청 0건**으로 동작
+- `.claude/skills/ic-model/SKILL.md` — 종목명을 주면 이 파이프라인이 돈다
 
 ### Phase 3 결과
 
@@ -157,8 +172,11 @@ python3 tools/validate_model.py --all   # G9가 Tesla 회귀를 잡는다
 
 ### 남은 결함
 
-| 등급 | 내용 |
-|---|---|
-| P1 | CDN 3종 의존 — 오프라인에서 Excel·JSON 버튼이 죽는다 (미해결) |
-| P1 | Excel 생성 경로 이중화 — 정본을 정해야 한다 (미해결) |
-| P2 | Chart.js를 로드만 하고 쓰지 않는다 — 제거 대상 |
+전부 해결됐다.
+
+| 등급 | 내용 | 해결 |
+|---|---|---|
+| P1 | CDN 3종 의존 | 스크립트·웹폰트 전부 제거. `model.html`이 외부 요청 0건으로 동작 |
+| P1 | Excel 생성 경로 이중화 | `tools/build_excel.py`를 정본으로. 수식 변환은 JS `astToExcel`이 정본이고 파이썬은 배치만 |
+| P2 | Chart.js 미사용 로드 | 제거 |
+| P2 | 구성비 분모 | 뺄셈 루트에서 자식 절대값 합 사용 |

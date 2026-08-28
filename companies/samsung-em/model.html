@@ -7,11 +7,11 @@
 <style>
 
 /* Financial Modeling DS — fonts (Outfit for heading, Pretendard for body). 토큰: design-guide/tokens.js */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
-@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+/* 웹폰트를 받아오지 않는다. 설치돼 있으면 쓰고, 없으면 시스템 한글 폰트로
+   떨어진다 — 아래 폴백 스택이 그 역할을 한다. */
 *{margin:0;padding:0;box-sizing:border-box}
 /* light.bg #FFFFFF, light.surface #F8F8FA, text.light.primary #0F0F12 */
-body{font-family:'Pretendard',-apple-system,sans-serif;background:#F8F8FA;color:#0F0F12;overflow:hidden;height:100vh;width:100vw}
+body{font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',-apple-system,system-ui,sans-serif;background:#F8F8FA;color:#0F0F12;overflow:hidden;height:100vh;width:100vw}
 canvas#c{display:block;width:100%;height:100%}
 .hud{position:fixed;z-index:100;background:#FFFFFF;border:1px solid #E5E5E8;border-radius:6px;padding:6px 12px;font-size:11px;color:#4B5563;box-shadow:0 2px 8px rgba(0,0,0,.06);user-select:none}
 .top-bar{top:12px;left:50%;transform:translateX(-50%);display:flex;gap:6px;align-items:center;max-width:calc(100vw - 28px);overflow-x:auto;overflow-y:hidden;white-space:nowrap}
@@ -452,9 +452,8 @@ ul.memo li{font-size:13px;color:#4B5563;line-height:1.75;margin-bottom:6px}
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<!-- 외부 스크립트 없음. 이 파일은 네트워크 없이 완전히 동작한다.
+     Excel은 tools/build_excel.py가 만든다 (검증 게이트 G7이 셀 단위로 대사). -->
 <script>
 
 // ============================================================
@@ -4912,7 +4911,18 @@ function initShell(){
   renderIdentity();
   document.getElementById('btnPL').onclick = function(){ go('pl'); };
   document.getElementById('simBtn').onclick = function(){ toggleSim(); };
-  document.getElementById('btnXlsx').onclick = function(){ exportToExcel(); };
+  document.getElementById('btnXlsx').onclick = function(){
+    // 브라우저 내 생성 경로는 CDN 라이브러리에 의존해 오프라인에서 죽었다.
+    // Excel 정본은 파이프라인이 만든다. 여기서는 그 사실을 알려준다.
+    if(typeof XLSX === 'undefined'){
+      alert('Excel은 모델과 함께 빌드됩니다.\n\n' +
+            '  python3 tools/build_excel.py <이 파일 경로>\n\n' +
+            '같은 폴더의 model.xlsx를 여세요. 수식이 그대로 들어 있고, ' +
+            '검증 게이트 G7이 이 화면의 값과 셀 단위로 대사합니다.');
+      return;
+    }
+    exportToExcel();
+  };
   document.getElementById('btnJson').onclick = function(){ exportToJSON(); };
   document.getElementById('btnReset').onclick = function(){ resetToDraft(); };
   document.getElementById('menuBtn').onclick = function(){ document.getElementById('sidebar').classList.toggle('open'); };

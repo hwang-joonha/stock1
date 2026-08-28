@@ -448,6 +448,59 @@ function initShell(){
 # ─────────────────────────────────────────────────────────────
 
 
+
+# ─────────────────────────────────────────────────────────────
+# P1-4  CDN 의존 제거
+#
+# 외부 스크립트 3종(Chart.js · xlsx-js-style · JSZip)을 CDN에서 받아 썼다.
+# 오프라인·사내망에서 로드가 막히면 내보내기 버튼이 조용히 죽는다.
+# 투자심사 자료는 그런 환경에서 열리는 일이 잦다.
+#
+#   Chart.js   로드만 하고 쓰지 않았다. 차트는 자체 SVG 렌더러다. 삭제.
+#   xlsx·JSZip 브라우저 내 Excel 생성에만 쓰였다. Excel 정본을
+#              tools/build_excel.py로 옮겼으므로(G7이 대사한다) 삭제.
+#
+# 결과: model.html이 외부 요청 없이 완전히 동작한다.
+# ─────────────────────────────────────────────────────────────
+
+# 웹폰트도 외부 요청이다. 없어도 시스템 한글 폰트로 정상 렌더되므로,
+# 폴백 스택을 제대로 세우고 @import를 걷어낸다.
+OLD_FONT_IMPORT = """@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+"""
+
+NEW_FONT_IMPORT = """/* 웹폰트를 받아오지 않는다. 설치돼 있으면 쓰고, 없으면 시스템 한글 폰트로
+   떨어진다 — 아래 폴백 스택이 그 역할을 한다. */
+"""
+
+OLD_BODY_FONT = """body{font-family:'Pretendard',-apple-system,sans-serif;"""
+NEW_BODY_FONT = """body{font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',-apple-system,system-ui,sans-serif;"""
+
+OLD_CDN = """<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+"""
+
+NEW_CDN = """<!-- 외부 스크립트 없음. 이 파일은 네트워크 없이 완전히 동작한다.
+     Excel은 tools/build_excel.py가 만든다 (검증 게이트 G7이 셀 단위로 대사). -->
+"""
+
+# Excel 버튼은 남기되, 라이브러리가 없으면 무엇을 해야 하는지 알려준다.
+OLD_XLSX_BTN = """  document.getElementById('btnXlsx').onclick = function(){ exportToExcel(); };"""
+
+NEW_XLSX_BTN = """  document.getElementById('btnXlsx').onclick = function(){
+    // 브라우저 내 생성 경로는 CDN 라이브러리에 의존해 오프라인에서 죽었다.
+    // Excel 정본은 파이프라인이 만든다. 여기서는 그 사실을 알려준다.
+    if(typeof XLSX === 'undefined'){
+      alert('Excel은 모델과 함께 빌드됩니다.\\n\\n' +
+            '  python3 tools/build_excel.py <이 파일 경로>\\n\\n' +
+            '같은 폴더의 model.xlsx를 여세요. 수식이 그대로 들어 있고, ' +
+            '검증 게이트 G7이 이 화면의 값과 셀 단위로 대사합니다.');
+      return;
+    }
+    exportToExcel();
+  };"""
+
 # ─────────────────────────────────────────────────────────────
 # IC  투자심사 뷰
 #
@@ -903,6 +956,10 @@ def main() -> None:
     p.sub("P1-1 assumptions bfmt 제거", OLD_ASSUM_FMT, NEW_ASSUM_FMT)
     p.sub("P1-1 excel 숫자서식", OLD_EXCEL_FMT, NEW_EXCEL_FMT)
     p.sub("P1-1 footSub 마크업", OLD_FOOTSUB, NEW_FOOTSUB)
+    p.sub("P1-4 웹폰트 @import 제거", OLD_FONT_IMPORT, NEW_FONT_IMPORT)
+    p.sub("P1-4 본문 폰트 폴백", OLD_BODY_FONT, NEW_BODY_FONT)
+    p.sub("P1-4 CDN 스크립트 제거", OLD_CDN, NEW_CDN)
+    p.sub("P1-4 Excel 버튼 안내", OLD_XLSX_BTN, NEW_XLSX_BTN)
     p.sub("IC-2 시나리오 프리셋", OLD_CASES, NEW_CASES)
     p.sub("IC 음수 허용 플래그", OLD_NEG, NEW_NEG)
     p.sub("IC 뷰 라우팅", OLD_RENDER_VIEW, NEW_RENDER_VIEW)

@@ -41,10 +41,17 @@ ENGINE_NAMES = [
     "isSumOfChildren",
     "unusedInputs",
     "val",
+    "isMoney",
+    "fmtSmart",
+    "astToExcel",
+    "_colLetter",
+    "_excelNumberFormat",
+    "depthOf",
+    "pathOf",
 ]
 
 # 템플릿 세대에만 있는 선언. 패치 전 원본에는 없으므로 없어도 넘어간다.
-OPTIONAL_NAMES = {"META", "UNITS", "evalAstAt"}
+OPTIONAL_NAMES = {"META", "UNITS", "evalAstAt", "MARKET", "MEMO", "SCENARIOS"}
 
 # 마커가 없는 파일(패치 전 원본)은 이름 단위로 되돌아간다.
 LEGACY_DATA_NAMES = ["META", "YRS", "HIST_N", "UNITS", "MODEL"]
@@ -92,6 +99,52 @@ report.orphans = Object.keys(MODEL).filter(k => !reach[k]);
 process.stdout.write(JSON.stringify(report));
 """
 
+_EXCEL_EPILOGUE = """
+for (const k in DEFAULTS_S) SV[k] = DEFAULTS_S[k].slice();
+TREE = buildTree();
+GRAPH = buildGraph();
+INPUT_KEYS = new Set(Object.keys(MODEL).filter(k => MODEL[k].type === 'input'));
+simCalc();
+
+// 계정 트리 순서 — 화면과 같은 순서로 시트를 만든다.
+const order = [];
+(function walk(id, depth) {
+  order.push(id);
+  childrenOf(id).forEach(c => walk(c, depth + 1));
+})(rootId(), 0);
+
+// 행 배치는 파이썬과 약속된 값이다. 여기서 정하고 수식도 여기서 만든다.
+const DATA_ROW0 = 5;                       // 1행부터 4행은 머리말
+const rowMap = {};
+order.forEach((id, i) => { rowMap[id] = DATA_ROW0 + i; });
+
+const out = {
+  YRS, HIST_N, order, rowMap, dataRow0: DATA_ROW0,
+  meta: (typeof META === 'object' && META) ? META : {},
+  units: (typeof UNITS === 'object' && UNITS) ? UNITS : {},
+  nodes: {}, formulas: {},
+};
+order.forEach(id => {
+  const d = MODEL[id];
+  out.nodes[id] = {
+    label: d.label || id, sub: d.sub || '', unit: d.u || '',
+    type: d.type, formula: d.formula || '', desc: d.desc || '',
+    pct: d.pct ? 1 : 0, depth: depthOf(id), isSum: isSumOfChildren(id) ? 1 : 0,
+    values: (d.v || []).slice(),
+    numfmt: _excelNumberFormat(d),
+  };
+  if (d.type === 'computed' && d._ast) {
+    const fs = [];
+    for (let t = 0; t < YRS.length; t++) {
+      try { fs.push('=' + astToExcel(d._ast, t, rowMap)); }
+      catch (e) { fs.push(null); }
+    }
+    out.formulas[id] = fs;
+  }
+});
+process.stdout.write(JSON.stringify(out));
+"""
+
 
 def data_block(html_path: str) -> str:
     """데이터 블록을 통째로 돌려준다. 마커가 없으면 이름 단위로 뽑는다."""
@@ -104,18 +157,18 @@ def data_block(html_path: str) -> str:
     return extract(html_path, LEGACY_DATA_NAMES, OPTIONAL_NAMES)
 
 
-def build_script(html_path: str) -> str:
+def build_script(html_path: str, epilogue: str = _EPILOGUE) -> str:
     """모델 HTML에서 Node 실행용 JS 소스를 만든다."""
     engine = data_block(html_path) + "\n\n" + extract(
         html_path, ENGINE_NAMES, OPTIONAL_NAMES)
     # 선언은 원문 그대로 두되, 재할당이 필요한 것만 let으로 완화한다.
     engine = engine.replace("const SV=", "var _unused_SV=")
-    return _PRELUDE + engine + _EPILOGUE
+    return _PRELUDE + engine + epilogue
 
 
-def run(html_path: str) -> dict:
+def run(html_path: str, epilogue: str = _EPILOGUE) -> dict:
     """모델을 평가하고 노드별 산출값·에러를 담은 dict를 돌려준다."""
-    script = build_script(html_path)
+    script = build_script(html_path, epilogue)
     with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False,
                                      encoding="utf-8") as fh:
         fh.write(script)
@@ -127,6 +180,15 @@ def run(html_path: str) -> dict:
         return json.loads(proc.stdout)
     finally:
         os.unlink(tmp)
+
+
+def excel_payload(html_path: str) -> dict:
+    """Excel 빌드에 필요한 것 일체 — 행 배치, 셀 수식, 값, 서식.
+
+    수식 변환은 JS의 astToExcel이 정본이다. 파이썬에 같은 변환기를 두면
+    둘이 갈라지고, 갈라지는 순간 G7 대사가 자기 자신을 검사하게 된다.
+    """
+    return run(html_path, _EXCEL_EPILOGUE)
 
 
 if __name__ == "__main__":
