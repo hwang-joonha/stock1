@@ -4814,6 +4814,18 @@ function renderSummary(){
 // 마지막 추정 연도 인덱스
 function icLastIdx(){ return YRS.length - 1; }
 
+// 매출 노드를 찾는다. 엔진이 'total_revenue'라는 이름을 전제하고 있었고,
+// 단일 제품 회사(노드명 'revenue')에서 리포트가 매출 대신 루트를 그렸다.
+// 세 번째 종목을 태우다 발견했다 — 이름을 전제하지 않고 관례를 순서대로 찾는다.
+// META.revenueNode로 명시할 수도 있다.
+function revenueId(){
+  if(typeof META === 'object' && META && META.revenueNode && MODEL[META.revenueNode])
+    return META.revenueNode;
+  var conv = ['total_revenue', 'revenue', 'sales', 'total_sales', 'net_sales'];
+  for(var i = 0; i < conv.length; i++) if(MODEL[conv[i]]) return conv[i];
+  return rootId();
+}
+
 // 적정가치와 현재 시총의 괴리. 모델 루트가 시가총액일 때만 뜻이 있다.
 function icUpside(t){
   if(typeof MARKET !== 'object' || !MARKET || !MARKET.mktcap) return null;
@@ -5015,7 +5027,8 @@ function renderICScenario(){
   h += '<div class="notice">Base = 초안값 그 자체 · 시뮬레이터 케이스 바에서 전환 시 모델에 적용. ' +
     '시나리오는 <b>[주관] 노드만</b> 변경 — 공시 확정 실적은 전 케이스 동일.</div>';
 
-  var want = ['total_revenue', 'op_profit', 'ebitda', rootId()];
+  var revId = revenueId();
+  var want = [revId, 'op_profit', 'ebitda', rootId()];
   var cases = [{ name:'Base', ov:null }];
   for(var nm in SCENARIOS) cases.push({ name:nm, ov:SCENARIOS[nm] });
   var solved = cases.map(function(c){ return icSolve(c.ov, want, t); });
@@ -5027,9 +5040,9 @@ function renderICScenario(){
     var up = mc ? s[rootId()] / mc - 1 : null;
     var tone = c.name === 'Base' ? ' class="hl"' : '';
     rows += '<tr' + tone + '><td><b>' + esc(c.name) + '</b></td>' +
-      '<td>' + esc(fmtSmart(s.total_revenue)) + '</td>' +
+      '<td>' + esc(fmtSmart(s[revId])) + '</td>' +
       '<td>' + esc(fmtSmart(s.op_profit)) + '</td>' +
-      '<td>' + (s.total_revenue ? (s.op_profit / s.total_revenue * 100).toFixed(1) + '%' : '—') + '</td>' +
+      '<td>' + (s[revId] ? (s.op_profit / s[revId] * 100).toFixed(1) + '%' : '—') + '</td>' +
       '<td>' + esc(fmtSmart(s.ebitda)) + '</td>' +
       '<td>' + esc(fmtSmart(s[rootId()])) + '</td>' +
       (up === null ? '<td>—</td>'
@@ -5176,7 +5189,7 @@ function icYtdCard(last){
   if(yi < 0) return '';
   var ks = qKeys().filter(function(k){ return qYear(k) === y; });
   var rows = '', pace = n / 4;
-  [['매출', 'total_revenue'], ['영업이익', 'op_profit']].forEach(function(pair){
+  [['매출', revenueId()], ['영업이익', 'op_profit']].forEach(function(pair){
     var metric = pair[0], id = pair[1];
     if(!MODEL[id]) return;
     var ytd = 0, ok = true;
@@ -5448,7 +5461,11 @@ function icSvgBars(labels, values, opts){
       g += '<circle cx="' + xy[0] + '" cy="' + xy[1] + '" r="2.4" fill="' + ICV.neg + '"/>';
     });
     g += _t(L + iw + 6, T + 8, opts.lineLabel || '', 8.5, ICV.neg, 'start', 700);
-    g += _t(L + iw + 6, T + 19, (lmax * 100).toFixed(0) + '%', 8.5, '#9CA3AF', 'start');
+    // 선 축의 최댓값 표기. 비율 계열이면 %, 아니면 그냥 숫자다 —
+    // 단가처럼 비율이 아닌 계열에 %를 붙이면 "2000%" 같은 글자가 뜬다.
+    g += _t(L + iw + 6, T + 19,
+      opts.linePct === false ? fmtSmart(lmax) : (lmax * 100).toFixed(0) + '%',
+      8.5, '#9CA3AF', 'start');
   }
   return icSvg(W, H, g);
 }
@@ -5727,7 +5744,7 @@ function renderICReport(){
   }
 
   // 3. 실적과 추정
-  var rev = MODEL.total_revenue ? 'total_revenue' : rootId();
+  var rev = revenueId();
   var body = icNodeRow(rev, null, 'total') +
     icCalcRow('YoY', icYoY(rev)) +
     icNodeRow('op_profit') +
@@ -5753,7 +5770,7 @@ function renderICReport(){
       '<div class="table-wrap"><table class="fm">' + icYearHead() + body + '</table></div>'));
 
   // 4. 부문별
-  if(MODEL.total_revenue){
+  if(childrenOf(revenueId()).length){
     // 부문 아래 자식은 대부분 가정변수(성장률·실적 오버라이드)라 리포트에 넣으면
     // 0.0% 행만 늘어난다. 금액 단위의 계산 노드만 편다.
     var moneyKids = function(id){
@@ -5761,11 +5778,15 @@ function renderICReport(){
         return MODEL[c].type !== 'input' && isMoney(MODEL[c].u);
       });
     };
-    var seg = childrenOf('total_revenue'), srows = '';
+    var seg = childrenOf(revenueId()), srows = '';
     seg.forEach(function(sid){
       srows += icNodeRow(sid, null, 'total');
       srows += icCalcRow('  YoY', icYoY(sid));
-      moneyKids(sid).forEach(function(c){ srows += icNodeRow(c, '  ' + (MODEL[c].label || c)); });
+      // 곱셈 분해에서는 자식이 금액이 아니라 물량·단가다. 금액만 걸러내면
+      // 정작 봐야 할 행이 사라지므로, 계산 노드는 단위와 무관하게 편다.
+      childrenOf(sid).filter(function(c){
+        return MODEL[c].type !== 'input' || !isMoney(MODEL[sid].u);
+      }).forEach(function(c){ srows += icNodeRow(c, '  ' + (MODEL[c].label || c)); });
     });
     // 비용은 별도 트리에 있다. 부문 매출만 보여주면 마진 이야기를 할 수 없다.
     if(MODEL.total_cost){
@@ -5778,16 +5799,39 @@ function renderICReport(){
       });
     }
     if(srows){
-      var mixSeries = seg.map(function(sid){
-        return { name:MODEL[sid].label || sid,
-                 values:YRS.map(function(_, i){ return val(sid, i); }) };
-      });
-      h += icSec('04', '부문별 전개',
-        '매출과 그 아래 원가 구성 · 부문 합계는 연결 수치와 오차 0으로 일치',
-        icChartCard('부문 구성비', '100% 스택 · ' + YRS[0] + '~' + YRS[HIST_N - 1] +
-          ' 실적, 이후 모델 추정', icSvgStack(YRS, mixSeries)) +
-        card('', '', UNITS.money,
-          '<div class="table-wrap"><table class="fm">' + icYearHead('부문') + srows + '</table></div>'));
+      // 구성비 스택은 매출이 자식들의 **합**일 때만 뜻이 있다. Q×P처럼 곱셈으로
+      // 분해되는 모델에서는 단위가 다른 두 계열을 100%로 쌓는 무의미한 그림이 된다.
+      // 세 번째 종목(단일 제품 Q×P)에서 실제로 그렇게 그려졌다.
+      var revIsSum = isSumOfChildren(revenueId()), chart = '', secTitle, secDesc;
+      if(revIsSum){
+        secTitle = '부문별 전개';
+        secDesc = '매출과 그 아래 원가 구성 · 부문 합계는 연결 수치와 오차 0으로 일치';
+        chart = icChartCard('부문 구성비', '100% 스택 · ' + YRS[0] + '~' + YRS[HIST_N - 1] +
+          ' 실적, 이후 모델 추정',
+          icSvgStack(YRS, seg.map(function(sid){
+            return { name:MODEL[sid].label || sid,
+                     values:YRS.map(function(_, i){ return val(sid, i); }) };
+          })));
+      } else {
+        // 곱셈 분해 — 첫 자식을 막대로, 둘째를 선으로. 물량과 단가를 한 그림에 둔다.
+        secTitle = '매출 분해';
+        secDesc = MODEL[revenueId()].sub || (seg.map(function(x){
+          return MODEL[x].label || x; }).join(' × '));
+        if(seg.length >= 2){
+          chart = icChartCard(secDesc,
+            '막대 = ' + (MODEL[seg[0]].label || seg[0]) +
+            ' · 선 = ' + (MODEL[seg[1]].label || seg[1]),
+            icSvgBars(YRS, YRS.map(function(_, i){ return val(seg[0], i); }), {
+              histN:HIST_N,
+              line:YRS.map(function(_, i){ return val(seg[1], i); }),
+              lineLabel:MODEL[seg[1]].label || seg[1],
+              linePct:!!MODEL[seg[1]].pct }));
+        }
+      }
+      h += icSec('04', secTitle, secDesc,
+        chart + card('', '', UNITS.money,
+          '<div class="table-wrap"><table class="fm">' +
+          icYearHead(revIsSum ? '부문' : '항목') + srows + '</table></div>'));
     }
   }
 
@@ -5822,7 +5866,8 @@ function renderICReport(){
 
   // 7. 시나리오
   if(typeof SCENARIOS === 'object' && SCENARIOS){
-    var want = ['total_revenue', 'op_profit', 'ebitda', rootId()];
+    var rId = revenueId();
+    var want = [rId, 'op_profit', 'ebitda', rootId()];
     var cs = [{ name:'Base', ov:null }];
     for(var nm2 in SCENARIOS) cs.push({ name:nm2, ov:SCENARIOS[nm2] });
     var rws = '';
@@ -5830,7 +5875,7 @@ function renderICReport(){
       var sv = icSolve(c.ov, want, t);
       var u3 = mk ? sv[rootId()] / mk.mktcap - 1 : null;
       rws += '<tr' + (c.name === 'Base' ? ' class="hl"' : '') + '><td><b>' + esc(c.name) + '</b></td>' +
-        '<td>' + esc(fmtSmart(sv.total_revenue)) + '</td>' +
+        '<td>' + esc(fmtSmart(sv[rId])) + '</td>' +
         '<td>' + esc(fmtSmart(sv.op_profit)) + '</td>' +
         '<td>' + esc(fmtSmart(sv.ebitda)) + '</td>' +
         '<td>' + esc(fmtSmart(sv[rootId()])) + '</td>' +
