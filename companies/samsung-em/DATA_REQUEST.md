@@ -108,7 +108,9 @@ IR 자료·컨퍼런스콜에서 회사가 밝힌 비중. 없으면 추정으로
 어디쯤 있는가"에 절반만 답한 것이다.
 
 **막힌 이유.** 이 컨테이너의 이그레스 정책이 해외 시세 출처를 전부 막고 있다.
-확인 명령과 결과 (2026-08-28):
+2026-08-28에 20개 호스트를 확인했고 **현재 열려 있는 것은 두 곳뿐**이다 —
+`dart.fss.or.kr`(공시)과 `comp.wisereport.co.kr`(국내 시세). 나머지는 전부
+프록시가 CONNECT에 403을 돌려준다(= 정책 거부).
 
 ```
 $ python3 tools/peer_fetch.py --probe
@@ -117,18 +119,31 @@ $ python3 tools/peer_fetch.py --probe
   차단  야게오 2327.TW     CONNECT tunnel failed, response 403
   차단  이비덴 4062.T      CONNECT tunnel failed, response 403
   차단  신코덴키 6967.T     CONNECT tunnel failed, response 403
+  차단  investing.com     ·  marketwatch  ·  finviz
+  차단  JPX (도쿄증권)     ·  네이버 해외증시
 ```
+
+같이 막혀 있는 것들: `finance.yahoo.com`, `stockanalysis.com`, `reuters.com`,
+`wsj.com`, `google.com/finance`, `finance.naver.com`, `data.krx.co.kr`,
+그리고 각 회사의 IR 사이트(`murata.com`, `global.tdk.com`, `ibiden.co.jp`,
+`yageo.com`, `shinko.co.jp`)까지.
 
 403은 정책 거부다. 우회하지 않고 비워 뒀다 — `PEERS.missing`에 그 사실을 적어
 심사 화면에도 공백이 드러나게 했다.
 
 **여는 방법 (둘 중 하나).**
 
-1. 환경 네트워크 정책 허용 목록에 아래 중 하나를 추가한다. DART를 열었을 때와
-   같은 절차다.
-   - `stockanalysis.com` — HTML 한 장에 EV/EBITDA·PER·PBR이 다 있어 파서가 가장 짧다
-   - `query1.finance.yahoo.com` — JSON API. 시세·시총은 정확하나 EV/EBITDA는 별도 모듈
-   추가 후 `python3 tools/peer_fetch.py --probe`로 확인하고, 도달하면 파서를 붙인다.
+1. **환경 네트워크 정책 허용 목록에 한 줄을 추가한다.** DART를 열었을 때와 같은 절차다
+   (claude.ai → 이 환경 설정 → 네트워크 허용 목록).
+
+   | 우선순위 | 호스트 | 이유 |
+   |---|---|---|
+   | 1 | `stockanalysis.com` | HTML 한 장에 EV/EBITDA·PER·PBR이 다 있다. 파서가 가장 짧다 |
+   | 2 | `query1.finance.yahoo.com` | JSON API. 시세·시총은 정확하나 EV/EBITDA는 별도 모듈 호출이 필요하다 |
+   | 3 | `www.investing.com` | 종목 페이지에 배수가 있으나 봇 차단이 있어 파싱이 불안정하다 |
+
+   추가한 뒤 `python3 tools/peer_fetch.py --probe`로 확인한다. "도달"이 뜨면
+   그때 파서를 붙인다. 하나만 열려도 다섯 종목을 전부 채울 수 있다.
 
 2. 값을 직접 넣는다. `data.js`의 `PEERS.list`에 아래 형태로 추가하고
    `market`·`source`·`asOf`를 반드시 함께 적는다.

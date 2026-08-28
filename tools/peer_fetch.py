@@ -108,12 +108,20 @@ def parse(code: str, name: str, text: str) -> dict:
 # 국내 상장사만 다루고, 아래 출처들은 이 환경의 이그레스 정책이 막고 있다.
 # --probe 는 그 사실을 주장이 아니라 관측으로 남긴다.
 FOREIGN = [
+    # 해외 피어 종목 페이지
     ("무라타 6981.T",    "https://query1.finance.yahoo.com/v8/finance/chart/6981.T"),
     ("TDK 6762.T",       "https://stockanalysis.com/quote/tyo/6762/"),
     ("야게오 2327.TW",    "https://query1.finance.yahoo.com/v8/finance/chart/2327.TW"),
     ("이비덴 4062.T",     "https://stockanalysis.com/quote/tyo/4062/"),
     ("신코덴키 6967.T",   "https://query1.finance.yahoo.com/v8/finance/chart/6967.T"),
+    # 파서를 붙일 수 있는 후보 출처들. 하나라도 열리면 진행할 수 있다.
+    ("investing.com",    "https://www.investing.com"),
+    ("marketwatch",      "https://www.marketwatch.com"),
+    ("finviz",           "https://finviz.com"),
+    ("JPX (도쿄증권)",    "https://www.jpx.co.jp"),
+    ("네이버 해외증시",    "https://m.stock.naver.com"),
 ]
+
 
 
 def probe() -> int:
