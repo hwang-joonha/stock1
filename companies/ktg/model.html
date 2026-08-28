@@ -365,7 +365,26 @@ ul.memo li{font-size:13px;color:#4B5563;line-height:1.75;margin-bottom:6px}
 .rp-sec > h2{font-family:'Outfit',system-ui,sans-serif;font-size:15px;font-weight:600;
   margin:3px 0 3px;color:#0F0F12;letter-spacing:-.02em}
 .rp-sec > p.desc{font-size:10.5px;color:#6B7280;margin:0 0 11px;line-height:1.6}
-.rp-sec .card{margin-bottom:0}
+.rp-sec .card{margin-bottom:12px}
+.rp-sec .card:last-child{margin-bottom:0}
+
+/* 차트 — viewBox만 주고 폭은 여기서 잡는다. 인쇄·모바일에서 같이 줄어든다. */
+.icv{width:100%;height:auto;display:block}
+.chart-box{padding:2px 0}
+
+/* 강조 — 본문에서 결론에 해당하는 조각 하나만 굵게 */
+.hl-b{color:#0F0F12;font-weight:700}
+ul.memo ul.sub > li .hl-b{color:#374151}
+
+/* 타이포 위계 — 섹션 제목 > 카드 제목 > 본문 > 근거 */
+.rp-sec > h2{font-size:17px;letter-spacing:-.03em;color:#0F0F12}
+.rp-num{font-size:10px;letter-spacing:.14em}
+.rp .section-head h2{font-size:13.5px}
+.rp .section-head p{font-size:10px}
+.rp p.lead{font-size:13px;color:#1F2937;line-height:1.75;margin-bottom:12px}
+.rp ul.memo > li{font-size:12.5px}
+.rp ul.memo ul.sub > li{font-size:11.5px}
+table.fm td.q{font-weight:700;color:#0F0F12}
 
 /* 인쇄 — 리포트 뷰를 그대로 종이/PDF로 넘긴다. 셸은 전부 걷어낸다. */
 @media print{
@@ -921,138 +940,139 @@ const MODEL={
 // 모델 수치와 섞지 않는다. 산문 속 모델 숫자는 {{node@연도}}로 인용해
 // 그 자리에서 다시 읽는다 — 가정을 바꾸면 본문도 따라 바뀐다 (게이트 G11).
 const MEMO={
+  // 어투 규약 — 개조식. 종결은 "~함/~임/명사형". 결론은 명사구로 앞세움.
+  // **굵게** 는 그 항목의 결론 한 조각에만 씀.
   company:{
     sub:'무엇이 가치를 만드는가',
-    lead:'사실상 담배 회사다. 매출의 66%, 부문 영업이익의 86%가 담배에서 나온다. '
-        +'나머지 셋은 각자의 이유로 밸류에이션에 거의 기여하지 못한다.',
+    lead:'사실상 **담배 회사**. 매출의 66%, 부문 영업이익의 86%가 담배. '
+        +'나머지 셋은 각자의 이유로 밸류에이션 기여 미미.',
     points:[
-      {t:'담배 — 2025년 43,672억 (전사의 66%)', d:[
+      {t:'담배 — 43,672억, 전사의 **66%**', d:[
         '국내는 물량 감소·단가 상승으로 대체로 보합',
         '성장은 전부 해외 궐련 수출. 2024 +8.1%, 2025 +11.8%',
-        '이 모델의 결론이 사실상 이 숫자 하나에 달려 있다',
+        '이 모델의 결론이 사실상 이 숫자 하나에 종속',
       ]},
-      {t:'인삼 (정관장) — 11,370억 (17%)', d:[
-        '13,890억(2022)에서 2년 연속 감소 (−6.6%, −12.6%)',
-        '내수 건강기능식품 경쟁 심화 + 면세·중국 수요 부진',
+      {t:'인삼 (정관장) — 11,370억, 17% · **2년 연속 감소**', d:[
+        '13,890억(2022) 이후 −6.6%, −12.6%',
+        '내수 건기식 경쟁 심화 + 면세·중국 수요 부진',
         '부문 영업이익률 8%대 → 전사 이익 기여 7%',
       ]},
-      {t:'부동산 — 7,127억 (11%)', d:[
-        '분양 인식 시점에 따라 3,613~7,127억으로 출렁임',
-        '추세로 읽으면 안 되는 부문',
+      {t:'부동산 — 7,127억, 11% · 추세 판독 불가', d:[
+        '분양 인식 시점에 따라 3,613~7,127억 변동',
       ]},
-      {t:'기타 (의약품·화장품) — 3,628억 (6%)', d:[
-        '성장하지만 규모가 판단을 바꾸지 못한다',
+      {t:'기타 (의약품·화장품) — 3,628억, 6%', d:[
+        '성장하나 규모가 판단을 바꾸지 못함',
       ]},
-      {t:'재무 구조가 3년 만에 뒤집혔다', d:[
-        '순차입금 −12,455억(2022, 순현금) → 8,556억(2025, 순차입)',
-        '자사주 매입·배당 + 투자 확대가 겹친 결과',
-        '주주환원의 재원이 이제 이익에서만 나온다',
+      {t:'재무 구조 3년 만에 **순현금 → 순차입 전환**', d:[
+        '순차입금 −12,455억(2022) → 8,556억(2025)',
+        '자사주 매입·배당 + 투자 확대의 결과',
+        '주주환원 재원이 이제 이익에서만 발생',
       ]},
     ],
   },
   thesis:{
     sub:'무엇을 사는 것이고, 무엇이 맞아야 하는가',
-    lead:'"해외 궐련이 국내 담배의 구조적 감소를 상쇄하고도 남는다"에 거는 것이다. '
-        +'나머지 셋은 그 판단을 바꾸지 못한다.',
+    lead:'투자판단의 Key는 **해외 궐련**. "국내 담배의 구조적 감소를 상쇄하고도 남는가"에 '
+        +'거는 것이며, 나머지 셋은 그 판단을 바꾸지 못함.',
     points:[
-      {t:'예측 가능성이 이 종목의 강점', d:[
+      {t:'강점은 **예측 가능성**', d:[
         '4년간 영업이익률 19.9~21.7%',
         '기타비용률 74.3~75.8%',
-        '이 안정성이 DCF를 쓸 수 있게 하는 근거',
+        '이 안정성이 DCF 적용의 근거',
       ]},
-      {t:'Base는 담배 성장률을 체감시켰다', d:[
-        '7% → 3% (최근 2년은 +8.1%, +11.8%)',
-        '해외 진출 초기의 높은 성장률은 기저가 커지면 유지되지 않는다',
-        '이 가정이 이 모델에서 가장 중요한 판단',
+      {t:'Base는 담배 성장률을 체감 적용', d:[
+        '7% → 3% (최근 2년 실적은 +8.1%, +11.8%)',
+        '해외 진출 초기 고성장은 기저 확대 시 미유지',
+        '**이 모델에서 가장 중요한 판단**',
       ]},
-      {t:'그 결과', d:[
-        '2030 적정 시가총액 {{root@2030}}억, 현재 시가총액 대비 −31%',
-        '현재 가격은 본 모델보다 높은 해외 성장을 이미 전제하고 있다',
+      {t:'결과 — 현재가 대비 **−31%**', d:[
+        '2030 적정 시가총액 {{root@2030}}억',
+        '현재 가격은 본 모델보다 높은 해외 성장을 이미 전제',
       ]},
-      {t:'인삼은 밸류에이션에서 사실상 0', d:[
-        '반등하면 그만큼이 순수한 상방',
-        '다만 반등의 근거가 지금은 없다',
+      {t:'인삼은 밸류에이션상 사실상 0', d:[
+        '반등 시 그만큼이 순수 상방',
+        '단, 반등 근거는 현재 부재',
       ]},
     ],
   },
   valuation:{
-    sub:'DCF와 피어가 같은 방향을 가리킨다',
-    lead:'DCF는 −31%, 국내 필수소비재 피어 대비로는 2배 프리미엄이다. '
-        +'두 방향이 같아 판단은 비교적 단순하다 — 다만 프리미엄에는 이유가 있다.',
+    sub:'DCF와 피어가 같은 방향',
+    lead:'DCF **−31%**, 국내 필수소비재 피어 대비 **2배 프리미엄**. 두 방향이 일치해 '
+        +'판단은 비교적 단순 — 단, 프리미엄에는 이유가 있음.',
     points:[
       {t:'DCF Base (WACC 8.0% · 영구성장 1.0%)', d:[
         '2030 적정 시가총액 {{root@2030}}억, 주당 약 119,700원',
         '현재가 174,500원 대비 −31%',
       ]},
-      {t:'교차검증 — 독립 경로에서 나온 값이 맞는다', d:[
+      {t:'교차검증 — **0.8% 차이**', d:[
         '2025 영업이익 {{op_profit@2025}}억 + 감가상각 {{dep_total@2025}}억 = EBITDA 16,480억',
         'EV = 시가총액 + 순차입금 = 189,705억 → 11.51배',
-        'WISEreport 11.42배와 0.8% 차이',
+        'WISEreport 11.42배와 대조',
       ]},
       {t:'피어 대비 2배 프리미엄', d:[
         '국내 필수소비재 실적 기준 5.0~7.1배 (오리온 5.2 · 농심 5.0 · 롯데웰푸드 7.1 · 하이트진로 5.8)',
         'KT&G 11.4배',
       ]},
-      {t:'프리미엄의 근거는 셋', d:[
+      {t:'프리미엄의 근거 셋', d:[
         '해외 궐련이라는 성장축 — 실재',
         '필수소비재 중 압도적 이익률 (20%대 대 피어 5~10%대) — 실재',
-        '배당·자사주 중심 주주환원 — 순차입금이 늘어난 만큼 지속성에 물음표',
+        '배당·자사주 중심 주주환원 — 순차입 전환만큼 **지속성에 물음표**',
       ]},
-      {t:'WACC가 단일 최강 가정', d:[
+      {t:'**WACC가 단일 최강 가정**', d:[
         '삼성전기 모델의 목표배수에 해당하는 자리. 민감도 뷰에서 확인',
       ]},
     ],
   },
   verdict:{
     sub:'현 시점 판단',
-    lead:'본 모델의 가정 범위 안에서 현재 주가는 설명되지 않는다. 다만 괴리가 2~4배가 '
-        +'아니라 30% 수준이라, 가정 몇 개를 바꾸면 사라지는 크기다.',
+    lead:'본 모델 가정 범위 내에서 현재 주가는 설명되지 않음. 단, 괴리가 2~4배가 아니라 '
+        +'**30% 수준**이라 가정 몇 개로 소멸 가능한 크기.',
     points:[
-      {t:'−31%를 만든 것은 두 가정', d:[
+      {t:'−31%를 만든 것은 **두 가정**', d:[
         '담배 성장률 7% → 3%',
         'WACC 8%',
         '심사에서 다툴 것은 목표가가 아니라 이 둘',
       ]},
       {t:'신규 편입 검토 시', d:[
         '해외 궐련 매출의 분기 추이가 유일한 확인 경로',
-        '국내 담배는 규제·세제가 바꾸는 변수라 예측 대상이 아니다',
+        '국내 담배는 규제·세제 변수로 예측 대상 아님',
       ]},
-      {t:'보유 중이라면', d:[
-        '주주환원의 재원을 본다. 순현금 소진 상태에서 자사주 매입을 유지하려면 이익이 그만큼 나와야 한다',
+      {t:'보유 시', d:[
+        '주주환원 재원 확인. 순현금 소진 상태에서 자사주 매입 유지하려면 이익이 뒷받침되어야 함',
       ]},
-      {t:'Base가 보수적인 쪽임을 감안할 것', d:[
+      {t:'Base의 보수성 감안 필요', d:[
         '운전자본 변동 제외 (상방)',
         '인삼 반등 미반영 (상방)',
       ]},
     ],
   },
   bull:{
-    sub:'무엇이 맞으면 지금 가격이 정당화되는가',
+    sub:'무엇이 맞으면 현재 가격이 정당화되는가',
     points:[
-      '해외 궐련이 두 자릿수 성장 유지 — 본 모델은 7%→3%로 체감',
-      'NGP(전자담배)가 해외에서 유의미한 매출축으로 성장 — 본 모델에 별도 축 없음',
-      '인삼 부문이 감소를 멈추고 반등 — 지금은 사실상 0으로 취급',
-      'WACC 7% 수준이 타당한 경우 — 현금흐름 변동성을 감안하면 논쟁의 여지',
+      {t:'해외 궐련 두 자릿수 성장 유지', d:['본 모델은 7%→3%로 체감 적용']},
+      {t:'NGP(전자담배) 해외 매출축 형성', d:['본 모델에 별도 축 없음']},
+      {t:'인삼 부문 감소 중단·반등', d:['현재 사실상 0으로 취급']},
+      {t:'WACC 7% 수준이 타당한 경우', d:['현금흐름 변동성 감안 시 논쟁의 여지 있음']},
     ],
   },
   bear:{
     sub:'무엇이 틀리면 실적마저 무너지는가',
     points:[
-      '해외 궐련 성장이 특정 시장(중동·중앙아시아)에 집중 — 지정학·규제 한 번에 꺾인다',
-      '국내 담배 규제 강화 (가격·광고·유해성 표시) — 물량과 단가를 동시에 압박',
-      '인삼 감소가 −12.6%(2025) 수준으로 지속 — 5년이면 부문이 절반',
-      'CAPEX가 매출의 13%(2024) 수준으로 회귀 — FCF 감소가 DCF 결과를 직접 깎는다',
+      {t:'해외 궐련 성장의 **지역 집중**', d:['중동·중앙아시아 편중 시 지정학·규제 한 번에 훼손']},
+      {t:'국내 담배 규제 강화', d:['가격·광고·유해성 표시 → 물량과 단가 동시 압박']},
+      {t:'인삼 감소 지속', d:['−12.6%(2025) 수준 지속 시 5년이면 부문 절반']},
+      {t:'CAPEX 회귀', d:['매출의 13%(2024) 수준 복귀 시 FCF 감소가 DCF를 직접 훼손']},
     ],
   },
   risk:{
     sub:'분기마다 확인할 것',
     points:[
-      {t:'담배 부문 매출 증가율', d:['본 모델 2026년 가정 +7%. 이 하나가 결론을 지배한다']},
-      {t:'해외 궐련 비중과 지역 구성', d:['공시가 지역별 매출을 주므로 집중도 확인 가능']},
-      {t:'인삼 부문 매출', d:['감소폭이 −3% 안으로 들어오는지']},
-      {t:'CAPEX 대 매출 비율', d:['본 모델 2026년 가정 9.5%. 13%로 회귀 시 FCF 훼손']},
-      {t:'순차입금', d:['8,556억에서 더 늘면 주주환원의 지속성을 재검토']},
-      {t:'피어 배수', d:['국내 필수소비재 5~7배 유지 여부. 내려오면 프리미엄 근거도 흔들린다']},
+      {t:'담배 부문 매출 증가율', d:['본 모델 2026년 가정 +7% — **결론을 지배하는 단일 지표**']},
+      {t:'해외 궐련 비중과 지역 구성', d:['공시가 지역별 매출 제공 → 집중도 확인 가능']},
+      {t:'인삼 부문 매출', d:['감소폭이 −3% 이내로 축소되는지']},
+      {t:'CAPEX 대 매출 비율', d:['본 모델 2026년 가정 9.5%. 13% 회귀 시 FCF 훼손']},
+      {t:'순차입금', d:['8,556억 초과 증가 시 주주환원 지속성 재검토']},
+      {t:'피어 배수', d:['국내 필수소비재 5~7배 유지 여부']},
     ],
   },
 
@@ -1061,17 +1081,17 @@ const MEMO={
       title:'해외 궐련이 국내 구조적 감소를 상쇄하고도 남는가 — 이 종목의 전부',
       horizon:'12~36개월', conviction:'중', tag:'성장축',
       thesis:[
-        {t:'담배 부문이 곧 이 종목이다', d:[
-          '전사 매출의 66%, 부문 영업이익의 86%',
+        {t:'담배 부문이 곧 이 종목', d:[
+          '전사 매출의 66%, 부문 영업이익의 **86%**',
           '국내는 보합 → 담배 부문 성장률 = 해외 궐련 성장률',
         ]},
         {t:'실적과 가정의 간격', d:[
           '2024 +8.1%, 2025 +11.8%',
-          '본 모델은 7%→3%로 체감',
+          '본 모델은 7%→3%로 체감 적용',
           '그 위에서 2030 적정 시가총액 {{root@2030}}억, 현재가 대비 −31%',
         ]},
         {t:'따라서', d:[
-          '현재 가격은 본 모델보다 높은 해외 성장을 이미 전제하고 있다',
+          '현재 가격은 **본 모델보다 높은 해외 성장을 이미 전제**',
         ]},
       ],
       catalysts:[
@@ -1085,25 +1105,25 @@ const MEMO={
         '담배 부문 영업이익률',
       ],
       risks:[
-        '해외 성장이 소수 시장에 집중 → 지정학·규제 한 번에 꺾인다',
+        '해외 성장의 소수 시장 집중 → 지정학·규제 한 번에 훼손',
         '국내 규제 강화 → 물량·단가 동시 압박',
       ],
-      falsify:'담배 부문 매출 증가율이 두 해 연속 3% 아래로 내려오면 해외 성장축이 조기에 '
-             +'성숙한 것이다. 그 시점에 폐기하고, 이 종목을 성장이 아니라 배당 자산으로 다시 본다.',
+      falsify:'담배 부문 매출 증가율이 **두 해 연속 3% 미만**이면 해외 성장축 조기 성숙. '
+             +'해당 시점에 폐기하고 성장주가 아니라 배당 자산으로 재분류.',
     },
     {
-      title:'인삼은 밸류에이션에서 0으로 취급된다 — 반등하면 순수 상방',
+      title:'인삼은 밸류에이션에서 0으로 취급 — 반등 시 순수 상방',
       horizon:'12~24개월', conviction:'낮음', tag:'옵션 가치',
       thesis:[
-        {t:'Base가 회복을 넣지 않았다', d:[
+        {t:'Base가 회복을 반영하지 않음', d:[
           '13,890억(2022) → 11,370억(2025), 2년 연속 감소',
           '본 모델은 −3% 후 보합 — 사실상 성장 0',
         ]},
-        {t:'전사 매출의 17%에 성장 0을 주었다', d:[
-          '반등이 오면 그만큼이 그대로 상방',
+        {t:'전사 매출 **17%에 성장 0** 부여', d:[
+          '반등 시 그만큼이 그대로 상방',
         ]},
-        {t:'다만 이것을 논거로 사지는 않는다', d:[
-          '반등의 근거가 지금은 없고, 없는 것을 근거로 삼으면 그건 희망이다',
+        {t:'단, 이것을 논거로 매수하지는 않음', d:[
+          '반등 근거 부재. 없는 것을 근거로 삼으면 그것은 희망',
         ]},
       ],
       catalysts:[
@@ -1115,35 +1135,35 @@ const MEMO={
         '인삼 부문 영업이익률 — 2025년 8.2%',
       ],
       risks:[
-        '내수 건강기능식품 경쟁이 구조적이면 감소 지속',
-        '반등 없이 감소만 이어지면 Base조차 낙관이 된다',
+        '내수 건기식 경쟁이 구조적이면 감소 지속',
+        '반등 부재 시 Base조차 낙관',
       ],
-      falsify:'인삼 부문이 2026·2027 두 해 연속 −5% 아래로 줄면 이 부문은 옵션이 아니라 '
-             +'감소 자산이다. 그때는 Base의 보합 가정 자체를 감소로 바꿔야 한다.',
+      falsify:'인삼 부문이 2026·2027 **두 해 연속 −5% 이하**면 옵션이 아니라 감소 자산. '
+             +'해당 시점에 Base의 보합 가정을 감소로 전환.',
     },
   ],
 
   debate:[
     {
-      q:'국내 필수소비재 피어 대비 2배 프리미엄이 정당한가?',
-      yes:'영업이익률 20%대로 피어(5~10%대)의 두 배 이상. 해외 궐련이라는 성장축이 '
-         +'실재하고 주주환원도 피어보다 강하다.',
-      no:'KT&G 11.4배 대 피어 5.0~7.1배. 담배는 규제 산업이고 국내 물량은 구조적으로 '
-        +'줄어든다. 프리미엄 근거가 해외 한 축에 몰려 있다는 뜻이기도 하다.',
+      q:'국내 필수소비재 대비 2배 프리미엄이 정당한가?',
+      yes:'영업이익률 20%대로 피어(5~10%대)의 두 배 이상. 해외 궐련 성장축 실재, '
+         +'주주환원도 피어 대비 강함.',
+      no:'KT&G 11.4배 대 피어 5.0~7.1배. 담배는 규제 산업이고 국내 물량은 구조적 감소. '
+        +'**프리미엄 근거가 해외 한 축에 집중**.',
     },
     {
-      q:'순현금이 3년 만에 순차입으로 뒤집힌 것을 어떻게 볼 것인가?',
-      yes:'자사주·배당에 쓴 것이라면 주주환원 의지의 증거다. 영업이익률 20%대에서 '
-         +'8,556억 순차입은 부담이라 할 수 없다.',
-      no:'−12,455억에서 8,556억으로 3년간 2조 1천억이 나갔다. 앞으로의 주주환원은 '
-        +'이익에서만 나와야 하고 그만큼 감축 압력에 노출된다.',
+      q:'순현금 → 순차입 전환을 어떻게 볼 것인가?',
+      yes:'자사주·배당 집행의 결과라면 주주환원 의지의 증거. 영업이익률 20%대에서 '
+         +'8,556억 순차입은 부담 수준 아님.',
+      no:'−12,455억 → 8,556억, 3년간 **2조 1천억 유출**. 향후 주주환원은 이익에서만 '
+        +'조달 가능하며 그만큼 감축 압력에 노출.',
     },
     {
-      q:'DCF −31%을 믿을 것인가?',
-      yes:'4년간 영업이익률 19.9~21.7%, 기타비용률 74.3~75.8%. 추정의 신뢰구간이 좁을 때 '
-         +'DCF는 배수법보다 낫다.',
-      no:'WACC 8%와 영구성장 1%가 결과를 지배한다. WACC를 7%로 낮추면 괴리의 상당 부분이 '
-        +'사라진다. −31%는 회사에 대한 판단이라기보다 할인율에 대한 판단이다.',
+      q:'DCF −31%을 신뢰할 것인가?',
+      yes:'4년간 영업이익률 19.9~21.7%, 기타비용률 74.3~75.8%. 추정 신뢰구간이 좁을 때 '
+         +'DCF는 배수법보다 우위.',
+      no:'WACC 8%와 영구성장 1%가 결과를 지배. WACC 7%로 조정 시 괴리 상당 부분 소멸. '
+        +'**−31%는 회사 판단이 아니라 할인율 판단**.',
     },
   ],
 };
@@ -4832,7 +4852,7 @@ function icStat(label, value, sub, tone){
 function icMarketNote(){
   if(typeof MARKET !== 'object' || !MARKET) return '';
   return '<div class="notice">시장 관측치 기준일 <b>' + esc(MARKET.asOf) + '</b> · ' +
-    esc(MARKET.source || '') + ' — 심사 시점에 반드시 갱신할 것.</div>';
+    esc(MARKET.source || '') + ' — <b>심사 시점에 반드시 갱신</b>.</div>';
 }
 
 function renderICOverview(){
@@ -4840,7 +4860,7 @@ function renderICOverview(){
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('target', 16) +
     ' Investment case</div><h1>투자 개요</h1></div>';
   if(typeof MARKET !== 'object' || !MARKET){
-    return h + '<div class="notice">MARKET 블록이 없어 시장 대비 비교를 할 수 없습니다.</div></div>';
+    return h + '<div class="notice">MARKET 미선언 — 시장 대비 비교 불가.</div></div>';
   }
   h += icMarketNote();
 
@@ -4885,7 +4905,7 @@ function renderICValuation(){
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('trending-up', 16) +
     ' Investment case</div><h1>밸류에이션</h1></div>';
   if(typeof MARKET !== 'object' || !MARKET){
-    return h + '<div class="notice">MARKET 블록이 없어 시장 대비 비교를 할 수 없습니다.</div></div>';
+    return h + '<div class="notice">MARKET 미선언 — 시장 대비 비교 불가.</div></div>';
   }
   h += icMarketNote();
 
@@ -4978,11 +4998,10 @@ function renderICScenario(){
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('layers', 16) +
     ' Investment case</div><h1>시나리오</h1></div>';
   if(typeof SCENARIOS !== 'object' || !SCENARIOS){
-    return h + '<div class="notice">SCENARIOS가 data.js에 없습니다.</div></div>';
+    return h + '<div class="notice">SCENARIOS 미선언 — data.js에 시나리오 프리셋을 둘 것.</div></div>';
   }
-  h += '<div class="notice">Base는 초안값 그 자체입니다. ' +
-    '시뮬레이터 케이스 바에서 전환하면 이 값들이 실제 모델에 적용됩니다. ' +
-    '시나리오는 <b>[주관] 노드만</b> 흔듭니다 — 공시 확정 실적은 어느 케이스에서도 같습니다.</div>';
+  h += '<div class="notice">Base = 초안값 그 자체 · 시뮬레이터 케이스 바에서 전환 시 모델에 적용. ' +
+    '시나리오는 <b>[주관] 노드만</b> 변경 — 공시 확정 실적은 전 케이스 동일.</div>';
 
   var want = ['total_revenue', 'op_profit', 'ebitda', rootId()];
   var cases = [{ name:'Base', ov:null }];
@@ -5005,6 +5024,16 @@ function renderICScenario(){
         : '<td class="' + (up >= 0 ? 'pos' : 'neg') + '">' +
           (up >= 0 ? '+' : '') + (up * 100).toFixed(0) + '%</td>') + '</tr>';
   });
+  var mc0 = (typeof MARKET === 'object' && MARKET) ? MARKET.mktcap : 0;
+  if(mc0){
+    h += icChartCard(YRS[t] + ' 적정 시가총액 — 현재가 대비', '0% 선이 현재 시가총액',
+      icSvgHBars(cases.map(function(c, i){
+        var u0 = solved[i][rootId()] / mc0 - 1;
+        return { label:c.name, value:u0 * 100, strong:c.name === 'Base',
+                 color:u0 >= 0 ? ICV.pos : ICV.neg,
+                 text:(u0 >= 0 ? '+' : '') + (u0 * 100).toFixed(0) + '%' };
+      }), { labelW:70 }));
+  }
   h += card(YRS[t] + ' 시나리오 비교', '굵은 행이 Base(초안값)', UNITS.money,
     '<div class="table-wrap"><table class="fm"><tr><th>시나리오</th><th>매출</th>' +
     '<th>영업이익</th><th>OPM</th><th>EBITDA</th><th>적정 시총</th>' +
@@ -5047,15 +5076,28 @@ function icPeerCard(){
     rows += '<tr' + (p.group === 'self' ? ' class="hl"' : '') + '>' +
       '<td>' + esc(p.name) + '</td>' +
       '<td>' + esc(p.group === 'self' ? '—' : p.group) + '</td>' +
-      '<td>' + esc(p.mktcap == null ? '—' : fmtMoney(p.mktcap)) + '</td>' +
+      // 해외 피어는 현지 통화라 원화 축약에 태울 수 없다. 문자열 그대로 보여준다.
+      '<td>' + esc(p.mktcap == null ? (p.cap || '—') : fmtMoney(p.mktcap)) + '</td>' +
       '<td>' + f(ev[0]) + '</td><td>' + f(ev[1]) + '</td>' +
       '<td>' + f(per[1]) + '</td>' +
       '<td>' + esc(p.ret1y || '—') + '</td></tr>';
   });
+  // 표만 주면 순위가 눈에 안 들어온다. 같은 값을 막대로 한 번 더 보여준다.
+  var bars = PEERS.list.filter(function(p){ return p.evEbitda && p.evEbitda[0] != null; })
+    .sort(function(a, b){ return b.evEbitda[0] - a.evEbitda[0]; })
+    .map(function(p){
+      return { label:p.name + (p.market ? ' (' + p.market + ')' : ''),
+               value:p.evEbitda[0], strong:p.group === 'self',
+               color:p.group === 'self' ? ICV.rev : (p.market === '해외' ? ICV.rev2 : ICV.cost),
+               text:p.evEbitda[0].toFixed(1) + '배' };
+    });
+  var barCard = bars.length ? icChartCard('EV/EBITDA 순위',
+    '실적(TTM) 기준 · 굵은 행이 본 종목', icSvgHBars(bars)) : '';
+
   var note = '<div class="notice">' + esc(PEERS.note || '') +
     ' 기준일 <b>' + esc(PEERS.asOf) + '</b> · ' + esc(PEERS.source || '') + '</div>';
   if(PEERS.missing) note += '<div class="notice">' + esc(PEERS.missing) + '</div>';
-  return note + card('피어 그룹 비교', 'EV/EBITDA는 실적(A)과 당해 컨센서스(E)', UNITS.money,
+  return note + barCard + card('피어 그룹 비교', 'EV/EBITDA는 실적(A)과 당해 컨센서스(E)', UNITS.money,
     '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">종목</th><th>구분</th>' +
     '<th>시가총액</th><th>EV/EBITDA (A)</th><th>EV/EBITDA (E)</th>' +
     '<th>PER (E)</th><th>1년 수익률</th></tr>' + rows + '</table></div>');
@@ -5100,15 +5142,13 @@ function renderICMonitor(){
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('activity', 16) +
     ' Investment case</div><h1>분기 모니터링</h1></div>';
   if(!qHas()){
-    return h + '<div class="notice">분기 확정값(QUARTERLY)이 없습니다. ' +
-      'tools/build_quarterly.py 로 만들어 data.js 옆에 quarterly.json 으로 두면 ' +
-      '이 화면이 켜집니다.</div></div>';
+    return h + '<div class="notice">분기 확정값(QUARTERLY) 미선언 — ' +
+      'tools/build_quarterly.py 로 생성해 data.js 옆에 quarterly.json 으로 두면 화면 활성화.</div></div>';
   }
   var ks = qKeys(), last = ks[ks.length - 1];
   h += '<div class="notice">' + esc(QUARTERLY._출처 || '') +
     ' · 최신 확정 <b>' + esc(last) + '</b> · 단위 ' + esc(QUARTERLY._단위 || '') +
-    ' — 이 값들은 모델에 들어가지 않습니다. 모델이 그린 경로 위를 실제로 걷고 ' +
-    '있는지 대조하는 데만 씁니다.</div>';
+    ' — 모델에 투입되지 않는 값. 모델이 그린 경로 위를 실제로 걷고 있는지 대조 용도.</div>';
 
   h += icYtdCard(last);
   h += icQuarterTable(ks);
@@ -5185,7 +5225,11 @@ function icQuarterTable(ks){
     body += line('  기타비용률', seg, '기타비용률');
     body += line('  감가상각비', seg, '감가상각비');
   });
-  return card('분기 확정 실적', '공시 원문 · 누적의 차분으로 만든 분기값', UNITS.money,
+  var qRev = ks.map(function(k){ return qVal(k, '합계', '매출') || 0; });
+  var qOpm = ks.map(function(k){ return qVal(k, '합계', '영업이익률') || 0; });
+  return icChartCard('분기 매출과 영업이익률', '막대 = 매출 · 선 = 영업이익률',
+      icSvgBars(ks, qRev, { line:qOpm, lineLabel:'OPM', height:190 })) +
+    card('분기 확정 실적', '공시 원문 · 누적의 차분으로 만든 분기값', UNITS.money,
     '<div class="table-wrap"><table class="fm">' + head + body + '</table></div>');
 }
 
@@ -5260,8 +5304,8 @@ function renderICSensitivity(){
   var PCT = 0.10;
   h += '<div class="notice">가정변수를 각각 <b>±' + (PCT * 100).toFixed(0) + '%</b> ' +
     '흔들어 ' + esc(YRS[icLastIdx()]) + ' ' + esc(MODEL[rootId()].label || rootId()) +
-    '의 변화를 정렬했습니다. 추정 구간만 흔듭니다 — 실적은 확정값입니다. ' +
-    '위쪽 몇 개가 이 모델의 실질적인 가정입니다.</div>';
+    ' 변화 기준 정렬. 추정 구간만 변경 — 실적은 확정값. ' +
+    '<b>위쪽 몇 개가 이 모델의 실질적 가정</b>.</div>';
 
   var r = icSensitivity(PCT), max = r.rows.length ? r.rows[0].span : 1;
   var rows = '';
@@ -5281,6 +5325,12 @@ function renderICSensitivity(){
       '<td class="' + (pctUp >= 0 ? 'pos' : 'neg') + '">' +
         (pctUp >= 0 ? '+' : '') + (pctUp * 100).toFixed(1) + '%</td></tr>';
   });
+  h += icChartCard('영향도 순위', '유리한 쪽 변화폭 기준 · 위쪽이 결과를 지배하는 가정',
+    icSvgHBars(r.rows.slice(0, 10).map(function(x){
+      var hi2 = Math.max(x.up, x.dn), pc = r.base ? hi2 / r.base : 0;
+      return { label:x.label, value:pc * 100, color:ICV.rev2,
+               text:(pc >= 0 ? '+' : '') + (pc * 100).toFixed(1) + '%' };
+    }), { labelW:150 }));
   h += card('가정변수 영향도',
     '막대 왼쪽은 불리한 쪽, 오른쪽은 유리한 쪽. 값은 ' +
     (MODEL[rootId()].label || rootId()) + ' 대비 변화율.', '',
@@ -5317,21 +5367,160 @@ function icConsensusCard(){
     '</b> · ' + esc(CONSENSUS.source || '') + '</div>');
 }
 
+// ── 인라인 SVG 차트 ───────────────────────────────────────────
+// 외부 라이브러리를 쓰지 않는다. model.html은 외부 요청 0건이 규약이고,
+// 그 규약이 있어야 사내망·오프라인 심사장에서 파일 하나로 열린다.
+// viewBox만 주고 width는 CSS가 100%로 잡으므로 인쇄·모바일에서 같이 줄어든다.
+
+var ICV = { rev:'#1E2185', rev2:'#5D68F7', cost:'#6B7280', pos:'#22C55E',
+            neg:'#DC2626', grid:'#E5E7EB', text:'#6B7280', ink:'#0F0F12',
+            band:'#F8F8FA', ramp:['#1E2185','#3332D0','#5D68F7','#7C91FD','#A1B8FF'] };
+
+function icSvg(w, h, body){
+  return '<svg class="icv" viewBox="0 0 ' + w + ' ' + h + '" ' +
+    'preserveAspectRatio="xMidYMid meet" role="img">' + body + '</svg>';
+}
+function _t(x, y, s, size, color, anchor, weight){
+  return '<text x="' + x + '" y="' + y + '" font-size="' + (size || 9) + '" ' +
+    'fill="' + (color || ICV.text) + '" text-anchor="' + (anchor || 'middle') + '"' +
+    (weight ? ' font-weight="' + weight + '"' : '') + '>' + esc(String(s)) + '</text>';
+}
+function _niceMax(v){
+  if(!(v > 0)) return 1;
+  var e = Math.pow(10, Math.floor(Math.log(v) / Math.LN10));
+  var m = v / e;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * e;
+}
+
+// 세로 막대 — 연도별 추세. 두 번째 계열은 선으로 겹쳐 그린다(비율 축).
+// histN을 주면 추정 구간에 음영을 깔아 실적과 눈으로 구분된다.
+function icSvgBars(labels, values, opts){
+  opts = opts || {};
+  var W = 720, H = opts.height || 200, L = 44, R = opts.line ? 40 : 12, T = 16, B = 26;
+  var iw = W - L - R, ih = H - T - B;
+  var max = _niceMax(Math.max.apply(null, values.concat([0])));
+  var n = labels.length, step = iw / n, bw = Math.min(38, step * 0.56);
+  var g = '';
+
+  if(opts.histN != null && opts.histN < n){
+    var x0 = L + step * opts.histN;
+    g += '<rect x="' + x0.toFixed(1) + '" y="' + T + '" width="' + (L + iw - x0).toFixed(1) +
+         '" height="' + ih + '" fill="' + ICV.band + '"/>';
+    g += _t(x0 + 3, T + 10, '추정', 8.5, '#9CA3AF', 'start');
+  }
+  for(var k = 0; k <= 4; k++){
+    var y = T + ih - ih * k / 4;
+    g += '<line x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (L + iw) +
+         '" y2="' + y.toFixed(1) + '" stroke="' + ICV.grid + '" stroke-width="1"/>';
+    g += _t(L - 6, y + 3, fmtSmart(max * k / 4), 8.5, '#9CA3AF', 'end');
+  }
+  values.forEach(function(v, i){
+    var h = Math.max(1, ih * (v / max)), x = L + step * i + (step - bw) / 2;
+    var fc = (opts.histN != null && i >= opts.histN) ? ICV.rev2 : ICV.rev;
+    g += '<rect x="' + x.toFixed(1) + '" y="' + (T + ih - h).toFixed(1) + '" width="' +
+         bw.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + fc + '" rx="2"/>';
+    if(n <= 12) g += _t(x + bw / 2, T + ih - h - 4, fmtSmart(v), 8.5, ICV.ink, 'middle', 600);
+    g += _t(x + bw / 2, H - 8, labels[i], 8.5);
+  });
+
+  if(opts.line && opts.line.length === n){
+    var lmax = _niceMax(Math.max.apply(null, opts.line)), pts = [];
+    opts.line.forEach(function(v, i){
+      pts.push((L + step * i + step / 2).toFixed(1) + ',' +
+               (T + ih - ih * (v / lmax)).toFixed(1));
+    });
+    g += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + ICV.neg +
+         '" stroke-width="1.6"/>';
+    pts.forEach(function(p){
+      var xy = p.split(',');
+      g += '<circle cx="' + xy[0] + '" cy="' + xy[1] + '" r="2.4" fill="' + ICV.neg + '"/>';
+    });
+    g += _t(L + iw + 6, T + 8, opts.lineLabel || '', 8.5, ICV.neg, 'start', 700);
+    g += _t(L + iw + 6, T + 19, (lmax * 100).toFixed(0) + '%', 8.5, '#9CA3AF', 'start');
+  }
+  return icSvg(W, H, g);
+}
+
+// 가로 막대 — 순위 비교. 음수도 받는다(0 기준 좌우).
+function icSvgHBars(rows, opts){
+  opts = opts || {};
+  var W = 720, rowH = 22, T = 8, B = 6, L = opts.labelW || 120, R = 56;
+  var H = T + B + rows.length * rowH, iw = W - L - R;
+  var vals = rows.map(function(r){ return r.value; });
+  var lo = Math.min(0, Math.min.apply(null, vals)), hi = Math.max(0, Math.max.apply(null, vals));
+  var span = (hi - lo) || 1, zero = L + iw * (0 - lo) / span;
+  var g = '';
+  if(lo < 0) g += '<line x1="' + zero.toFixed(1) + '" y1="' + T + '" x2="' + zero.toFixed(1) +
+                  '" y2="' + (H - B) + '" stroke="' + ICV.grid + '"/>';
+  rows.forEach(function(r, i){
+    var y = T + i * rowH, bh = 12;
+    var x1 = L + iw * (Math.min(0, r.value) - lo) / span;
+    var x2 = L + iw * (Math.max(0, r.value) - lo) / span;
+    g += _t(L - 8, y + bh - 2, r.label, 9.5, r.strong ? ICV.ink : ICV.text, 'end',
+            r.strong ? 700 : 400);
+    g += '<rect x="' + x1.toFixed(1) + '" y="' + (y + 2) + '" width="' +
+         Math.max(1, x2 - x1).toFixed(1) + '" height="' + bh + '" rx="2" fill="' +
+         (r.color || (r.value < 0 ? ICV.neg : ICV.rev)) + '"/>';
+    g += _t(W - R + 6, y + bh - 2, r.text != null ? r.text : fmtSmart(r.value),
+            9.5, ICV.ink, 'start', r.strong ? 700 : 500);
+  });
+  return icSvg(W, H, g);
+}
+
+// 100% 스택 — 구성비 추이. 색은 매출 램프에서만 가져온다.
+function icSvgStack(labels, series){
+  var W = 720, H = 178, L = 8, R = 96, T = 10, B = 26;
+  var iw = W - L - R, ih = H - T - B, n = labels.length;
+  var step = iw / n, bw = Math.min(46, step * 0.62), g = '';
+  for(var i = 0; i < n; i++){
+    var tot = 0;
+    series.forEach(function(sr){ tot += Math.abs(sr.values[i]); });
+    var acc = 0, x = L + step * i + (step - bw) / 2;
+    series.forEach(function(sr, k){
+      var frac = tot ? Math.abs(sr.values[i]) / tot : 0, h = ih * frac;
+      var y = T + ih - acc - h;
+      g += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) +
+           '" height="' + h.toFixed(1) + '" fill="' + ICV.ramp[k % ICV.ramp.length] + '"/>';
+      if(frac > 0.08) g += _t(x + bw / 2, y + h / 2 + 3, (frac * 100).toFixed(0) + '%',
+                              8.5, '#FFFFFF', 'middle', 700);
+      acc += h;
+    });
+    g += _t(x + bw / 2, H - 8, labels[i], 8.5);
+  }
+  series.forEach(function(sr, k){
+    var y = T + 6 + k * 15;
+    g += '<rect x="' + (W - R + 4) + '" y="' + (y - 8) + '" width="9" height="9" rx="2" fill="' +
+         ICV.ramp[k % ICV.ramp.length] + '"/>';
+    g += _t(W - R + 18, y, sr.name, 9, ICV.text, 'start');
+  });
+  return icSvg(W, H, g);
+}
+
+function icChartCard(title, sub, svg){
+  return card(title, sub || '', '', '<div class="chart-box">' + svg + '</div>');
+}
+
 // ── 항목 렌더러 ──────────────────────────────────────────────
 // 서술형 문단은 심사 자료에서 읽히지 않는다. 본문은 두 층의 항목으로 적는다.
 //   '문자열'             → ▪ 한 줄
 //   {t:'주제', d:[...]}   → ▪ 주제(굵게) 아래 – 근거들
 // 층은 데이터 쪽에서 나누고, 화면은 그 층을 그대로 보여준다.
+// 본문 강조. **굵게** 만 받는다 — 이스케이프한 뒤에 변환하므로
+// 데이터가 태그를 주입할 수 없다. 마크다운을 흉내내지 않는 이유는,
+// 심사 자료에서 필요한 강조가 "이 숫자가 결론이다" 하나뿐이기 때문이다.
+function icRich(s){
+  return esc(icText(s)).replace(/\*\*([^*]+)\*\*/g, '<b class="hl-b">$1</b>');
+}
 function icList(arr, cls){
   if(typeof arr === 'string') arr = [arr];
   if(!arr || !arr.length) return '';
   var b = '<ul class="' + cls + '">';
   arr.forEach(function(x){
-    if(typeof x === 'string'){ b += '<li>' + esc(icText(x)) + '</li>'; return; }
-    b += '<li><b>' + esc(icText(x.t || '')) + '</b>';
+    if(typeof x === 'string'){ b += '<li>' + icRich(x) + '</li>'; return; }
+    b += '<li><b>' + icRich(x.t || '') + '</b>';
     if(x.d && x.d.length){
       b += '<ul class="sub">';
-      x.d.forEach(function(y){ b += '<li>' + esc(icText(y)) + '</li>'; });
+      x.d.forEach(function(y){ b += '<li>' + icRich(y) + '</li>'; });
       b += '</ul>';
     }
     b += '</li>';
@@ -5340,7 +5529,7 @@ function icList(arr, cls){
 }
 function icPoints(m){
   var b = '';
-  if(m.lead) b += '<p class="lead">' + esc(icText(m.lead)) + '</p>';
+  if(m.lead) b += '<p class="lead">' + icRich(m.lead) + '</p>';
   b += icList(m.points, 'memo');
   return b;
 }
@@ -5380,11 +5569,11 @@ function icIdeaCard(d, i){
   var body = '';
   // 최신 확정 분기가 이 아이디어에 무엇을 말하는지. 논거보다 먼저 읽혀야 한다 —
   // 심사에서 묻는 것은 "그때 무슨 생각을 했나"가 아니라 "지금 어떻게 되고 있나"다.
-  if(d.update) body += '<div class="idea-upd"><b>진행</b> — ' + esc(icText(d.update)) + '</div>';
+  if(d.update) body += '<div class="idea-upd"><b>진행</b> — ' + icRich(d.update) + '</div>';
   if(d.thesis) body += icList(d.thesis, 'memo');
   var grid = box('촉매', d.catalysts) + box('확인 지표', d.kpis) + box('리스크', d.risks);
   if(grid) body += '<div class="idea-grid">' + grid + '</div>';
-  if(d.falsify) body += '<div class="falsify"><b>반증 조건</b> — ' + esc(icText(d.falsify)) + '</div>';
+  if(d.falsify) body += '<div class="falsify"><b>반증 조건</b> — ' + icRich(d.falsify) + '</div>';
 
   return '<div class="idea"><div class="idea-head">' +
     '<div class="idea-n">' + (i + 1) + '</div>' +
@@ -5396,8 +5585,8 @@ function icIdeaCard(d, i){
 function icIdeasBlock(){
   var list = (typeof MEMO === 'object' && MEMO) ? MEMO.ideas : null;
   if(!list || !list.length){
-    return '<div class="notice">MEMO.ideas 가 data.js에 없습니다. ' +
-      '아이디어마다 title · thesis · catalysts · kpis · risks · falsify 를 적습니다.</div>';
+    return '<div class="notice">MEMO.ideas 미선언 — 아이디어마다 ' +
+      'title · thesis · catalysts · kpis · risks · falsify 필요.</div>';
   }
   var h = '';
   list.forEach(function(d, i){ h += icIdeaCard(d, i); });
@@ -5408,8 +5597,8 @@ function renderICIdeas(){
   var h = '<div class="page">';
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('zap', 16) +
     ' Investment case</div><h1>투자 아이디어</h1></div>';
-  h += '<div class="notice">아이디어마다 <b>반증 조건</b>을 함께 적습니다. ' +
-    '무엇을 보면 틀렸다고 인정할지 미리 정해두지 않으면 사후에 합리화됩니다.</div>';
+  h += '<div class="notice">아이디어마다 <b>반증 조건</b> 병기 — ' +
+    '무엇을 보면 틀렸다고 인정할지 사전에 정하지 않으면 사후 합리화로 귀결.</div>';
   h += icMemoCard('company', '사업 구조와 경쟁 포지션');
   h += icIdeasBlock();
   h += icDebateCard();
@@ -5422,9 +5611,9 @@ function icDebateCard(){
   if(!d || !d.length) return '';
   var rows = '';
   d.forEach(function(x){
-    rows += '<tr><td style="white-space:normal;min-width:150px">' + esc(icText(x.q)) + '</td>' +
-      '<td style="white-space:normal">' + esc(icText(x.yes || '')) + '</td>' +
-      '<td style="white-space:normal">' + esc(icText(x.no || '')) + '</td></tr>';
+    rows += '<tr><td class="q" style="white-space:normal;min-width:140px">' + icRich(x.q) + '</td>' +
+      '<td style="white-space:normal">' + icRich(x.yes || '') + '</td>' +
+      '<td style="white-space:normal">' + icRich(x.no || '') + '</td></tr>';
   });
   return card('심사 쟁점', '한 질문에 양쪽을 함께 적는다', '',
     '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">쟁점</th>' +
@@ -5539,21 +5728,52 @@ function renderICReport(){
       var r = val(rev, i);
       return r ? icPct(val('ebitda', i) / r) : null;
     });
+  var opmSeries = YRS.map(function(_, i){
+    var r0 = val(rev, i); return r0 ? val('op_profit', i) / r0 : 0;
+  });
   h += icSec('03', '실적과 추정', '실적 ' + YRS[0] + '~' + YRS[HIST_N - 1] +
     '은 공시 확정값 · 이후는 모델 추정 (게이트 G1이 매 빌드마다 대사)',
+    icChartCard(MODEL[rev].label + ' 추이', '막대 = ' + MODEL[rev].label +
+      ' · 선 = 영업이익률 · 음영 구간이 추정',
+      icSvgBars(YRS, YRS.map(function(_, i){ return val(rev, i); }),
+        { histN:HIST_N, line:opmSeries, lineLabel:'OPM' })) +
     card('', '', UNITS.money,
       '<div class="table-wrap"><table class="fm">' + icYearHead() + body + '</table></div>'));
 
   // 4. 부문별
   if(MODEL.total_revenue){
+    // 부문 아래 자식은 대부분 가정변수(성장률·실적 오버라이드)라 리포트에 넣으면
+    // 0.0% 행만 늘어난다. 금액 단위의 계산 노드만 편다.
+    var moneyKids = function(id){
+      return childrenOf(id).filter(function(c){
+        return MODEL[c].type !== 'input' && isMoney(MODEL[c].u);
+      });
+    };
     var seg = childrenOf('total_revenue'), srows = '';
     seg.forEach(function(sid){
       srows += icNodeRow(sid, null, 'total');
       srows += icCalcRow('  YoY', icYoY(sid));
-      childrenOf(sid).forEach(function(c){ srows += icNodeRow(c, '  ' + (MODEL[c].label || c)); });
+      moneyKids(sid).forEach(function(c){ srows += icNodeRow(c, '  ' + (MODEL[c].label || c)); });
     });
+    // 비용은 별도 트리에 있다. 부문 매출만 보여주면 마진 이야기를 할 수 없다.
+    if(MODEL.total_cost){
+      srows += icNodeRow('total_cost', null, 'total');
+      moneyKids('total_cost').forEach(function(c){
+        srows += icNodeRow(c, '  ' + (MODEL[c].label || c));
+        moneyKids(c).forEach(function(g){
+          srows += icNodeRow(g, '    ' + (MODEL[g].label || g));
+        });
+      });
+    }
     if(srows){
-      h += icSec('04', '부문별 전개', '매출과 그 아래 원가 구성. 부문 합계는 연결 수치와 오차 0으로 일치한다.',
+      var mixSeries = seg.map(function(sid){
+        return { name:MODEL[sid].label || sid,
+                 values:YRS.map(function(_, i){ return val(sid, i); }) };
+      });
+      h += icSec('04', '부문별 전개',
+        '매출과 그 아래 원가 구성 · 부문 합계는 연결 수치와 오차 0으로 일치',
+        icChartCard('부문 구성비', '100% 스택 · ' + YRS[0] + '~' + YRS[HIST_N - 1] +
+          ' 실적, 이후 모델 추정', icSvgStack(YRS, mixSeries)) +
         card('', '', UNITS.money,
           '<div class="table-wrap"><table class="fm">' + icYearHead('부문') + srows + '</table></div>'));
     }
@@ -5648,9 +5868,9 @@ function renderICReport(){
     '근거란의 [객관]은 공시·시장 관측, [주관]은 심사자의 판단이다.',
     card('', '', '', '<div class="table-wrap"><table class="fm">' + ah + arows + '</table></div>'));
 
-  h += '<div class="notice" style="margin-top:22px">본 자료는 공시·시장 데이터를 바탕으로 한 ' +
-    '내부 검토용 모델이며 투자권유가 아닙니다. 모든 수치는 이 화면의 모델에서 그 자리에서 ' +
-    '계산되므로, 가정을 바꾸면 본문의 숫자도 함께 바뀝니다.</div>';
+  h += '<div class="notice" style="margin-top:22px">본 자료는 공시·시장 데이터 기반의 ' +
+    '내부 검토용 모델이며 투자권유가 아님. 모든 수치는 이 화면의 모델에서 즉시 ' +
+    '계산되므로 가정 변경 시 본문 숫자도 동시 변경됨.</div>';
   return h + '</div>';
 }
 
@@ -5663,8 +5883,8 @@ function renderICVerdict(){
   h += icMemoCard('bull', '상방 논리');
   h += icMemoCard('bear', '하방 논리');
   h += icMemoCard('risk', '리스크와 모니터링 지표');
-  h += '<div class="notice">본 자료는 공시·시장 데이터를 바탕으로 한 내부 검토용 모델이며 ' +
-    '투자권유가 아닙니다. 모든 수치는 최신 공시로 재확인하십시오.</div>';
+  h += '<div class="notice">본 자료는 공시·시장 데이터 기반의 내부 검토용 모델이며 ' +
+    '투자권유가 아님. 모든 수치는 최신 공시로 재확인 요망.</div>';
   return h + '</div>';
 }
 
@@ -5672,7 +5892,7 @@ function renderICVerdict(){
 function icMemoCard(key, title){
   var m = (typeof MEMO === 'object' && MEMO) ? MEMO[key] : null;
   if(!m) return card(title, '', '',
-    '<div class="notice">MEMO.' + esc(key) + ' 가 data.js에 없습니다.</div>');
+    '<div class="notice">MEMO.' + esc(key) + ' 미선언.</div>');
   return card(title, m.sub || '', '', icPoints(m));
 }
 

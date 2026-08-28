@@ -365,7 +365,26 @@ ul.memo li{font-size:13px;color:#4B5563;line-height:1.75;margin-bottom:6px}
 .rp-sec > h2{font-family:'Outfit',system-ui,sans-serif;font-size:15px;font-weight:600;
   margin:3px 0 3px;color:#0F0F12;letter-spacing:-.02em}
 .rp-sec > p.desc{font-size:10.5px;color:#6B7280;margin:0 0 11px;line-height:1.6}
-.rp-sec .card{margin-bottom:0}
+.rp-sec .card{margin-bottom:12px}
+.rp-sec .card:last-child{margin-bottom:0}
+
+/* 차트 — viewBox만 주고 폭은 여기서 잡는다. 인쇄·모바일에서 같이 줄어든다. */
+.icv{width:100%;height:auto;display:block}
+.chart-box{padding:2px 0}
+
+/* 강조 — 본문에서 결론에 해당하는 조각 하나만 굵게 */
+.hl-b{color:#0F0F12;font-weight:700}
+ul.memo ul.sub > li .hl-b{color:#374151}
+
+/* 타이포 위계 — 섹션 제목 > 카드 제목 > 본문 > 근거 */
+.rp-sec > h2{font-size:17px;letter-spacing:-.03em;color:#0F0F12}
+.rp-num{font-size:10px;letter-spacing:.14em}
+.rp .section-head h2{font-size:13.5px}
+.rp .section-head p{font-size:10px}
+.rp p.lead{font-size:13px;color:#1F2937;line-height:1.75;margin-bottom:12px}
+.rp ul.memo > li{font-size:12.5px}
+.rp ul.memo ul.sub > li{font-size:11.5px}
+table.fm td.q{font-weight:700;color:#0F0F12}
 
 /* 인쇄 — 리포트 뷰를 그대로 종이/PDF로 넘긴다. 셸은 전부 걷어낸다. */
 @media print{
@@ -4286,7 +4305,7 @@ function icStat(label, value, sub, tone){
 function icMarketNote(){
   if(typeof MARKET !== 'object' || !MARKET) return '';
   return '<div class="notice">시장 관측치 기준일 <b>' + esc(MARKET.asOf) + '</b> · ' +
-    esc(MARKET.source || '') + ' — 심사 시점에 반드시 갱신할 것.</div>';
+    esc(MARKET.source || '') + ' — <b>심사 시점에 반드시 갱신</b>.</div>';
 }
 
 function renderICOverview(){
@@ -4294,7 +4313,7 @@ function renderICOverview(){
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('target', 16) +
     ' Investment case</div><h1>투자 개요</h1></div>';
   if(typeof MARKET !== 'object' || !MARKET){
-    return h + '<div class="notice">MARKET 블록이 없어 시장 대비 비교를 할 수 없습니다.</div></div>';
+    return h + '<div class="notice">MARKET 미선언 — 시장 대비 비교 불가.</div></div>';
   }
   h += icMarketNote();
 
@@ -4339,7 +4358,7 @@ function renderICValuation(){
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('trending-up', 16) +
     ' Investment case</div><h1>밸류에이션</h1></div>';
   if(typeof MARKET !== 'object' || !MARKET){
-    return h + '<div class="notice">MARKET 블록이 없어 시장 대비 비교를 할 수 없습니다.</div></div>';
+    return h + '<div class="notice">MARKET 미선언 — 시장 대비 비교 불가.</div></div>';
   }
   h += icMarketNote();
 
@@ -4432,11 +4451,10 @@ function renderICScenario(){
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('layers', 16) +
     ' Investment case</div><h1>시나리오</h1></div>';
   if(typeof SCENARIOS !== 'object' || !SCENARIOS){
-    return h + '<div class="notice">SCENARIOS가 data.js에 없습니다.</div></div>';
+    return h + '<div class="notice">SCENARIOS 미선언 — data.js에 시나리오 프리셋을 둘 것.</div></div>';
   }
-  h += '<div class="notice">Base는 초안값 그 자체입니다. ' +
-    '시뮬레이터 케이스 바에서 전환하면 이 값들이 실제 모델에 적용됩니다. ' +
-    '시나리오는 <b>[주관] 노드만</b> 흔듭니다 — 공시 확정 실적은 어느 케이스에서도 같습니다.</div>';
+  h += '<div class="notice">Base = 초안값 그 자체 · 시뮬레이터 케이스 바에서 전환 시 모델에 적용. ' +
+    '시나리오는 <b>[주관] 노드만</b> 변경 — 공시 확정 실적은 전 케이스 동일.</div>';
 
   var want = ['total_revenue', 'op_profit', 'ebitda', rootId()];
   var cases = [{ name:'Base', ov:null }];
@@ -4459,6 +4477,16 @@ function renderICScenario(){
         : '<td class="' + (up >= 0 ? 'pos' : 'neg') + '">' +
           (up >= 0 ? '+' : '') + (up * 100).toFixed(0) + '%</td>') + '</tr>';
   });
+  var mc0 = (typeof MARKET === 'object' && MARKET) ? MARKET.mktcap : 0;
+  if(mc0){
+    h += icChartCard(YRS[t] + ' 적정 시가총액 — 현재가 대비', '0% 선이 현재 시가총액',
+      icSvgHBars(cases.map(function(c, i){
+        var u0 = solved[i][rootId()] / mc0 - 1;
+        return { label:c.name, value:u0 * 100, strong:c.name === 'Base',
+                 color:u0 >= 0 ? ICV.pos : ICV.neg,
+                 text:(u0 >= 0 ? '+' : '') + (u0 * 100).toFixed(0) + '%' };
+      }), { labelW:70 }));
+  }
   h += card(YRS[t] + ' 시나리오 비교', '굵은 행이 Base(초안값)', UNITS.money,
     '<div class="table-wrap"><table class="fm"><tr><th>시나리오</th><th>매출</th>' +
     '<th>영업이익</th><th>OPM</th><th>EBITDA</th><th>적정 시총</th>' +
@@ -4507,10 +4535,22 @@ function icPeerCard(){
       '<td>' + f(per[1]) + '</td>' +
       '<td>' + esc(p.ret1y || '—') + '</td></tr>';
   });
+  // 표만 주면 순위가 눈에 안 들어온다. 같은 값을 막대로 한 번 더 보여준다.
+  var bars = PEERS.list.filter(function(p){ return p.evEbitda && p.evEbitda[0] != null; })
+    .sort(function(a, b){ return b.evEbitda[0] - a.evEbitda[0]; })
+    .map(function(p){
+      return { label:p.name + (p.market ? ' (' + p.market + ')' : ''),
+               value:p.evEbitda[0], strong:p.group === 'self',
+               color:p.group === 'self' ? ICV.rev : (p.market === '해외' ? ICV.rev2 : ICV.cost),
+               text:p.evEbitda[0].toFixed(1) + '배' };
+    });
+  var barCard = bars.length ? icChartCard('EV/EBITDA 순위',
+    '실적(TTM) 기준 · 굵은 행이 본 종목', icSvgHBars(bars)) : '';
+
   var note = '<div class="notice">' + esc(PEERS.note || '') +
     ' 기준일 <b>' + esc(PEERS.asOf) + '</b> · ' + esc(PEERS.source || '') + '</div>';
   if(PEERS.missing) note += '<div class="notice">' + esc(PEERS.missing) + '</div>';
-  return note + card('피어 그룹 비교', 'EV/EBITDA는 실적(A)과 당해 컨센서스(E)', UNITS.money,
+  return note + barCard + card('피어 그룹 비교', 'EV/EBITDA는 실적(A)과 당해 컨센서스(E)', UNITS.money,
     '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">종목</th><th>구분</th>' +
     '<th>시가총액</th><th>EV/EBITDA (A)</th><th>EV/EBITDA (E)</th>' +
     '<th>PER (E)</th><th>1년 수익률</th></tr>' + rows + '</table></div>');
@@ -4555,15 +4595,13 @@ function renderICMonitor(){
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('activity', 16) +
     ' Investment case</div><h1>분기 모니터링</h1></div>';
   if(!qHas()){
-    return h + '<div class="notice">분기 확정값(QUARTERLY)이 없습니다. ' +
-      'tools/build_quarterly.py 로 만들어 data.js 옆에 quarterly.json 으로 두면 ' +
-      '이 화면이 켜집니다.</div></div>';
+    return h + '<div class="notice">분기 확정값(QUARTERLY) 미선언 — ' +
+      'tools/build_quarterly.py 로 생성해 data.js 옆에 quarterly.json 으로 두면 화면 활성화.</div></div>';
   }
   var ks = qKeys(), last = ks[ks.length - 1];
   h += '<div class="notice">' + esc(QUARTERLY._출처 || '') +
     ' · 최신 확정 <b>' + esc(last) + '</b> · 단위 ' + esc(QUARTERLY._단위 || '') +
-    ' — 이 값들은 모델에 들어가지 않습니다. 모델이 그린 경로 위를 실제로 걷고 ' +
-    '있는지 대조하는 데만 씁니다.</div>';
+    ' — 모델에 투입되지 않는 값. 모델이 그린 경로 위를 실제로 걷고 있는지 대조 용도.</div>';
 
   h += icYtdCard(last);
   h += icQuarterTable(ks);
@@ -4640,7 +4678,11 @@ function icQuarterTable(ks){
     body += line('  기타비용률', seg, '기타비용률');
     body += line('  감가상각비', seg, '감가상각비');
   });
-  return card('분기 확정 실적', '공시 원문 · 누적의 차분으로 만든 분기값', UNITS.money,
+  var qRev = ks.map(function(k){ return qVal(k, '합계', '매출') || 0; });
+  var qOpm = ks.map(function(k){ return qVal(k, '합계', '영업이익률') || 0; });
+  return icChartCard('분기 매출과 영업이익률', '막대 = 매출 · 선 = 영업이익률',
+      icSvgBars(ks, qRev, { line:qOpm, lineLabel:'OPM', height:190 })) +
+    card('분기 확정 실적', '공시 원문 · 누적의 차분으로 만든 분기값', UNITS.money,
     '<div class="table-wrap"><table class="fm">' + head + body + '</table></div>');
 }
 
@@ -4715,8 +4757,8 @@ function renderICSensitivity(){
   var PCT = 0.10;
   h += '<div class="notice">가정변수를 각각 <b>±' + (PCT * 100).toFixed(0) + '%</b> ' +
     '흔들어 ' + esc(YRS[icLastIdx()]) + ' ' + esc(MODEL[rootId()].label || rootId()) +
-    '의 변화를 정렬했습니다. 추정 구간만 흔듭니다 — 실적은 확정값입니다. ' +
-    '위쪽 몇 개가 이 모델의 실질적인 가정입니다.</div>';
+    ' 변화 기준 정렬. 추정 구간만 변경 — 실적은 확정값. ' +
+    '<b>위쪽 몇 개가 이 모델의 실질적 가정</b>.</div>';
 
   var r = icSensitivity(PCT), max = r.rows.length ? r.rows[0].span : 1;
   var rows = '';
@@ -4736,6 +4778,12 @@ function renderICSensitivity(){
       '<td class="' + (pctUp >= 0 ? 'pos' : 'neg') + '">' +
         (pctUp >= 0 ? '+' : '') + (pctUp * 100).toFixed(1) + '%</td></tr>';
   });
+  h += icChartCard('영향도 순위', '유리한 쪽 변화폭 기준 · 위쪽이 결과를 지배하는 가정',
+    icSvgHBars(r.rows.slice(0, 10).map(function(x){
+      var hi2 = Math.max(x.up, x.dn), pc = r.base ? hi2 / r.base : 0;
+      return { label:x.label, value:pc * 100, color:ICV.rev2,
+               text:(pc >= 0 ? '+' : '') + (pc * 100).toFixed(1) + '%' };
+    }), { labelW:150 }));
   h += card('가정변수 영향도',
     '막대 왼쪽은 불리한 쪽, 오른쪽은 유리한 쪽. 값은 ' +
     (MODEL[rootId()].label || rootId()) + ' 대비 변화율.', '',
@@ -4772,21 +4820,160 @@ function icConsensusCard(){
     '</b> · ' + esc(CONSENSUS.source || '') + '</div>');
 }
 
+// ── 인라인 SVG 차트 ───────────────────────────────────────────
+// 외부 라이브러리를 쓰지 않는다. model.html은 외부 요청 0건이 규약이고,
+// 그 규약이 있어야 사내망·오프라인 심사장에서 파일 하나로 열린다.
+// viewBox만 주고 width는 CSS가 100%로 잡으므로 인쇄·모바일에서 같이 줄어든다.
+
+var ICV = { rev:'#1E2185', rev2:'#5D68F7', cost:'#6B7280', pos:'#22C55E',
+            neg:'#DC2626', grid:'#E5E7EB', text:'#6B7280', ink:'#0F0F12',
+            band:'#F8F8FA', ramp:['#1E2185','#3332D0','#5D68F7','#7C91FD','#A1B8FF'] };
+
+function icSvg(w, h, body){
+  return '<svg class="icv" viewBox="0 0 ' + w + ' ' + h + '" ' +
+    'preserveAspectRatio="xMidYMid meet" role="img">' + body + '</svg>';
+}
+function _t(x, y, s, size, color, anchor, weight){
+  return '<text x="' + x + '" y="' + y + '" font-size="' + (size || 9) + '" ' +
+    'fill="' + (color || ICV.text) + '" text-anchor="' + (anchor || 'middle') + '"' +
+    (weight ? ' font-weight="' + weight + '"' : '') + '>' + esc(String(s)) + '</text>';
+}
+function _niceMax(v){
+  if(!(v > 0)) return 1;
+  var e = Math.pow(10, Math.floor(Math.log(v) / Math.LN10));
+  var m = v / e;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * e;
+}
+
+// 세로 막대 — 연도별 추세. 두 번째 계열은 선으로 겹쳐 그린다(비율 축).
+// histN을 주면 추정 구간에 음영을 깔아 실적과 눈으로 구분된다.
+function icSvgBars(labels, values, opts){
+  opts = opts || {};
+  var W = 720, H = opts.height || 200, L = 44, R = opts.line ? 40 : 12, T = 16, B = 26;
+  var iw = W - L - R, ih = H - T - B;
+  var max = _niceMax(Math.max.apply(null, values.concat([0])));
+  var n = labels.length, step = iw / n, bw = Math.min(38, step * 0.56);
+  var g = '';
+
+  if(opts.histN != null && opts.histN < n){
+    var x0 = L + step * opts.histN;
+    g += '<rect x="' + x0.toFixed(1) + '" y="' + T + '" width="' + (L + iw - x0).toFixed(1) +
+         '" height="' + ih + '" fill="' + ICV.band + '"/>';
+    g += _t(x0 + 3, T + 10, '추정', 8.5, '#9CA3AF', 'start');
+  }
+  for(var k = 0; k <= 4; k++){
+    var y = T + ih - ih * k / 4;
+    g += '<line x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (L + iw) +
+         '" y2="' + y.toFixed(1) + '" stroke="' + ICV.grid + '" stroke-width="1"/>';
+    g += _t(L - 6, y + 3, fmtSmart(max * k / 4), 8.5, '#9CA3AF', 'end');
+  }
+  values.forEach(function(v, i){
+    var h = Math.max(1, ih * (v / max)), x = L + step * i + (step - bw) / 2;
+    var fc = (opts.histN != null && i >= opts.histN) ? ICV.rev2 : ICV.rev;
+    g += '<rect x="' + x.toFixed(1) + '" y="' + (T + ih - h).toFixed(1) + '" width="' +
+         bw.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + fc + '" rx="2"/>';
+    if(n <= 12) g += _t(x + bw / 2, T + ih - h - 4, fmtSmart(v), 8.5, ICV.ink, 'middle', 600);
+    g += _t(x + bw / 2, H - 8, labels[i], 8.5);
+  });
+
+  if(opts.line && opts.line.length === n){
+    var lmax = _niceMax(Math.max.apply(null, opts.line)), pts = [];
+    opts.line.forEach(function(v, i){
+      pts.push((L + step * i + step / 2).toFixed(1) + ',' +
+               (T + ih - ih * (v / lmax)).toFixed(1));
+    });
+    g += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + ICV.neg +
+         '" stroke-width="1.6"/>';
+    pts.forEach(function(p){
+      var xy = p.split(',');
+      g += '<circle cx="' + xy[0] + '" cy="' + xy[1] + '" r="2.4" fill="' + ICV.neg + '"/>';
+    });
+    g += _t(L + iw + 6, T + 8, opts.lineLabel || '', 8.5, ICV.neg, 'start', 700);
+    g += _t(L + iw + 6, T + 19, (lmax * 100).toFixed(0) + '%', 8.5, '#9CA3AF', 'start');
+  }
+  return icSvg(W, H, g);
+}
+
+// 가로 막대 — 순위 비교. 음수도 받는다(0 기준 좌우).
+function icSvgHBars(rows, opts){
+  opts = opts || {};
+  var W = 720, rowH = 22, T = 8, B = 6, L = opts.labelW || 120, R = 56;
+  var H = T + B + rows.length * rowH, iw = W - L - R;
+  var vals = rows.map(function(r){ return r.value; });
+  var lo = Math.min(0, Math.min.apply(null, vals)), hi = Math.max(0, Math.max.apply(null, vals));
+  var span = (hi - lo) || 1, zero = L + iw * (0 - lo) / span;
+  var g = '';
+  if(lo < 0) g += '<line x1="' + zero.toFixed(1) + '" y1="' + T + '" x2="' + zero.toFixed(1) +
+                  '" y2="' + (H - B) + '" stroke="' + ICV.grid + '"/>';
+  rows.forEach(function(r, i){
+    var y = T + i * rowH, bh = 12;
+    var x1 = L + iw * (Math.min(0, r.value) - lo) / span;
+    var x2 = L + iw * (Math.max(0, r.value) - lo) / span;
+    g += _t(L - 8, y + bh - 2, r.label, 9.5, r.strong ? ICV.ink : ICV.text, 'end',
+            r.strong ? 700 : 400);
+    g += '<rect x="' + x1.toFixed(1) + '" y="' + (y + 2) + '" width="' +
+         Math.max(1, x2 - x1).toFixed(1) + '" height="' + bh + '" rx="2" fill="' +
+         (r.color || (r.value < 0 ? ICV.neg : ICV.rev)) + '"/>';
+    g += _t(W - R + 6, y + bh - 2, r.text != null ? r.text : fmtSmart(r.value),
+            9.5, ICV.ink, 'start', r.strong ? 700 : 500);
+  });
+  return icSvg(W, H, g);
+}
+
+// 100% 스택 — 구성비 추이. 색은 매출 램프에서만 가져온다.
+function icSvgStack(labels, series){
+  var W = 720, H = 178, L = 8, R = 96, T = 10, B = 26;
+  var iw = W - L - R, ih = H - T - B, n = labels.length;
+  var step = iw / n, bw = Math.min(46, step * 0.62), g = '';
+  for(var i = 0; i < n; i++){
+    var tot = 0;
+    series.forEach(function(sr){ tot += Math.abs(sr.values[i]); });
+    var acc = 0, x = L + step * i + (step - bw) / 2;
+    series.forEach(function(sr, k){
+      var frac = tot ? Math.abs(sr.values[i]) / tot : 0, h = ih * frac;
+      var y = T + ih - acc - h;
+      g += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) +
+           '" height="' + h.toFixed(1) + '" fill="' + ICV.ramp[k % ICV.ramp.length] + '"/>';
+      if(frac > 0.08) g += _t(x + bw / 2, y + h / 2 + 3, (frac * 100).toFixed(0) + '%',
+                              8.5, '#FFFFFF', 'middle', 700);
+      acc += h;
+    });
+    g += _t(x + bw / 2, H - 8, labels[i], 8.5);
+  }
+  series.forEach(function(sr, k){
+    var y = T + 6 + k * 15;
+    g += '<rect x="' + (W - R + 4) + '" y="' + (y - 8) + '" width="9" height="9" rx="2" fill="' +
+         ICV.ramp[k % ICV.ramp.length] + '"/>';
+    g += _t(W - R + 18, y, sr.name, 9, ICV.text, 'start');
+  });
+  return icSvg(W, H, g);
+}
+
+function icChartCard(title, sub, svg){
+  return card(title, sub || '', '', '<div class="chart-box">' + svg + '</div>');
+}
+
 // ── 항목 렌더러 ──────────────────────────────────────────────
 // 서술형 문단은 심사 자료에서 읽히지 않는다. 본문은 두 층의 항목으로 적는다.
 //   '문자열'             → ▪ 한 줄
 //   {t:'주제', d:[...]}   → ▪ 주제(굵게) 아래 – 근거들
 // 층은 데이터 쪽에서 나누고, 화면은 그 층을 그대로 보여준다.
+// 본문 강조. **굵게** 만 받는다 — 이스케이프한 뒤에 변환하므로
+// 데이터가 태그를 주입할 수 없다. 마크다운을 흉내내지 않는 이유는,
+// 심사 자료에서 필요한 강조가 "이 숫자가 결론이다" 하나뿐이기 때문이다.
+function icRich(s){
+  return esc(icText(s)).replace(/\*\*([^*]+)\*\*/g, '<b class="hl-b">$1</b>');
+}
 function icList(arr, cls){
   if(typeof arr === 'string') arr = [arr];
   if(!arr || !arr.length) return '';
   var b = '<ul class="' + cls + '">';
   arr.forEach(function(x){
-    if(typeof x === 'string'){ b += '<li>' + esc(icText(x)) + '</li>'; return; }
-    b += '<li><b>' + esc(icText(x.t || '')) + '</b>';
+    if(typeof x === 'string'){ b += '<li>' + icRich(x) + '</li>'; return; }
+    b += '<li><b>' + icRich(x.t || '') + '</b>';
     if(x.d && x.d.length){
       b += '<ul class="sub">';
-      x.d.forEach(function(y){ b += '<li>' + esc(icText(y)) + '</li>'; });
+      x.d.forEach(function(y){ b += '<li>' + icRich(y) + '</li>'; });
       b += '</ul>';
     }
     b += '</li>';
@@ -4795,7 +4982,7 @@ function icList(arr, cls){
 }
 function icPoints(m){
   var b = '';
-  if(m.lead) b += '<p class="lead">' + esc(icText(m.lead)) + '</p>';
+  if(m.lead) b += '<p class="lead">' + icRich(m.lead) + '</p>';
   b += icList(m.points, 'memo');
   return b;
 }
@@ -4835,11 +5022,11 @@ function icIdeaCard(d, i){
   var body = '';
   // 최신 확정 분기가 이 아이디어에 무엇을 말하는지. 논거보다 먼저 읽혀야 한다 —
   // 심사에서 묻는 것은 "그때 무슨 생각을 했나"가 아니라 "지금 어떻게 되고 있나"다.
-  if(d.update) body += '<div class="idea-upd"><b>진행</b> — ' + esc(icText(d.update)) + '</div>';
+  if(d.update) body += '<div class="idea-upd"><b>진행</b> — ' + icRich(d.update) + '</div>';
   if(d.thesis) body += icList(d.thesis, 'memo');
   var grid = box('촉매', d.catalysts) + box('확인 지표', d.kpis) + box('리스크', d.risks);
   if(grid) body += '<div class="idea-grid">' + grid + '</div>';
-  if(d.falsify) body += '<div class="falsify"><b>반증 조건</b> — ' + esc(icText(d.falsify)) + '</div>';
+  if(d.falsify) body += '<div class="falsify"><b>반증 조건</b> — ' + icRich(d.falsify) + '</div>';
 
   return '<div class="idea"><div class="idea-head">' +
     '<div class="idea-n">' + (i + 1) + '</div>' +
@@ -4851,8 +5038,8 @@ function icIdeaCard(d, i){
 function icIdeasBlock(){
   var list = (typeof MEMO === 'object' && MEMO) ? MEMO.ideas : null;
   if(!list || !list.length){
-    return '<div class="notice">MEMO.ideas 가 data.js에 없습니다. ' +
-      '아이디어마다 title · thesis · catalysts · kpis · risks · falsify 를 적습니다.</div>';
+    return '<div class="notice">MEMO.ideas 미선언 — 아이디어마다 ' +
+      'title · thesis · catalysts · kpis · risks · falsify 필요.</div>';
   }
   var h = '';
   list.forEach(function(d, i){ h += icIdeaCard(d, i); });
@@ -4863,8 +5050,8 @@ function renderICIdeas(){
   var h = '<div class="page">';
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('zap', 16) +
     ' Investment case</div><h1>투자 아이디어</h1></div>';
-  h += '<div class="notice">아이디어마다 <b>반증 조건</b>을 함께 적습니다. ' +
-    '무엇을 보면 틀렸다고 인정할지 미리 정해두지 않으면 사후에 합리화됩니다.</div>';
+  h += '<div class="notice">아이디어마다 <b>반증 조건</b> 병기 — ' +
+    '무엇을 보면 틀렸다고 인정할지 사전에 정하지 않으면 사후 합리화로 귀결.</div>';
   h += icMemoCard('company', '사업 구조와 경쟁 포지션');
   h += icIdeasBlock();
   h += icDebateCard();
@@ -4877,9 +5064,9 @@ function icDebateCard(){
   if(!d || !d.length) return '';
   var rows = '';
   d.forEach(function(x){
-    rows += '<tr><td style="white-space:normal;min-width:150px">' + esc(icText(x.q)) + '</td>' +
-      '<td style="white-space:normal">' + esc(icText(x.yes || '')) + '</td>' +
-      '<td style="white-space:normal">' + esc(icText(x.no || '')) + '</td></tr>';
+    rows += '<tr><td class="q" style="white-space:normal;min-width:140px">' + icRich(x.q) + '</td>' +
+      '<td style="white-space:normal">' + icRich(x.yes || '') + '</td>' +
+      '<td style="white-space:normal">' + icRich(x.no || '') + '</td></tr>';
   });
   return card('심사 쟁점', '한 질문에 양쪽을 함께 적는다', '',
     '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">쟁점</th>' +
@@ -4994,21 +5181,52 @@ function renderICReport(){
       var r = val(rev, i);
       return r ? icPct(val('ebitda', i) / r) : null;
     });
+  var opmSeries = YRS.map(function(_, i){
+    var r0 = val(rev, i); return r0 ? val('op_profit', i) / r0 : 0;
+  });
   h += icSec('03', '실적과 추정', '실적 ' + YRS[0] + '~' + YRS[HIST_N - 1] +
     '은 공시 확정값 · 이후는 모델 추정 (게이트 G1이 매 빌드마다 대사)',
+    icChartCard(MODEL[rev].label + ' 추이', '막대 = ' + MODEL[rev].label +
+      ' · 선 = 영업이익률 · 음영 구간이 추정',
+      icSvgBars(YRS, YRS.map(function(_, i){ return val(rev, i); }),
+        { histN:HIST_N, line:opmSeries, lineLabel:'OPM' })) +
     card('', '', UNITS.money,
       '<div class="table-wrap"><table class="fm">' + icYearHead() + body + '</table></div>'));
 
   // 4. 부문별
   if(MODEL.total_revenue){
+    // 부문 아래 자식은 대부분 가정변수(성장률·실적 오버라이드)라 리포트에 넣으면
+    // 0.0% 행만 늘어난다. 금액 단위의 계산 노드만 편다.
+    var moneyKids = function(id){
+      return childrenOf(id).filter(function(c){
+        return MODEL[c].type !== 'input' && isMoney(MODEL[c].u);
+      });
+    };
     var seg = childrenOf('total_revenue'), srows = '';
     seg.forEach(function(sid){
       srows += icNodeRow(sid, null, 'total');
       srows += icCalcRow('  YoY', icYoY(sid));
-      childrenOf(sid).forEach(function(c){ srows += icNodeRow(c, '  ' + (MODEL[c].label || c)); });
+      moneyKids(sid).forEach(function(c){ srows += icNodeRow(c, '  ' + (MODEL[c].label || c)); });
     });
+    // 비용은 별도 트리에 있다. 부문 매출만 보여주면 마진 이야기를 할 수 없다.
+    if(MODEL.total_cost){
+      srows += icNodeRow('total_cost', null, 'total');
+      moneyKids('total_cost').forEach(function(c){
+        srows += icNodeRow(c, '  ' + (MODEL[c].label || c));
+        moneyKids(c).forEach(function(g){
+          srows += icNodeRow(g, '    ' + (MODEL[g].label || g));
+        });
+      });
+    }
     if(srows){
-      h += icSec('04', '부문별 전개', '매출과 그 아래 원가 구성. 부문 합계는 연결 수치와 오차 0으로 일치한다.',
+      var mixSeries = seg.map(function(sid){
+        return { name:MODEL[sid].label || sid,
+                 values:YRS.map(function(_, i){ return val(sid, i); }) };
+      });
+      h += icSec('04', '부문별 전개',
+        '매출과 그 아래 원가 구성 · 부문 합계는 연결 수치와 오차 0으로 일치',
+        icChartCard('부문 구성비', '100% 스택 · ' + YRS[0] + '~' + YRS[HIST_N - 1] +
+          ' 실적, 이후 모델 추정', icSvgStack(YRS, mixSeries)) +
         card('', '', UNITS.money,
           '<div class="table-wrap"><table class="fm">' + icYearHead('부문') + srows + '</table></div>'));
     }
@@ -5103,9 +5321,9 @@ function renderICReport(){
     '근거란의 [객관]은 공시·시장 관측, [주관]은 심사자의 판단이다.',
     card('', '', '', '<div class="table-wrap"><table class="fm">' + ah + arows + '</table></div>'));
 
-  h += '<div class="notice" style="margin-top:22px">본 자료는 공시·시장 데이터를 바탕으로 한 ' +
-    '내부 검토용 모델이며 투자권유가 아닙니다. 모든 수치는 이 화면의 모델에서 그 자리에서 ' +
-    '계산되므로, 가정을 바꾸면 본문의 숫자도 함께 바뀝니다.</div>';
+  h += '<div class="notice" style="margin-top:22px">본 자료는 공시·시장 데이터 기반의 ' +
+    '내부 검토용 모델이며 투자권유가 아님. 모든 수치는 이 화면의 모델에서 즉시 ' +
+    '계산되므로 가정 변경 시 본문 숫자도 동시 변경됨.</div>';
   return h + '</div>';
 }
 
@@ -5118,8 +5336,8 @@ function renderICVerdict(){
   h += icMemoCard('bull', '상방 논리');
   h += icMemoCard('bear', '하방 논리');
   h += icMemoCard('risk', '리스크와 모니터링 지표');
-  h += '<div class="notice">본 자료는 공시·시장 데이터를 바탕으로 한 내부 검토용 모델이며 ' +
-    '투자권유가 아닙니다. 모든 수치는 최신 공시로 재확인하십시오.</div>';
+  h += '<div class="notice">본 자료는 공시·시장 데이터 기반의 내부 검토용 모델이며 ' +
+    '투자권유가 아님. 모든 수치는 최신 공시로 재확인 요망.</div>';
   return h + '</div>';
 }
 
@@ -5127,7 +5345,7 @@ function renderICVerdict(){
 function icMemoCard(key, title){
   var m = (typeof MEMO === 'object' && MEMO) ? MEMO[key] : null;
   if(!m) return card(title, '', '',
-    '<div class="notice">MEMO.' + esc(key) + ' 가 data.js에 없습니다.</div>');
+    '<div class="notice">MEMO.' + esc(key) + ' 미선언.</div>');
   return card(title, m.sub || '', '', icPoints(m));
 }
 
