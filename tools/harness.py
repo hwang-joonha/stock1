@@ -13,13 +13,14 @@ import tempfile
 
 from extract_engine import extract
 
+# 데이터 블록 마커. 빌드된 모델에서는 이 구간을 통째로 가져온다 —
+# 이름 단위로 뽑으면 데이터 파일이 헬퍼 변수를 못 쓰게 된다.
+DATA_START = "// <<<DATA:START>>>"
+DATA_END = "// <<<DATA:END>>>"
+
 # Node로 옮겨야 하는 최상위 선언. 순서가 곧 파일 순서다.
+# 데이터 블록(META/YRS/HIST_N/UNITS/MODEL)은 마커로 따로 가져온다.
 ENGINE_NAMES = [
-    "META",
-    "YRS",
-    "HIST_N",
-    "UNITS",
-    "MODEL",
     "DEFAULTS_S",
     "INPUT_KEYS",
     "TREE",
@@ -42,8 +43,11 @@ ENGINE_NAMES = [
     "val",
 ]
 
-# 템플릿 세대에만 있는 선언. 원본에는 없으므로 없어도 넘어간다.
+# 템플릿 세대에만 있는 선언. 패치 전 원본에는 없으므로 없어도 넘어간다.
 OPTIONAL_NAMES = {"META", "UNITS", "evalAstAt"}
+
+# 마커가 없는 파일(패치 전 원본)은 이름 단위로 되돌아간다.
+LEGACY_DATA_NAMES = ["META", "YRS", "HIST_N", "UNITS", "MODEL"]
 
 # DEFAULTS_S를 SV로 복사하는 한 줄은 원본에서 다른 선언과 같은 줄에 붙어 있어
 # 이름 단위로 떼어낼 수 없다. 여기서 다시 쓴다.
@@ -89,9 +93,21 @@ process.stdout.write(JSON.stringify(report));
 """
 
 
+def data_block(html_path: str) -> str:
+    """데이터 블록을 통째로 돌려준다. 마커가 없으면 이름 단위로 뽑는다."""
+    with open(html_path, encoding="utf-8") as fh:
+        html = fh.read()
+    head = html.find(DATA_START)
+    tail = html.find(DATA_END)
+    if head != -1 and tail > head:
+        return html[head + len(DATA_START):tail]
+    return extract(html_path, LEGACY_DATA_NAMES, OPTIONAL_NAMES)
+
+
 def build_script(html_path: str) -> str:
     """모델 HTML에서 Node 실행용 JS 소스를 만든다."""
-    engine = extract(html_path, ENGINE_NAMES, OPTIONAL_NAMES)
+    engine = data_block(html_path) + "\n\n" + extract(
+        html_path, ENGINE_NAMES, OPTIONAL_NAMES)
     # 선언은 원문 그대로 두되, 재할당이 필요한 것만 let으로 완화한다.
     engine = engine.replace("const SV=", "var _unused_SV=")
     return _PRELUDE + engine + _EPILOGUE

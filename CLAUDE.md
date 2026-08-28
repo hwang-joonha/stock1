@@ -83,9 +83,23 @@ python3 tools/validate_model.py --all   # G9가 Tesla 회귀를 잡는다
 | Phase | 내용 | 상태 |
 |---|---|---|
 | 0 | 엔진 정비 — 템플릿 추출, P0 결함 수정, 검증 게이트 | 완료 |
-| 1 | 매출 레이어 — 삼성전기 3개 부문 Q×P | 예정 |
+| 1 | 매출 레이어 — 삼성전기 3개 부문 Q×P | **설계 완료 · 데이터 대기** |
 | 2 | 비용 · 영업이익 | 예정 |
 | 3 | 밸류에이션 · 심사 뷰 · Excel · 스킬화 | 예정 |
+
+### Phase 1 현황
+
+설계는 끝났다 (`companies/samsung-em/01_revenue_methodology.md`).
+Q×P 트리 27노드·입력 17개가 `data.skeleton.js`에 실행 가능한 형태로 들어 있고
+구조 게이트를 전부 통과한다.
+
+**막힌 지점**: 이 환경에서 DART·IR 원문 접근이 차단돼 실적 라인아이템을
+확정할 수 없다. 검색 스니펫은 서로 충돌했다 (FY2021 매출이 71,997억 vs 96,750억).
+프레임워크 §3.1에 따라 근사치를 모델에 넣지 않았다.
+
+진행하려면 [`companies/samsung-em/DATA_REQUEST.md`](companies/samsung-em/DATA_REQUEST.md)의
+항목을 채운 `historicals.json`이 필요하다. 채워지면 `data.skeleton.js`를
+`data.js`로 복사해 값만 넣으면 된다.
 
 ### Phase 0에서 고친 것
 

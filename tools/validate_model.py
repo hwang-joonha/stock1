@@ -80,6 +80,10 @@ def g1_historicals(rep: dict, data_dir: str) -> Result:
 
     with open(path, encoding="utf-8") as fh:
         expected = json.load(fh)
+    # _로 시작하는 키는 출처·단위 메모다. 노드가 아니므로 건너뛴다.
+    expected = {k: v for k, v in expected.items() if not k.startswith("_")}
+    if not expected:
+        return r.skip(f"{os.path.relpath(path, ROOT)}에 대사할 노드가 없음")
     hist_n = rep["HIST_N"]
     bad = []
     for node, vals in expected.items():
