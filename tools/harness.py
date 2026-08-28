@@ -41,7 +41,7 @@ ENGINE_NAMES = [
     "isSumOfChildren",
     "unusedInputs",
     "val",
-    "isMoney",
+    "_uList", "isMoney",
     "fmtSmart",
     "astToExcel",
     "_colLetter",

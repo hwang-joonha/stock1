@@ -332,6 +332,20 @@ def _walk_strings(obj, path=""):
             yield from _walk_strings(v, f"{path}[{i}]")
 
 
+
+def _nonempty(v) -> bool:
+    """문자열이면 공백이 아닌가, 배열이면 항목이 하나라도 있는가.
+
+    본문 항목은 '문자열' 또는 {t, d[]} 두 형태를 받는다. 게이트가 한 형태만
+    알고 있으면 문체를 바꾼 순간 게이트가 깨진다.
+    """
+    if isinstance(v, str):
+        return bool(v.strip())
+    if isinstance(v, list):
+        return len(v) > 0
+    return False
+
+
 def g11_memo(rep: dict) -> Result:
     """심사 레이어가 심사에 쓸 수 있는 상태인가.
 
@@ -376,7 +390,8 @@ def g11_memo(rep: dict) -> Result:
     for i, d in enumerate(ideas):
         tag = f"MEMO.ideas[{i}]"
         for field in ("title", "thesis", "falsify"):
-            if not (d.get(field) or "").strip():
+            # thesis는 문자열이거나 항목 배열이다 (보고서 문체의 2단 구조).
+            if not _nonempty(d.get(field)):
                 bad.append(f"{tag}: {field} 없음")
         if not (d.get("catalysts") or d.get("kpis") or d.get("track")):
             bad.append(f"{tag}: 확인할 것이 하나도 없음 (catalysts/kpis/track)")
@@ -387,6 +402,26 @@ def g11_memo(rep: dict) -> Result:
                 bad.append(f"{tag}.track[{j}]: label/seg/metric 필요")
             if t.get("good") not in ("up", "down", None):
                 bad.append(f"{tag}.track[{j}]: good은 up 또는 down")
+
+    # 2b) 본문 항목의 형태 — 문자열 또는 {t, d[]}
+    def check_items(items, tag):
+        for j, x in enumerate(items or []):
+            if isinstance(x, str):
+                continue
+            if not isinstance(x, dict) or not (x.get("t") or "").strip():
+                bad.append(f"{tag}[{j}]: 항목은 문자열이거나 {{t, d}} 여야 한다")
+            elif x.get("d") is not None and not isinstance(x["d"], list):
+                bad.append(f"{tag}[{j}].d 는 배열이어야 한다")
+
+    for key in ("company", "thesis", "valuation", "verdict", "bull", "bear", "risk"):
+        blk = memo.get(key)
+        if isinstance(blk, dict):
+            check_items(blk.get("points"), f"MEMO.{key}.points")
+    for i, d in enumerate(ideas):
+        for f in ("thesis", "catalysts", "kpis", "risks"):
+            v = d.get(f)
+            if isinstance(v, list):
+                check_items(v, f"MEMO.ideas[{i}].{f}")
 
     # 3) 쟁점은 양쪽을 적는다
     for i, d in enumerate(memo.get("debate") or []):

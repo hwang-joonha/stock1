@@ -341,14 +341,22 @@ DEFAULTS_DERIVED = """const DEFAULTS_S=Object.fromEntries(
 
 OLD_FMT = """function fmtNum(v,u,pct){if(pct)return(v*100).toFixed(1)+'%';if(u==='원'||u==='원/건'||u==='원/대'||u==='원/월'){if(Math.abs(v)>=1e8)return(v/1e8).toFixed(1)+'억';if(Math.abs(v)>=1e4)return(v/1e4).toFixed(0)+'만';return v.toLocaleString('ko-KR')}return fmtSmart(v,pct)}"""
 
-NEW_FMT = """// 통화 노드인가? UNITS.money와 정확히 같은 단위만 축약 대상으로 본다.
+NEW_FMT = """// UNITS의 선택 필드는 쓰는 자리마다 기본값을 세운다.
+// 초기화 블록 하나로 몰면 그 블록이 이름 없는 구문이라 하네스가 떼어가지 못하고,
+// 브라우저에서는 되는데 Excel 빌드(G7)에서만 죽는 상태가 된다.
+// 두 번째 종목 KT&G를 태우다 실제로 그 자리에서 걸렸다 — 엔진이 종목 데이터의
+// 선택 필드에 의존하고 있었다는 뜻이다.
+function _uList(x){ return Array.isArray(x) ? x : []; }
+
+// 통화 노드인가? UNITS.money와 정확히 같은 단위만 축약 대상으로 본다.
 function isMoney(u){ return !!u && u===UNITS.money; }
 // 큰 통화값 축약. UNITS.moneyAbbrev가 비어 있으면 그냥 fmtSmart로 떨어진다.
 function fmtMoney(v){
   if(typeof v!=='number'||!isFinite(v)) return '-';
   let a=Math.abs(v), s=v<0?'-':'';
-  for(let i=0;i<UNITS.moneyAbbrev.length;i++){
-    let r=UNITS.moneyAbbrev[i];
+  let _ab=_uList(UNITS.moneyAbbrev);
+  for(let i=0;i<_ab.length;i++){
+    let r=_ab[i];
     if(a>=r.min) return s+(a/r.div).toFixed(r.digits)+r.suffix;
   }
   return fmtSmart(v);
@@ -416,9 +424,9 @@ NEW_BRIDGE_TITLE = """  let _rootLabel=(MODEL[rootId()]||{}).label||'합계';
 OLD_EXCEL_FMT = """  if(['GWh','백만대','천$/대','백만$/GWh','million','bn','십억','백만'].some(t=>u.includes(t)))return '_-* #,##0.0_-;-* #,##0.0_-;_-* "-"_-;_-@_-';
   if(['$/','USD/','배럴','톤'].some(t=>u.includes(t)))return '_-* #,##0.00_-;-* #,##0.00_-;_-* "-"_-;_-@_-';"""
 
-NEW_EXCEL_FMT = """  if(isMoney(u))return UNITS.excelMoneyFormat;
-  if(UNITS.excelOneDecimal.some(t=>u.includes(t)))return '_-* #,##0.0_-;-* #,##0.0_-;_-* "-"_-;_-@_-';
-  if(UNITS.excelTwoDecimal.some(t=>u.includes(t)))return '_-* #,##0.00_-;-* #,##0.00_-;_-* "-"_-;_-@_-';"""
+NEW_EXCEL_FMT = """  if(isMoney(u))return UNITS.excelMoneyFormat || '_-* #,##0_-;-* #,##0_-;_-* "-"_-;_-@_-';
+  if(_uList(UNITS.excelOneDecimal).some(t=>u.includes(t)))return '_-* #,##0.0_-;-* #,##0.0_-;_-* "-"_-;_-@_-';
+  if(_uList(UNITS.excelTwoDecimal).some(t=>u.includes(t)))return '_-* #,##0.00_-;-* #,##0.00_-;_-* "-"_-;_-@_-';"""
 
 # 사이드바 각주의 단위 문구도 UNITS에서 나오게 한다.
 OLD_FOOTSUB = """      <p id="footSub">단위 백만$ · 실적 4개년 + 추정 6개년</p>"""
@@ -865,8 +873,10 @@ function renderICOverview(){
   h += icStat('괴리', (up >= 0 ? '+' : '') + (up * 100).toFixed(0) + '%',
     up >= 0 ? '적정가치가 현재가를 상회' : '현재가가 적정가치를 상회',
     up >= 0 ? 'pos' : 'neg');
-  h += icStat('현재가 함의 배수', im ? im.toFixed(1) + '배' : '—',
+  if(im !== null) h += icStat('현재가 함의 배수', im.toFixed(1) + '배',
     YRS[t] + ' EBITDA 기준 EV/EBITDA');
+  else if(MODEL.wacc) h += icStat('할인율 (WACC)', (val('wacc', t) * 100).toFixed(1) + '%',
+    MODEL.tv_growth ? '영구성장 ' + (val('tv_growth', t) * 100).toFixed(1) + '%' : '');
   h += '</div>';
 
   // 연도별 적정가치 vs 현재 시총
@@ -892,11 +902,15 @@ function renderICValuation(){
   var t = icLastIdx(), h = '<div class="page">';
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('trending-up', 16) +
     ' Investment case</div><h1>밸류에이션</h1></div>';
-  if(typeof MARKET !== 'object' || !MARKET || !MODEL.ebitda){
-    return h + '<div class="notice">MARKET 또는 ebitda 노드가 없어 밸류에이션을 계산할 수 없습니다.</div></div>';
+  if(typeof MARKET !== 'object' || !MARKET){
+    return h + '<div class="notice">MARKET 블록이 없어 시장 대비 비교를 할 수 없습니다.</div></div>';
   }
   h += icMarketNote();
 
+  // 배수 민감도는 EBITDA 배수법 모델에서만 뜻이 있다. DCF 모델(ebitda 노드가 없는
+  // 트리)에서는 이 카드를 건너뛰고 피어·컨센서스·판단만 보여준다.
+  // 두 번째 종목 KT&G를 태우다 이 화면이 통째로 비는 것을 발견했다.
+  if(MODEL.ebitda){
   // 배수 민감도 — 목표배수 × 추정연도
   var muls = [8, 10, 12, 15, 20, 25, 30];
   var head = '<tr><th>목표 EV/EBITDA</th>';
@@ -931,6 +945,24 @@ function renderICValuation(){
     '현재 시가총액을 정당화하려면 ' + YRS[t] + '에 필요한 EBITDA', UNITS.money,
     '<div class="table-wrap"><table class="fm"><tr><th>목표배수 가정</th>' +
     '<th>필요 EBITDA</th><th>모델 대비</th></tr>' + need.join('') + '</table></div>');
+  }
+
+  // DCF 모델에서는 루트 자체를 연도별로 펼쳐 보여준다.
+  if(!MODEL.ebitda){
+    var dcf = '';
+    for(var k2 = HIST_N; k2 < YRS.length; k2++){
+      var f3 = val(rootId(), k2), u4 = f3 / MARKET.mktcap - 1;
+      dcf += '<tr' + (k2 === t ? ' class="hl"' : '') + '><td>' + esc(YRS[k2]) + '</td>' +
+        '<td>' + esc(fmtV(rootId(), k2)) + '</td>' +
+        '<td>' + (MARKET.shares
+          ? Math.round(f3 * 1e8 / MARKET.shares).toLocaleString('ko-KR') + '원' : '—') + '</td>' +
+        '<td class="' + (u4 >= 0 ? 'pos' : 'neg') + '">' +
+          (u4 >= 0 ? '+' : '') + (u4 * 100).toFixed(0) + '%</td></tr>';
+    }
+    h += card('추정기간별 적정가치', '추정기간이 그 해에 끝난다고 볼 때의 값', UNITS.money,
+      '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">기준 연도</th>' +
+      '<th>적정 시가총액</th><th>주당</th><th>현재가 대비</th></tr>' + dcf + '</table></div>');
+  }
 
   h += icMemoCard('valuation', '밸류에이션 판단');
   return h + '</div>';
@@ -954,14 +986,7 @@ function icMemoCard(key, title){
   var m = (typeof MEMO === 'object' && MEMO) ? MEMO[key] : null;
   if(!m) return card(title, '', '',
     '<div class="notice">MEMO.' + esc(key) + ' 가 data.js에 없습니다.</div>');
-  var body = '';
-  if(m.lead) body += '<p class="lead">' + esc(m.lead) + '</p>';
-  if(m.points && m.points.length){
-    body += '<ul class="memo">';
-    m.points.forEach(function(x){ body += '<li>' + esc(x) + '</li>'; });
-    body += '</ul>';
-  }
-  return card(title, m.sub || '', '', body);
+  return card(title, m.sub || '', '', icPoints(m));
 }
 
 // ── 가정·근거 페이지 ──"""
@@ -982,6 +1007,16 @@ table.fm tr.hl td{background:#EDF3FF;font-weight:700}
 p.lead{font-size:14px;color:#374151;line-height:1.7;margin:0 0 10px}
 ul.memo{margin:0;padding-left:18px}
 ul.memo li{font-size:13px;color:#4B5563;line-height:1.75;margin-bottom:6px}
+/* 본문은 문단이 아니라 항목이다. 층을 기호로 구분한다. */
+ul.memo,ul.idea-ul{list-style:none;padding-left:0;margin:0}
+ul.memo > li{font-size:12.5px;color:#4B5563;line-height:1.7;margin-bottom:9px;
+  padding-left:15px;position:relative}
+ul.memo > li:before{content:'▪';position:absolute;left:0;top:-1px;color:#5D68F7;font-size:10px}
+ul.memo > li > b,ul.idea-ul > li > b{color:#0F0F12;font-weight:700}
+ul.memo ul.sub,ul.idea-ul ul.sub{list-style:none;padding-left:0;margin:5px 0 0}
+ul.memo ul.sub > li{font-size:12px;color:#6B7280;line-height:1.65;margin-bottom:3px;
+  padding-left:13px;position:relative}
+ul.memo ul.sub > li:before{content:'–';position:absolute;left:0;color:#9CA3AF}
 
 /* 근거 / 노트 */"""
 
@@ -1072,16 +1107,18 @@ function icIdeaCard(d, i){
 
   var box = function(title, arr){
     if(!arr || !arr.length) return '';
-    var li = '';
-    arr.forEach(function(x){ li += '<li>' + esc(x) + '</li>'; });
-    return '<div class="idea-box"><div class="h">' + esc(title) + '</div><ul>' + li + '</ul></div>';
+    return '<div class="idea-box"><div class="h">' + esc(title) + '</div>' +
+      icList(arr, 'idea-ul') + '</div>';
   };
 
   var body = '';
-  if(d.thesis) body += '<p>' + esc(d.thesis) + '</p>';
+  // 최신 확정 분기가 이 아이디어에 무엇을 말하는지. 논거보다 먼저 읽혀야 한다 —
+  // 심사에서 묻는 것은 "그때 무슨 생각을 했나"가 아니라 "지금 어떻게 되고 있나"다.
+  if(d.update) body += '<div class="idea-upd"><b>진행</b> — ' + esc(icText(d.update)) + '</div>';
+  if(d.thesis) body += icList(d.thesis, 'memo');
   var grid = box('촉매', d.catalysts) + box('확인 지표', d.kpis) + box('리스크', d.risks);
   if(grid) body += '<div class="idea-grid">' + grid + '</div>';
-  if(d.falsify) body += '<div class="falsify"><b>반증 조건</b> — ' + esc(d.falsify) + '</div>';
+  if(d.falsify) body += '<div class="falsify"><b>반증 조건</b> — ' + esc(icText(d.falsify)) + '</div>';
 
   return '<div class="idea"><div class="idea-head">' +
     '<div class="idea-n">' + (i + 1) + '</div>' +
@@ -1171,14 +1208,7 @@ function icSec(n, title, desc, body){
 function icMemoBody(key){
   var m = (typeof MEMO === 'object' && MEMO) ? MEMO[key] : null;
   if(!m) return '<div class="notice">MEMO.' + esc(key) + ' 없음</div>';
-  var b = '';
-  if(m.lead) b += '<p class="lead">' + esc(m.lead) + '</p>';
-  if(m.points && m.points.length){
-    b += '<ul class="memo">';
-    m.points.forEach(function(x){ b += '<li>' + esc(x) + '</li>'; });
-    b += '</ul>';
-  }
-  return b;
+  return icPoints(m);
 }
 
 function renderICReport(){
@@ -1206,10 +1236,15 @@ function renderICReport(){
     h += icStat(YRS[t] + ' 적정 시가총액', icMoney(fair),
       fairPS ? '주당 ' + fairPS.toLocaleString('ko-KR') + '원' : '');
     h += icStat('괴리', (up >= 0 ? '+' : '') + (up * 100).toFixed(0) + '%',
-      '목표배수 ' + (MODEL.target_ev_ebitda ? val('target_ev_ebitda', t).toFixed(0) + '배' : '—'),
+      MODEL.target_ev_ebitda ? '목표배수 ' + val('target_ev_ebitda', t).toFixed(0) + '배'
+        : (MODEL.wacc ? 'WACC ' + (val('wacc', t) * 100).toFixed(1) + '%' : ''),
       up >= 0 ? 'pos' : 'neg');
+    // 배수법 모델에서는 현재가가 함의하는 배수를, DCF 모델에서는 할인율을 보여준다.
+    // 없는 개념 자리에 '—'를 띄우면 화면이 고장난 것처럼 읽힌다.
     var im = icImpliedMultiple(t);
-    h += icStat('현재가 함의 배수', im ? im.toFixed(1) + '배' : '—', YRS[t] + ' EBITDA 기준');
+    if(im !== null) h += icStat('현재가 함의 배수', im.toFixed(1) + '배', YRS[t] + ' EBITDA 기준');
+    else if(MODEL.wacc) h += icStat('할인율 (WACC)', (val('wacc', t) * 100).toFixed(1) + '%',
+      MODEL.tv_growth ? '영구성장 ' + (val('tv_growth', t) * 100).toFixed(1) + '%' : '');
     h += '</div>';
   }
   h += '</div>';
@@ -1372,7 +1407,11 @@ NEW_IC4_STYLE = """ul.memo li{font-size:13px;color:#4B5563;line-height:1.75;marg
 .idea-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
 .idea-box .h{font-size:9.5px;font-weight:700;letter-spacing:.04em;color:#6B7280;margin-bottom:5px}
 .idea-box ul{margin:0;padding-left:15px}
-.idea-box li{font-size:11.5px;color:#4B5563;line-height:1.65;margin-bottom:4px}
+.idea-box li{font-size:11.5px;color:#4B5563;line-height:1.65;margin-bottom:5px;
+  padding-left:12px;position:relative;list-style:none}
+.idea-box li:before{content:'▪';position:absolute;left:0;top:-1px;color:#A1B8FF;font-size:9px}
+.idea-box ul.sub > li{font-size:11px;color:#6B7280;padding-left:11px;margin-bottom:2px}
+.idea-box ul.sub > li:before{content:'–';color:#9CA3AF;font-size:11px;top:0}
 .falsify{margin-top:14px;padding:10px 12px;border-radius:6px;background:#F9FAFB;
   border:1px solid #E5E7EB;border-left:3px solid #DC2626;font-size:11.5px;color:#4B5563;line-height:1.7}
 .falsify b{color:#DC2626}
@@ -1704,6 +1743,34 @@ function icConsensusCard(){
     '</b> · ' + esc(CONSENSUS.source || '') + '</div>');
 }
 
+// ── 항목 렌더러 ──────────────────────────────────────────────
+// 서술형 문단은 심사 자료에서 읽히지 않는다. 본문은 두 층의 항목으로 적는다.
+//   '문자열'             → ▪ 한 줄
+//   {t:'주제', d:[...]}   → ▪ 주제(굵게) 아래 – 근거들
+// 층은 데이터 쪽에서 나누고, 화면은 그 층을 그대로 보여준다.
+function icList(arr, cls){
+  if(typeof arr === 'string') arr = [arr];
+  if(!arr || !arr.length) return '';
+  var b = '<ul class="' + cls + '">';
+  arr.forEach(function(x){
+    if(typeof x === 'string'){ b += '<li>' + esc(icText(x)) + '</li>'; return; }
+    b += '<li><b>' + esc(icText(x.t || '')) + '</b>';
+    if(x.d && x.d.length){
+      b += '<ul class="sub">';
+      x.d.forEach(function(y){ b += '<li>' + esc(icText(y)) + '</li>'; });
+      b += '</ul>';
+    }
+    b += '</li>';
+  });
+  return b + '</ul>';
+}
+function icPoints(m){
+  var b = '';
+  if(m.lead) b += '<p class="lead">' + esc(icText(m.lead)) + '</p>';
+  b += icList(m.points, 'memo');
+  return b;
+}
+
 // ── 산문 속 숫자를 모델에서 읽는다 ─────────────────────────────
 // {{node@2030}} 은 그 자리에서 모델값으로 치환된다. 산문에 숫자를 박아두면
 // 가정을 바꿨을 때 본문만 옛 숫자로 남는다 — 그것을 문법으로 막는다.
@@ -1723,58 +1790,9 @@ function icText(s){
 // ── 투자 아이디어 ─────────────────────────────────────────────"""
 
 # MEMO 텍스트가 화면에 나가는 모든 경로에 인용 치환을 건다.
-OLD_IC5_MEMOCARD = """  var body = '';
-  if(m.lead) body += '<p class="lead">' + esc(m.lead) + '</p>';
-  if(m.points && m.points.length){
-    body += '<ul class="memo">';
-    m.points.forEach(function(x){ body += '<li>' + esc(x) + '</li>'; });
-    body += '</ul>';
-  }
-  return card(title, m.sub || '', '', body);"""
-NEW_IC5_MEMOCARD = """  var body = '';
-  if(m.lead) body += '<p class="lead">' + esc(icText(m.lead)) + '</p>';
-  if(m.points && m.points.length){
-    body += '<ul class="memo">';
-    m.points.forEach(function(x){ body += '<li>' + esc(icText(x)) + '</li>'; });
-    body += '</ul>';
-  }
-  return card(title, m.sub || '', '', body);"""
 
-OLD_IC5_MEMOBODY = """  var b = '';
-  if(m.lead) b += '<p class="lead">' + esc(m.lead) + '</p>';
-  if(m.points && m.points.length){
-    b += '<ul class="memo">';
-    m.points.forEach(function(x){ b += '<li>' + esc(x) + '</li>'; });
-    b += '</ul>';
-  }
-  return b;"""
-NEW_IC5_MEMOBODY = """  var b = '';
-  if(m.lead) b += '<p class="lead">' + esc(icText(m.lead)) + '</p>';
-  if(m.points && m.points.length){
-    b += '<ul class="memo">';
-    m.points.forEach(function(x){ b += '<li>' + esc(icText(x)) + '</li>'; });
-    b += '</ul>';
-  }
-  return b;"""
 
-OLD_IC5_IDEA = """  var body = '';
-  if(d.thesis) body += '<p>' + esc(d.thesis) + '</p>';
-  var grid = box('촉매', d.catalysts) + box('확인 지표', d.kpis) + box('리스크', d.risks);
-  if(grid) body += '<div class="idea-grid">' + grid + '</div>';
-  if(d.falsify) body += '<div class="falsify"><b>반증 조건</b> — ' + esc(d.falsify) + '</div>';"""
-NEW_IC5_IDEA = """  var body = '';
-  // 최신 확정 분기가 이 아이디어에 무엇을 말하는지. 논거보다 먼저 읽혀야 한다 —
-  // 심사에서 묻는 것은 "그때 무슨 생각을 했나"가 아니라 "지금 어떻게 되고 있나"다.
-  if(d.update) body += '<div class="idea-upd"><b>진행</b> — ' + esc(icText(d.update)) + '</div>';
-  if(d.thesis) body += '<p>' + esc(icText(d.thesis)) + '</p>';
-  var grid = box('촉매', d.catalysts) + box('확인 지표', d.kpis) + box('리스크', d.risks);
-  if(grid) body += '<div class="idea-grid">' + grid + '</div>';
-  if(d.falsify) body += '<div class="falsify"><b>반증 조건</b> — ' + esc(icText(d.falsify)) + '</div>';"""
 
-OLD_IC5_BOX = """    var li = '';
-    arr.forEach(function(x){ li += '<li>' + esc(x) + '</li>'; });"""
-NEW_IC5_BOX = """    var li = '';
-    arr.forEach(function(x){ li += '<li>' + esc(icText(x)) + '</li>'; });"""
 
 OLD_IC5_DEBATE = """    rows += '<tr><td style="white-space:normal;min-width:150px">' + esc(x.q) + '</td>' +
       '<td style="white-space:normal">' + esc(x.yes || '') + '</td>' +
@@ -2038,10 +2056,6 @@ def main() -> None:
     p.sub("IC-5 뷰 제목", OLD_IC5_TITLES, NEW_IC5_TITLES)
     p.sub("IC-5 사이드바", OLD_IC5_NAV, NEW_IC5_NAV)
     p.sub("IC-5 모니터링·민감도·인용 구현", OLD_IC5_ANCHOR, NEW_IC5_ANCHOR)
-    p.sub("IC-5 인용 치환 (memo card)", OLD_IC5_MEMOCARD, NEW_IC5_MEMOCARD)
-    p.sub("IC-5 인용 치환 (memo body)", OLD_IC5_MEMOBODY, NEW_IC5_MEMOBODY)
-    p.sub("IC-5 인용 치환 (아이디어)", OLD_IC5_IDEA, NEW_IC5_IDEA)
-    p.sub("IC-5 인용 치환 (목록)", OLD_IC5_BOX, NEW_IC5_BOX)
     p.sub("IC-5 인용 치환 (쟁점)", OLD_IC5_DEBATE, NEW_IC5_DEBATE)
     p.sub("IC-5 밸류에이션에 컨센서스", OLD_IC5_VAL, NEW_IC5_VAL)
     p.sub("IC-5 리포트에 컨센서스", OLD_IC5_RPVAL, NEW_IC5_RPVAL)
