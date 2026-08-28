@@ -777,6 +777,18 @@ const MODEL={
   },
 
   // ═══ 영업이익 ═══════════════════════════════════════════════
+  // EBITDA는 DCF 트리의 계산 경로에 없지만, 피어 비교·컨센서스 대조·교차검증이
+  // 전부 이 값으로 이뤄진다. 참고 노드로 두면 산문의 숫자가 손이 아니라
+  // 모델에서 나온다 (G11이 인용을 검사한다).
+  ebitda: {
+    label:'EBITDA (참고)', parent:'op_profit', type:'computed',
+    formula:'op_profit + dep_total',
+    v:new Array(YRS.length).fill(0), u:'억원',
+    desc:'[계산] 영업이익 + 감가상각비. DCF 계산에는 쓰이지 않는 참고 지표다 — '
+        +'피어 비교(EV/EBITDA)와 컨센서스 대조가 이 값으로 이뤄지므로 노드로 둔다. '
+        +'WISEreport의 EBITDA는 무형자산상각을 포함해 이 정의보다 소폭 넓다.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
   op_profit: {
     label:'영업이익', sub:'매출 − 비용',
     parent:'nopat', type:'computed',
@@ -1005,7 +1017,7 @@ const MEMO={
         '현재가 174,500원 대비 −31%',
       ]},
       {t:'교차검증 — **0.8% 차이**', d:[
-        '2025 영업이익 {{op_profit@2025}}억 + 감가상각 {{dep_total@2025}}억 = EBITDA 16,480억',
+        '2025 EBITDA {{ebitda@2025}}억 (영업이익 {{op_profit@2025}}억 + 감가상각 {{dep_total@2025}}억)',
         'EV = 시가총액 + 순차입금 = 189,705억 → 11.51배',
         'WISEreport 11.42배와 대조',
       ]},
@@ -1017,6 +1029,10 @@ const MEMO={
         '해외 궐련이라는 성장축 — 실재',
         '필수소비재 중 압도적 이익률 (20%대 대 피어 5~10%대) — 실재',
         '배당·자사주 중심 주주환원 — 순차입 전환만큼 **지속성에 물음표**',
+      ]},
+      {t:'컨센서스 대비 — 본 모델이 9% 낮음', d:[
+        '컨센서스 2026 EBITDA 18,538억 대 본 모델 {{ebitda@2026}}억',
+        '최근 3개월 내 목표주가 제시 없음 — **커버리지 공백** 자체가 테마 밖 종목이라는 신호',
       ]},
       {t:'**WACC가 단일 최강 가정**', d:[
         '삼성전기 모델의 목표배수에 해당하는 자리. 민감도 뷰에서 확인',
@@ -1037,7 +1053,8 @@ const MEMO={
         '해외 궐련 매출의 분기 추이가 유일한 확인 경로',
         '국내 담배는 규제·세제 변수로 예측 대상 아님',
       ]},
-      {t:'보유 시', d:[
+      {t:'보유 시 — 배당이 하방을 받침', d:[
+        '2026E DPS 컨센서스 7,161원 = 현재가 기준 배당수익률 **4.1%**',
         '주주환원 재원 확인. 순현금 소진 상태에서 자사주 매입 유지하려면 이익이 뒷받침되어야 함',
       ]},
       {t:'Base의 보수성 감안 필요', d:[
@@ -1184,6 +1201,17 @@ const PEERS={
     {market:'국내', code:'004370', name:'농심',      group:'필수소비재', mktcap:25973,  evEbitda:[5.0, 4.4, null], per:[15.3, 12.5, null], ret1y:'+6.0%'},
     {market:'국내', code:'280360', name:'롯데웰푸드', group:'필수소비재', mktcap:12518,  evEbitda:[7.1, 5.3, null], per:[17.6, 10.0, null], ret1y:'+15.5%'},
     {market:'국내', code:'000080', name:'하이트진로', group:'필수소비재', mktcap:10646,  evEbitda:[5.8, 5.0, null], per:[26.1, 10.9, null], ret1y:'-20.9%'},
+  ],
+};
+
+// ── CONSENSUS ───────────────────────────────────────────────
+const CONSENSUS={
+  asOf:'2026-08-28',
+  source:'WISEreport 컨센서스 (최근 3개월 증권사 추정 평균)',
+  // 최근 3개월 내 제시된 목표주가·투자의견이 없다 — 커버리지가 얇다는 것 자체가
+  // 정보다(테마 밖 종목). EBITDA·배당 추정만 쓴다.
+  items:[
+    {year:2026, node:'ebitda', value:18538},
   ],
 };
 
@@ -4814,6 +4842,21 @@ function renderSummary(){
 // 마지막 추정 연도 인덱스
 function icLastIdx(){ return YRS.length - 1; }
 
+// 수식이 자식들의 곱인가 (매출 = 출하량 × 단가 같은 분해).
+// isSumOfChildren의 곱셈판. 자식이 있다고 곱셈 분해인 것이 아니다 —
+// 실적 오버라이드 + 성장률 자식을 가진 노드를 곱셈으로 착각하면
+// "막대=실적, 선=성장률"이라는 무의미한 그림이 나온다 (LGD에서 실제 발생).
+function isProductOfChildren(id){
+  var d = MODEL[id]; if(!d || !d.formula) return false;
+  var kids = childrenOf(id).slice().sort();
+  if(kids.length < 2) return false;
+  var toks = d.formula.split('*').map(function(x){ return x.trim(); });
+  if(toks.length !== kids.length) return false;
+  var ok = true;
+  toks.slice().sort().forEach(function(x, i){ if(x !== kids[i]) ok = false; });
+  return ok;
+}
+
 // 매출 노드를 찾는다. 엔진이 'total_revenue'라는 이름을 전제하고 있었고,
 // 단일 제품 회사(노드명 'revenue')에서 리포트가 매출 대신 루트를 그렸다.
 // 세 번째 종목을 태우다 발견했다 — 이름을 전제하지 않고 관례를 순서대로 찾는다.
@@ -5372,6 +5415,21 @@ function renderICSensitivity(){
 function icConsensusCard(){
   if(typeof CONSENSUS !== 'object' || !CONSENSUS || !CONSENSUS.items) return '';
   var rows = '';
+  // 목표주가 컨센서스 — 증권사 애널리스트들의 평균 목표가와 본 모델의 주당 가치를
+  // 같은 행에 둔다. "시장(주가)과 다르다"와 "애널리스트들과 다르다"는 별개의
+  // 정보다. 전자는 어느 모델이든 말해주지만 후자는 이 비교가 있어야 보인다.
+  if(CONSENSUS.targetPrice && typeof MARKET === 'object' && MARKET && MARKET.shares){
+    var tp = CONSENSUS.targetPrice;
+    var myPS = val(rootId(), icLastIdx()) * 1e8 / MARKET.shares;
+    var upTp = tp / MARKET.price - 1, upMy = myPS / MARKET.price - 1;
+    rows += '<tr><td>애널리스트 평균 목표주가' +
+      (CONSENSUS.nAnalysts ? ' (' + CONSENSUS.nAnalysts + '개 기관)' : '') + '</td>' +
+      '<td>' + Math.round(tp).toLocaleString('ko-KR') + '원</td>' +
+      '<td>' + Math.round(myPS).toLocaleString('ko-KR') + '원</td>' +
+      '<td class="' + (upTp >= upMy ? 'neg' : 'pos') + '">' +
+        '컨센 ' + (upTp >= 0 ? '+' : '') + (upTp * 100).toFixed(0) + '% / 모델 ' +
+        (upMy >= 0 ? '+' : '') + (upMy * 100).toFixed(0) + '%</td></tr>';
+  }
   CONSENSUS.items.forEach(function(it){
     var yi = YRS.indexOf(String(it.year));
     var mine = (yi >= 0 && MODEL[it.node]) ? val(it.node, yi) : null;
@@ -5449,10 +5507,22 @@ function icSvgBars(labels, values, opts){
   });
 
   if(opts.line && opts.line.length === n){
-    var lmax = _niceMax(Math.max.apply(null, opts.line)), pts = [];
+    // 선 계열은 음수를 받을 수 있다 (적자 기업의 영업이익률).
+    // 0~max 스케일을 전제하면 음수 좌표가 차트 밖으로 그려진다 —
+    // 네 번째 종목(LGD, 3년 연속 적자)에서 실제로 그렇게 됐다.
+    var lmax = _niceMax(Math.max.apply(null, opts.line.concat([0])));
+    var lmin = Math.min.apply(null, opts.line.concat([0]));
+    if(lmin < 0) lmin = -_niceMax(-lmin);
+    var lspan = (lmax - lmin) || 1, pts = [];
+    var ly = function(v){ return T + ih - ih * ((v - lmin) / lspan); };
+    if(lmin < 0){
+      var zy = ly(0);
+      g += '<line x1="' + L + '" y1="' + zy.toFixed(1) + '" x2="' + (L + iw) +
+           '" y2="' + zy.toFixed(1) + '" stroke="' + ICV.neg + '" stroke-width="0.8" ' +
+           'stroke-dasharray="3,3" opacity="0.5"/>';
+    }
     opts.line.forEach(function(v, i){
-      pts.push((L + step * i + step / 2).toFixed(1) + ',' +
-               (T + ih - ih * (v / lmax)).toFixed(1));
+      pts.push((L + step * i + step / 2).toFixed(1) + ',' + ly(v).toFixed(1));
     });
     g += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + ICV.neg +
          '" stroke-width="1.6"/>';
@@ -5463,9 +5533,11 @@ function icSvgBars(labels, values, opts){
     g += _t(L + iw + 6, T + 8, opts.lineLabel || '', 8.5, ICV.neg, 'start', 700);
     // 선 축의 최댓값 표기. 비율 계열이면 %, 아니면 그냥 숫자다 —
     // 단가처럼 비율이 아닌 계열에 %를 붙이면 "2000%" 같은 글자가 뜬다.
-    g += _t(L + iw + 6, T + 19,
-      opts.linePct === false ? fmtSmart(lmax) : (lmax * 100).toFixed(0) + '%',
-      8.5, '#9CA3AF', 'start');
+    var lfmt = function(v){
+      return opts.linePct === false ? fmtSmart(v) : (v * 100).toFixed(0) + '%';
+    };
+    g += _t(L + iw + 6, T + 19, lfmt(lmax), 8.5, '#9CA3AF', 'start');
+    if(lmin < 0) g += _t(L + iw + 6, T + ih, lfmt(lmin), 8.5, '#9CA3AF', 'start');
   }
   return icSvg(W, H, g);
 }
@@ -5680,7 +5752,8 @@ function icYoY(id){
   return function(i){
     if(i === 0 || !MODEL[id]) return null;
     var a = val(id, i - 1);
-    return a ? icPct(val(id, i) / a - 1) : null;
+    // 기저가 0이나 음수면 증감률은 뜻이 없다 (적자 구간의 YoY).
+    return a > 0 ? icPct(val(id, i) / a - 1) : null;
   };
 }
 
@@ -5802,7 +5875,9 @@ function renderICReport(){
       // 구성비 스택은 매출이 자식들의 **합**일 때만 뜻이 있다. Q×P처럼 곱셈으로
       // 분해되는 모델에서는 단위가 다른 두 계열을 100%로 쌓는 무의미한 그림이 된다.
       // 세 번째 종목(단일 제품 Q×P)에서 실제로 그렇게 그려졌다.
-      var revIsSum = isSumOfChildren(revenueId()), chart = '', secTitle, secDesc;
+      var revIsSum = isSumOfChildren(revenueId());
+      var revIsProd = isProductOfChildren(revenueId());
+      var chart = '', secTitle, secDesc;
       if(revIsSum){
         secTitle = '부문별 전개';
         secDesc = '매출과 그 아래 원가 구성 · 부문 합계는 연결 수치와 오차 0으로 일치';
@@ -5812,7 +5887,7 @@ function renderICReport(){
             return { name:MODEL[sid].label || sid,
                      values:YRS.map(function(_, i){ return val(sid, i); }) };
           })));
-      } else {
+      } else if(revIsProd) {
         // 곱셈 분해 — 첫 자식을 막대로, 둘째를 선으로. 물량과 단가를 한 그림에 둔다.
         secTitle = '매출 분해';
         secDesc = MODEL[revenueId()].sub || (seg.map(function(x){
@@ -5828,10 +5903,14 @@ function renderICReport(){
               linePct:!!MODEL[seg[1]].pct }));
         }
       }
-      h += icSec('04', secTitle, secDesc,
-        chart + card('', '', UNITS.money,
-          '<div class="table-wrap"><table class="fm">' +
-          icYearHead(revIsSum ? '부문' : '항목') + srows + '</table></div>'));
+      // 합계도 곱셈도 아니면(실적 오버라이드 + 성장률 패턴) 분해 섹션 자체가
+      // 무의미하다 — 매출 이야기는 §3이 이미 했다. 건너뛴다.
+      if(revIsSum || revIsProd){
+        h += icSec('04', secTitle, secDesc,
+          chart + card('', '', UNITS.money,
+            '<div class="table-wrap"><table class="fm">' +
+            icYearHead(revIsSum ? '부문' : '항목') + srows + '</table></div>'));
+      }
     }
   }
 
