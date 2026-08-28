@@ -314,6 +314,153 @@ def g_desc_tags(rep: dict) -> Result:
     return r.ok(f"입력 {len(rep['inputs'])}개 전부 태그 있음")
 
 
+
+# ── 심사 레이어 무결성 ────────────────────────────────────────
+_CITE_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*@\s*(\d{4})\s*(?:\|\s*(\w+))?\s*\}\}")
+_CITE_FMT = {"money", "raw"}
+
+
+def _walk_strings(obj, path=""):
+    """선언 블록 안의 모든 문자열을 (경로, 값)으로 흘려보낸다."""
+    if isinstance(obj, str):
+        yield path, obj
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from _walk_strings(v, f"{path}.{k}" if path else str(k))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield from _walk_strings(v, f"{path}[{i}]")
+
+
+
+def _nonempty(v) -> bool:
+    """문자열이면 공백이 아닌가, 배열이면 항목이 하나라도 있는가.
+
+    본문 항목은 '문자열' 또는 {t, d[]} 두 형태를 받는다. 게이트가 한 형태만
+    알고 있으면 문체를 바꾼 순간 게이트가 깨진다.
+    """
+    if isinstance(v, str):
+        return bool(v.strip())
+    if isinstance(v, list):
+        return len(v) > 0
+    return False
+
+
+def g11_memo(rep: dict) -> Result:
+    """심사 레이어가 심사에 쓸 수 있는 상태인가.
+
+    두 가지를 본다.
+
+    **숫자 인용.** MEMO 산문에 모델 숫자를 손으로 적으면 가정을 바꿨을 때
+    본문만 옛 숫자로 남는다. {{node@연도}} 문법을 쓰면 화면이 그 자리에서
+    모델값을 읽는다. 여기서는 그 인용이 실제로 해석되는지 — 노드가 있고
+    연도가 축에 있는지 — 를 검사한다. 해석 못 하는 인용은 화면에 중괄호가
+    그대로 뜨므로 조용한 실패가 아니라 시끄러운 실패지만, 심사장에서
+    발견하는 것보다 빌드에서 발견하는 편이 낫다.
+
+    **구조.** 반증 조건 없는 아이디어는 분기 리뷰에서 검증할 수 없고,
+    한쪽만 적은 쟁점은 논거가 아니라 주장이다. 규약이 지켜지는지 본다.
+    """
+    r = Result("G11", "심사 레이어 무결성")
+    memo = rep.get("memo")
+    if not memo:
+        return r.skip("MEMO 없음 — 심사 레이어를 쓰지 않는 모델")
+
+    yrs, bad = set(rep["YRS"]), []
+
+    # 1) 숫자 인용
+    cites = 0
+    for path, text in _walk_strings(memo, "MEMO"):
+        for m in _CITE_RE.finditer(text):
+            cites += 1
+            node, year, fmt = m.group(1), m.group(2), m.group(3)
+            if node not in rep["values"]:
+                bad.append(f"{path}: 인용 노드 없음 {{{{{node}@{year}}}}}")
+            elif year not in yrs:
+                bad.append(f"{path}: 인용 연도 축 밖 {{{{{node}@{year}}}}}")
+            elif fmt and fmt not in _CITE_FMT:
+                bad.append(f"{path}: 모르는 서식 |{fmt}")
+        # 열린 중괄호만 있고 문법에 안 맞는 것도 잡는다
+        for stray in re.finditer(r"\{\{(?:(?!\}\}).)*\}\}", text):
+            if not _CITE_RE.fullmatch(stray.group(0)):
+                bad.append(f"{path}: 인용 문법 아님 {stray.group(0)[:40]}")
+
+    # 2) 아이디어 구조
+    ideas = memo.get("ideas") or []
+    for i, d in enumerate(ideas):
+        tag = f"MEMO.ideas[{i}]"
+        for field in ("title", "thesis", "falsify"):
+            # thesis는 문자열이거나 항목 배열이다 (보고서 문체의 2단 구조).
+            if not _nonempty(d.get(field)):
+                bad.append(f"{tag}: {field} 없음")
+        if not (d.get("catalysts") or d.get("kpis") or d.get("track")):
+            bad.append(f"{tag}: 확인할 것이 하나도 없음 (catalysts/kpis/track)")
+        if not d.get("risks"):
+            bad.append(f"{tag}: risks 없음")
+        for j, t in enumerate(d.get("track") or []):
+            if not t.get("label") or not t.get("seg") or not t.get("metric"):
+                bad.append(f"{tag}.track[{j}]: label/seg/metric 필요")
+            if t.get("good") not in ("up", "down", None):
+                bad.append(f"{tag}.track[{j}]: good은 up 또는 down")
+
+    # 2b) 본문 항목의 형태 — 문자열 또는 {t, d[]}
+    def check_items(items, tag):
+        for j, x in enumerate(items or []):
+            if isinstance(x, str):
+                continue
+            if not isinstance(x, dict) or not (x.get("t") or "").strip():
+                bad.append(f"{tag}[{j}]: 항목은 문자열이거나 {{t, d}} 여야 한다")
+            elif x.get("d") is not None and not isinstance(x["d"], list):
+                bad.append(f"{tag}[{j}].d 는 배열이어야 한다")
+
+    for key in ("company", "thesis", "valuation", "verdict", "bull", "bear", "risk"):
+        blk = memo.get(key)
+        if isinstance(blk, dict):
+            check_items(blk.get("points"), f"MEMO.{key}.points")
+    for i, d in enumerate(ideas):
+        for f in ("thesis", "catalysts", "kpis", "risks"):
+            v = d.get(f)
+            if isinstance(v, list):
+                check_items(v, f"MEMO.ideas[{i}].{f}")
+
+    # 3) 쟁점은 양쪽을 적는다
+    for i, d in enumerate(memo.get("debate") or []):
+        for field in ("q", "yes", "no"):
+            if not (d.get(field) or "").strip():
+                bad.append(f"MEMO.debate[{i}]: {field} 없음 — 한쪽만 적은 것은 논거가 아니다")
+
+    # 3b) 목표배수·할인율의 근거인 피어가 있는가
+    #     한 번 편집 중에 PEERS 블록이 통째로 사라졌는데 전 게이트가 통과했다.
+    #     선택 블록이라도 "있다가 없어진 것"은 잡아야 한다.
+    if rep.get("memo") and not rep.get("peers"):
+        bad.append("PEERS 없음 — 심사 레이어를 쓰는 모델은 배수·할인율 근거로 "
+                   "피어를 둔다 (tools/peer_fetch.py)")
+
+    # 4) 출처가 붙어 있는가
+    for name, blk, keys in (("PEERS", rep.get("peers"), ("asOf", "source")),
+                            ("CONSENSUS", rep.get("consensus"), ("asOf", "source"))):
+        if not blk:
+            continue
+        for k in keys:
+            if not (blk.get(k) or "").strip():
+                bad.append(f"{name}.{k} 없음 — 기준일과 출처 없는 시장 수치는 쓸 수 없다")
+    peers = rep.get("peers") or {}
+    if peers.get("list"):
+        selves = [x for x in peers["list"] if x.get("group") == "self"]
+        if len(selves) != 1:
+            bad.append(f"PEERS: group:'self' 행이 {len(selves)}개 (정확히 1개여야 함)")
+    cons = rep.get("consensus") or {}
+    for i, it in enumerate(cons.get("items") or []):
+        if it.get("node") not in rep["values"]:
+            bad.append(f"CONSENSUS.items[{i}]: 노드 없음 {it.get('node')}")
+        if str(it.get("year")) not in yrs:
+            bad.append(f"CONSENSUS.items[{i}]: 연도 축 밖 {it.get('year')}")
+
+    if bad:
+        return r.fail(_fmt_cells(bad))
+    return r.ok(f"아이디어 {len(ideas)}건 · 인용 {cites}개 전부 해석됨")
+
+
 def validate(html_path: str, skip_golden: bool = False) -> list[Result]:
     rep = run_model(html_path)
     data_dir = os.path.dirname(os.path.abspath(html_path))
@@ -327,6 +474,7 @@ def validate(html_path: str, skip_golden: bool = False) -> list[Result]:
         g7_excel(html_path, rep),
         g8_structure(html_path, rep),
         g_desc_tags(rep),
+        g11_memo(rep),
     ]
     if not skip_golden:
         results.append(g9_golden())

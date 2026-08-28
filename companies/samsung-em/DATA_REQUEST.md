@@ -98,3 +98,45 @@ IR 자료·컨퍼런스콜에서 회사가 밝힌 비중. 없으면 추정으로
 - `_`로 시작하는 키는 검증에서 무시한다 — 출처·단위 메모용.
 
 게이트 G1이 이 값과 모델 산출값을 대사하고, 하나라도 어긋나면 실패한다.
+
+---
+
+## 해외 피어 — 해결됨 (2026-08-28)
+
+`stockanalysis.com`이 허용 목록에 추가돼 열렸다(`query1.finance.yahoo.com`도 함께).
+`tools/peer_fetch.py --foreign`이 다섯 종목을 수집한다.
+
+| 종목 | 구분 | EV/EBITDA (TTM) | PER | Forward PE | 1Y |
+|---|---|---|---|---|---|
+| 무라타 (TYO:6981) | MLCC | 23.5 | 50.8 | 34.8 | +204.8% |
+| 야게오 (TPE:2327) | MLCC | 24.5 | 37.4 | 22.0 | +337.4% |
+| TDK (TYO:6762) | MLCC·부품 | 11.3 | 25.2 | 22.3 | +61.7% |
+| 이비덴 (TYO:4062) | FC-BGA | 39.1 | 86.6 | 62.1 | +450.1% |
+| 신코덴키 (TYO:6967) | FC-BGA | 14.3 | 44.6 | 28.5 | +4.9% |
+
+**읽을 때의 제약 두 가지.**
+
+- 출처가 국내(WISEreport)와 해외(stockanalysis)로 갈린다. EBITDA 정의와 기준일이
+  달라 **국내끼리·해외끼리만** 나란히 놓는다. 교차 비교는 방향을 읽는 데 쓰고
+  소수점을 다투지 않는다.
+- 해외 EV/EBITDA는 TTM이라 국내 "실적(A)" 열과 성격이 같다. 해외 "PER (E)"는
+  당해 컨센서스가 아니라 Forward PE다.
+- 시가총액은 현지 통화 그대로 둔다. 원화로 환산하면 환율 기준일이 하나 더 늘고
+  대사할 것도 하나 더 늘어난다. 비교에 필요한 것은 배수뿐이다.
+
+**검산.** 수집기가 EV ÷ EBITDA를 직접 계산해 사이트가 표기한 배수와 대조한다.
+2% 넘게 어긋나면 파싱이 틀린 것으로 보고 표시한다. 다섯 종목 전부 통과했다.
+
+**갱신.**
+
+```
+python3 tools/peer_fetch.py --probe              # 출처 도달 확인
+python3 tools/peer_fetch.py --foreign            # 표로 보기
+python3 tools/peer_fetch.py --foreign --json     # data.js에 옮길 값
+```
+
+### 아직 막혀 있는 것
+
+`investing.com` · `marketwatch.com` · `finviz.com` · `jpx.co.jp` ·
+`m.stock.naver.com` 은 여전히 403이다. 지금은 필요하지 않다 —
+`stockanalysis.com` 하나로 다섯 종목이 다 채워졌다.
