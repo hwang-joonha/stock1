@@ -98,3 +98,49 @@ IR 자료·컨퍼런스콜에서 회사가 밝힌 비중. 없으면 추정으로
 - `_`로 시작하는 키는 검증에서 무시한다 — 출처·단위 메모용.
 
 게이트 G1이 이 값과 모델 산출값을 대사하고, 하나라도 어긋나면 실패한다.
+
+---
+
+## 미해결 — 해외 피어 밸류에이션
+
+목표배수 15배의 근거가 지금은 국내 피어에만 기대고 있다. MLCC의 세계 선발주자는
+무라타이고 FC-BGA는 이비덴·신코덴키다. 이들의 배수 없이는 "삼성전기가 이 업종에서
+어디쯤 있는가"에 절반만 답한 것이다.
+
+**막힌 이유.** 이 컨테이너의 이그레스 정책이 해외 시세 출처를 전부 막고 있다.
+확인 명령과 결과 (2026-08-28):
+
+```
+$ python3 tools/peer_fetch.py --probe
+  차단  무라타 6981.T     CONNECT tunnel failed, response 403
+  차단  TDK 6762.T        CONNECT tunnel failed, response 403
+  차단  야게오 2327.TW     CONNECT tunnel failed, response 403
+  차단  이비덴 4062.T      CONNECT tunnel failed, response 403
+  차단  신코덴키 6967.T     CONNECT tunnel failed, response 403
+```
+
+403은 정책 거부다. 우회하지 않고 비워 뒀다 — `PEERS.missing`에 그 사실을 적어
+심사 화면에도 공백이 드러나게 했다.
+
+**여는 방법 (둘 중 하나).**
+
+1. 환경 네트워크 정책 허용 목록에 아래 중 하나를 추가한다. DART를 열었을 때와
+   같은 절차다.
+   - `stockanalysis.com` — HTML 한 장에 EV/EBITDA·PER·PBR이 다 있어 파서가 가장 짧다
+   - `query1.finance.yahoo.com` — JSON API. 시세·시총은 정확하나 EV/EBITDA는 별도 모듈
+   추가 후 `python3 tools/peer_fetch.py --probe`로 확인하고, 도달하면 파서를 붙인다.
+
+2. 값을 직접 넣는다. `data.js`의 `PEERS.list`에 아래 형태로 추가하고
+   `market`·`source`·`asOf`를 반드시 함께 적는다.
+
+   ```js
+   {market:'해외', code:'6981.T', name:'무라타', group:'MLCC',
+    mktcap:null,            // 통화가 달라 비워 둔다. 비교는 배수로만 한다
+    evEbitda:[null, null, null], per:[null, null, null], ret1y:null},
+   ```
+
+   `mktcap`을 원화로 환산해 넣지 않는다. 환율 기준일이 하나 더 늘어나면
+   대사할 것이 하나 더 늘어난다. 비교에 필요한 것은 배수뿐이다.
+
+**주의.** 검색 스니펫으로 채우지 않는다. 이 레포에서 이미 세 번 틀렸다
+(FY2021 매출, FY2022 영업이익, 시가총액). 원문 아니면 비워 둔다.

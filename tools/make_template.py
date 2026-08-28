@@ -564,23 +564,32 @@ function renderICScenario(){
 // 피어 비교 — 목표배수의 근거를 화면에 붙인다.
 function icPeerCard(){
   if(typeof PEERS !== 'object' || !PEERS || !PEERS.list) return '';
-  var self = null, rows = '';
+  var self = null, rows = '', lastMkt = null;
+  // 시장이 섞여 있으면 구분 행을 넣는다. 환율 없이 비교하려면 배수만 봐야 하고,
+  // 시가총액 열은 통화가 달라 나란히 두면 오독을 만든다.
+  var multiMkt = PEERS.list.some(function(x){ return x.market && x.market !== PEERS.list[0].market; });
   PEERS.list.forEach(function(p){
     if(p.group === 'self') self = p;
+    if(multiMkt && p.market !== lastMkt){
+      lastMkt = p.market;
+      rows += '<tr class="total"><td colspan="7" style="text-align:left">' +
+        esc(p.market || '기타') + '</td></tr>';
+    }
     var ev = p.evEbitda || [], per = p.per || [];
     var f = function(x){ return (x === null || x === undefined) ? '—' : x.toFixed(1) + '배'; };
     rows += '<tr' + (p.group === 'self' ? ' class="hl"' : '') + '>' +
       '<td>' + esc(p.name) + '</td>' +
       '<td>' + esc(p.group === 'self' ? '—' : p.group) + '</td>' +
-      '<td>' + esc(fmtMoney(p.mktcap)) + '</td>' +
+      '<td>' + esc(p.mktcap == null ? '—' : fmtMoney(p.mktcap)) + '</td>' +
       '<td>' + f(ev[0]) + '</td><td>' + f(ev[1]) + '</td>' +
       '<td>' + f(per[1]) + '</td>' +
       '<td>' + esc(p.ret1y || '—') + '</td></tr>';
   });
   var note = '<div class="notice">' + esc(PEERS.note || '') +
     ' 기준일 <b>' + esc(PEERS.asOf) + '</b> · ' + esc(PEERS.source || '') + '</div>';
+  if(PEERS.missing) note += '<div class="notice">' + esc(PEERS.missing) + '</div>';
   return note + card('피어 그룹 비교', 'EV/EBITDA는 실적(A)과 당해 컨센서스(E)', UNITS.money,
-    '<div class="table-wrap"><table class="fm"><tr><th>종목</th><th>구분</th>' +
+    '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">종목</th><th>구분</th>' +
     '<th>시가총액</th><th>EV/EBITDA (A)</th><th>EV/EBITDA (E)</th>' +
     '<th>PER (E)</th><th>1년 수익률</th></tr>' + rows + '</table></div>');
 }
@@ -1012,6 +1021,392 @@ function seedScenarios(){
 seedScenarios();"""
 
 # ─────────────────────────────────────────────────────────────
+# IC-4  정성 레이어와 애널리스트 리포트 뷰
+#
+# 지금까지의 심사 뷰는 "가정을 바꾸면 값이 어떻게 되는가"에 답한다.
+# 심사에서 그다음에 오는 질문은 정성적이다 — 무엇을 사는 것인가, 무엇이
+# 맞아야 하는가, 틀렸다는 것을 어떻게 알 것인가.
+#
+#   ic_ideas    투자 아이디어. 아이디어마다 논거·촉매·확인지표·리스크,
+#               그리고 **반증 조건**을 함께 적는다. 반증 조건이 없는 아이디어는
+#               심사에서 검증할 수 없다 (ic_memo_framework §2).
+#   ic_report   위 모든 것을 한 장짜리 리포트로 조판한다. 숫자는 전부 MODEL에서
+#               다시 읽으므로 본문과 모델이 어긋날 수 없다. 인쇄·PDF를 전제로
+#               @media print 규칙을 함께 둔다.
+#
+# 문서를 따로 만들지 않는 원칙은 그대로다. 리포트는 산출물이 아니라 뷰다.
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC4_ICON = """  'trending-up':'<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',"""
+NEW_IC4_ICON = OLD_IC4_ICON + """
+  zap:'<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  'book-open':'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',"""
+
+OLD_IC4_ROUTE = """  if(view === 'ic_scenario') return renderICScenario();"""
+NEW_IC4_ROUTE = """  if(view === 'ic_scenario') return renderICScenario();
+  if(view === 'ic_ideas') return renderICIdeas();
+  if(view === 'ic_report') return renderICReport();"""
+
+OLD_IC4_TITLES = """  ic_scenario:'시나리오', ic_verdict:'심사 결론',"""
+NEW_IC4_TITLES = """  ic_scenario:'시나리오', ic_ideas:'투자 아이디어',
+  ic_verdict:'심사 결론', ic_report:'심사 리포트',"""
+
+OLD_IC4_NAV = """      navBtn('ic_verdict', 'file-text', '심사 결론') +"""
+NEW_IC4_NAV = """      navBtn('ic_ideas', 'zap', '투자 아이디어',
+             (typeof MEMO === 'object' && MEMO && MEMO.ideas)
+               ? String(MEMO.ideas.length) : '') +
+      navBtn('ic_verdict', 'file-text', '심사 결론') +
+      navBtn('ic_report', 'book-open', '심사 리포트') +"""
+
+OLD_IC4_ANCHOR = """function renderICVerdict(){"""
+
+NEW_IC4_ANCHOR = """// ── 투자 아이디어 ─────────────────────────────────────────────
+// 아이디어는 문장 하나가 아니라 구조다. 논거·촉매·확인지표·리스크가 붙어야
+// 분기마다 "이 아이디어가 아직 살아 있는가"를 물을 수 있다. 그리고 반증 조건 —
+// 무엇을 보면 틀렸다고 인정할지 — 을 미리 적어두지 않으면 사후에 합리화된다.
+function icIdeaCard(d, i){
+  var tags = '';
+  if(d.horizon)    tags += '<span class="tag">투자기간 ' + esc(d.horizon) + '</span>';
+  if(d.conviction) tags += '<span class="tag hi">확신도 ' + esc(d.conviction) + '</span>';
+  if(d.tag)        tags += '<span class="tag">' + esc(d.tag) + '</span>';
+
+  var box = function(title, arr){
+    if(!arr || !arr.length) return '';
+    var li = '';
+    arr.forEach(function(x){ li += '<li>' + esc(x) + '</li>'; });
+    return '<div class="idea-box"><div class="h">' + esc(title) + '</div><ul>' + li + '</ul></div>';
+  };
+
+  var body = '';
+  if(d.thesis) body += '<p>' + esc(d.thesis) + '</p>';
+  var grid = box('촉매', d.catalysts) + box('확인 지표', d.kpis) + box('리스크', d.risks);
+  if(grid) body += '<div class="idea-grid">' + grid + '</div>';
+  if(d.falsify) body += '<div class="falsify"><b>반증 조건</b> — ' + esc(d.falsify) + '</div>';
+
+  return '<div class="idea"><div class="idea-head">' +
+    '<div class="idea-n">' + (i + 1) + '</div>' +
+    '<div style="min-width:0"><p class="idea-title">' + esc(d.title || '(제목 없음)') + '</p>' +
+    (tags ? '<div class="idea-tags">' + tags + '</div>' : '') + '</div></div>' +
+    '<div class="idea-body">' + body + '</div></div>';
+}
+
+function icIdeasBlock(){
+  var list = (typeof MEMO === 'object' && MEMO) ? MEMO.ideas : null;
+  if(!list || !list.length){
+    return '<div class="notice">MEMO.ideas 가 data.js에 없습니다. ' +
+      '아이디어마다 title · thesis · catalysts · kpis · risks · falsify 를 적습니다.</div>';
+  }
+  var h = '';
+  list.forEach(function(d, i){ h += icIdeaCard(d, i); });
+  return h;
+}
+
+function renderICIdeas(){
+  var h = '<div class="page">';
+  h += '<div class="page-head"><div class="eyebrow caps">' + ic('zap', 16) +
+    ' Investment case</div><h1>투자 아이디어</h1></div>';
+  h += '<div class="notice">아이디어마다 <b>반증 조건</b>을 함께 적습니다. ' +
+    '무엇을 보면 틀렸다고 인정할지 미리 정해두지 않으면 사후에 합리화됩니다.</div>';
+  h += icMemoCard('company', '사업 구조와 경쟁 포지션');
+  h += icIdeasBlock();
+  h += icDebateCard();
+  return h + '</div>';
+}
+
+// 심사 쟁점 — 한 질문에 찬반을 나란히 둔다. 한쪽만 적으면 그건 논거가 아니라 주장이다.
+function icDebateCard(){
+  var d = (typeof MEMO === 'object' && MEMO) ? MEMO.debate : null;
+  if(!d || !d.length) return '';
+  var rows = '';
+  d.forEach(function(x){
+    rows += '<tr><td style="white-space:normal;min-width:150px">' + esc(x.q) + '</td>' +
+      '<td style="white-space:normal">' + esc(x.yes || '') + '</td>' +
+      '<td style="white-space:normal">' + esc(x.no || '') + '</td></tr>';
+  });
+  return card('심사 쟁점', '한 질문에 양쪽을 함께 적는다', '',
+    '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">쟁점</th>' +
+    '<th style="text-align:left">그렇다</th><th style="text-align:left">아니다</th></tr>' +
+    rows + '</table></div>');
+}
+
+// ── 애널리스트 리포트 뷰 ──────────────────────────────────────
+// 한 장으로 읽히는 조판. 숫자는 전부 MODEL에서 그 자리에서 다시 읽는다 —
+// 본문에 숫자를 손으로 적지 않는 것이 이 뷰의 유일한 규칙이다.
+function icYearHead(first){
+  var h = '<tr><th style="text-align:left">' + esc(first || '항목') + '</th>';
+  for(var i = 0; i < YRS.length; i++){
+    h += '<th>' + esc(YRS[i]) + (i < HIST_N ? '' : 'E') + '</th>';
+  }
+  return h + '</tr>';
+}
+function icNodeRow(id, label, cls){
+  if(!MODEL[id]) return '';
+  var r = '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' +
+    esc(label || MODEL[id].label || id) + '</td>';
+  for(var i = 0; i < YRS.length; i++) r += '<td>' + esc(fmtV(id, i)) + '</td>';
+  return r + '</tr>';
+}
+function icCalcRow(label, fn, cls){
+  var r = '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + esc(label) + '</td>';
+  for(var i = 0; i < YRS.length; i++){
+    var v = fn(i);
+    r += '<td>' + (v === null ? '—' : esc(v)) + '</td>';
+  }
+  return r + '</tr>';
+}
+function icPct(x){ return (x === null || !isFinite(x)) ? null : (x * 100).toFixed(1) + '%'; }
+function icYoY(id){
+  return function(i){
+    if(i === 0 || !MODEL[id]) return null;
+    var a = val(id, i - 1);
+    return a ? icPct(val(id, i) / a - 1) : null;
+  };
+}
+
+function icSec(n, title, desc, body){
+  return '<section class="rp-sec"><div class="rp-num">' + esc(n) + '</div>' +
+    '<h2>' + esc(title) + '</h2>' +
+    (desc ? '<p class="desc">' + esc(desc) + '</p>' : '') + body + '</section>';
+}
+function icMemoBody(key){
+  var m = (typeof MEMO === 'object' && MEMO) ? MEMO[key] : null;
+  if(!m) return '<div class="notice">MEMO.' + esc(key) + ' 없음</div>';
+  var b = '';
+  if(m.lead) b += '<p class="lead">' + esc(m.lead) + '</p>';
+  if(m.points && m.points.length){
+    b += '<ul class="memo">';
+    m.points.forEach(function(x){ b += '<li>' + esc(x) + '</li>'; });
+    b += '</ul>';
+  }
+  return b;
+}
+
+function renderICReport(){
+  var t = icLastIdx();
+  var mk = (typeof MARKET === 'object' && MARKET) ? MARKET : null;
+  var nm = (typeof META === 'object' && META) ? META : {};
+  var h = '<div class="page rp">';
+
+  // 표지
+  var up = icUpside(t), fair = val(rootId(), t);
+  var fairPS = (mk && mk.shares) ? Math.round(fair * 1e8 / mk.shares) : 0;
+  h += '<div class="rp-cover">' +
+    '<div style="display:flex;align-items:flex-start;gap:12px">' +
+    '<div style="min-width:0"><div class="co">' + esc(nm.brand || nm.title || '투자심사 리포트') + '</div>' +
+    '<div class="sub">' + [
+      mk ? '시장 관측 기준일 ' + mk.asOf : '',
+      '단위 ' + UNITS.money,
+      '실적 ' + YRS[0] + '~' + YRS[HIST_N - 1] + ' · 추정 ' + YRS[HIST_N] + '~' + YRS[t],
+    ].filter(Boolean).map(esc).join(' · ') + '</div></div>' +
+    '<button class="tb-btn rp-print" style="margin-left:auto" onclick="window.print()">인쇄 / PDF</button>' +
+    '</div>';
+  if(mk){
+    h += '<div class="kpi-row" style="margin-top:16px;margin-bottom:0">';
+    h += icStat('현재 시가총액', icMoney(mk.mktcap), mk.price.toLocaleString('ko-KR') + '원');
+    h += icStat(YRS[t] + ' 적정 시가총액', icMoney(fair),
+      fairPS ? '주당 ' + fairPS.toLocaleString('ko-KR') + '원' : '');
+    h += icStat('괴리', (up >= 0 ? '+' : '') + (up * 100).toFixed(0) + '%',
+      '목표배수 ' + (MODEL.target_ev_ebitda ? val('target_ev_ebitda', t).toFixed(0) + '배' : '—'),
+      up >= 0 ? 'pos' : 'neg');
+    var im = icImpliedMultiple(t);
+    h += icStat('현재가 함의 배수', im ? im.toFixed(1) + '배' : '—', YRS[t] + ' EBITDA 기준');
+    h += '</div>';
+  }
+  h += '</div>';
+
+  // 1. 요약
+  h += icSec('01', '투자 논거 요약', (MEMO && MEMO.thesis) ? MEMO.thesis.sub : '',
+    '<div class="card pad">' + icMemoBody('thesis') + '</div>');
+
+  // 2. 사업 구조
+  if(typeof MEMO === 'object' && MEMO && MEMO.company){
+    h += icSec('02', '사업 구조와 경쟁 포지션', MEMO.company.sub || '',
+      '<div class="card pad">' + icMemoBody('company') + '</div>');
+  }
+
+  // 3. 실적과 추정
+  var rev = MODEL.total_revenue ? 'total_revenue' : rootId();
+  var body = icNodeRow(rev, null, 'total') +
+    icCalcRow('YoY', icYoY(rev)) +
+    icNodeRow('op_profit') +
+    icCalcRow('영업이익률', function(i){
+      var r = val(rev, i);
+      return r ? icPct(val('op_profit', i) / r) : null;
+    }) +
+    icNodeRow('dep_total') + icNodeRow('ebitda') +
+    icCalcRow('EBITDA 마진', function(i){
+      var r = val(rev, i);
+      return r ? icPct(val('ebitda', i) / r) : null;
+    });
+  h += icSec('03', '실적과 추정', '실적 ' + YRS[0] + '~' + YRS[HIST_N - 1] +
+    '은 공시 확정값 · 이후는 모델 추정 (게이트 G1이 매 빌드마다 대사)',
+    card('', '', UNITS.money,
+      '<div class="table-wrap"><table class="fm">' + icYearHead() + body + '</table></div>'));
+
+  // 4. 부문별
+  if(MODEL.total_revenue){
+    var seg = childrenOf('total_revenue'), srows = '';
+    seg.forEach(function(sid){
+      srows += icNodeRow(sid, null, 'total');
+      srows += icCalcRow('  YoY', icYoY(sid));
+      childrenOf(sid).forEach(function(c){ srows += icNodeRow(c, '  ' + (MODEL[c].label || c)); });
+    });
+    if(srows){
+      h += icSec('04', '부문별 전개', '매출과 그 아래 원가 구성. 부문 합계는 연결 수치와 오차 0으로 일치한다.',
+        card('', '', UNITS.money,
+          '<div class="table-wrap"><table class="fm">' + icYearHead('부문') + srows + '</table></div>'));
+    }
+  }
+
+  // 5. 투자 아이디어
+  h += icSec('05', '투자 아이디어', '아이디어마다 반증 조건을 함께 둔다', icIdeasBlock());
+
+  // 6. 밸류에이션
+  var vb = '';
+  if(mk && MODEL.ebitda){
+    var muls = [8, 10, 12, 15, 20, 25, 30], hh = '<tr><th style="text-align:left">목표 EV/EBITDA</th>';
+    for(var i2 = HIST_N; i2 < YRS.length; i2++) hh += '<th>' + esc(YRS[i2]) + '</th>';
+    hh += '</tr>';
+    var bb = '';
+    muls.forEach(function(m){
+      var cur = MODEL.target_ev_ebitda ? val('target_ev_ebitda', t) : null;
+      bb += '<tr' + (cur && Math.abs(cur - m) < 0.01 ? ' class="hl"' : '') + '><td>' + m + '배</td>';
+      for(var j = HIST_N; j < YRS.length; j++){
+        var nd = MODEL.net_debt ? val('net_debt', j) : 0;
+        var u2 = (val('ebitda', j) * m - nd) / mk.mktcap - 1;
+        bb += '<td class="' + (u2 >= 0 ? 'pos' : 'neg') + '">' +
+          (u2 >= 0 ? '+' : '') + (u2 * 100).toFixed(0) + '%</td>';
+      }
+      bb += '</tr>';
+    });
+    vb += card('목표배수 민감도', '칸 값 = 현재 시가총액 대비 괴리. 굵은 행이 현재 가정.', '',
+      '<div class="table-wrap"><table class="fm">' + hh + bb + '</table></div>');
+  }
+  vb += icPeerCard();
+  vb += '<div class="card pad">' + icMemoBody('valuation') + '</div>';
+  h += icSec('06', '밸류에이션', (MEMO && MEMO.valuation) ? MEMO.valuation.sub : '', vb);
+
+  // 7. 시나리오
+  if(typeof SCENARIOS === 'object' && SCENARIOS){
+    var want = ['total_revenue', 'op_profit', 'ebitda', rootId()];
+    var cs = [{ name:'Base', ov:null }];
+    for(var nm2 in SCENARIOS) cs.push({ name:nm2, ov:SCENARIOS[nm2] });
+    var rws = '';
+    cs.forEach(function(c){
+      var sv = icSolve(c.ov, want, t);
+      var u3 = mk ? sv[rootId()] / mk.mktcap - 1 : null;
+      rws += '<tr' + (c.name === 'Base' ? ' class="hl"' : '') + '><td><b>' + esc(c.name) + '</b></td>' +
+        '<td>' + esc(fmtSmart(sv.total_revenue)) + '</td>' +
+        '<td>' + esc(fmtSmart(sv.op_profit)) + '</td>' +
+        '<td>' + esc(fmtSmart(sv.ebitda)) + '</td>' +
+        '<td>' + esc(fmtSmart(sv[rootId()])) + '</td>' +
+        (u3 === null ? '<td>—</td>' : '<td class="' + (u3 >= 0 ? 'pos' : 'neg') + '">' +
+          (u3 >= 0 ? '+' : '') + (u3 * 100).toFixed(0) + '%</td>') + '</tr>';
+    });
+    h += icSec('07', '시나리오', YRS[t] + ' 기준 · [주관] 노드만 흔든다',
+      card('', '', UNITS.money,
+        '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">시나리오</th>' +
+        '<th>매출</th><th>영업이익</th><th>EBITDA</th><th>적정 시총</th><th>현재가 대비</th></tr>' +
+        rws + '</table></div>'));
+  }
+
+  // 8. 리스크
+  h += icSec('08', '리스크와 모니터링',
+    '아래 지표가 훼손되면 아이디어가 아니라 논거가 깨진 것이다',
+    '<div class="card pad">' + icMemoBody('bear') + '</div>' +
+    '<div class="card pad" style="margin-top:12px">' + icMemoBody('risk') + '</div>');
+
+  // 9. 심사 결론
+  h += icSec('09', '심사 결론', (MEMO && MEMO.verdict) ? MEMO.verdict.sub : '',
+    '<div class="card pad">' + icMemoBody('verdict') + '</div>');
+
+  // 10. 가정 일람 — 근거 태그와 함께. 무엇이 사실이고 무엇이 판단인지 드러난다.
+  var arows = '';
+  INPUT_KEYS.forEach(function(k){
+    var d = MODEL[k], m = /^\[([^\]]+)\]/.exec(d.desc || '');
+    arows += '<tr><td style="white-space:normal">' + esc(d.label || k) + '</td>' +
+      '<td>' + esc(m ? m[1] : '—') + '</td>';
+    for(var i3 = HIST_N; i3 < YRS.length; i3++){
+      arows += '<td>' + esc(fmtNum(val(k, i3), d.u, d.pct)) + '</td>';
+    }
+    arows += '</tr>';
+  });
+  var ah = '<tr><th style="text-align:left">가정변수</th><th>근거</th>';
+  for(var i4 = HIST_N; i4 < YRS.length; i4++) ah += '<th>' + esc(YRS[i4]) + '</th>';
+  ah += '</tr>';
+  h += icSec('10', '가정 일람', '추정 구간의 입력값 ' + INPUT_KEYS.length + '개. ' +
+    '근거란의 [객관]은 공시·시장 관측, [주관]은 심사자의 판단이다.',
+    card('', '', '', '<div class="table-wrap"><table class="fm">' + ah + arows + '</table></div>'));
+
+  h += '<div class="notice" style="margin-top:22px">본 자료는 공시·시장 데이터를 바탕으로 한 ' +
+    '내부 검토용 모델이며 투자권유가 아닙니다. 모든 수치는 이 화면의 모델에서 그 자리에서 ' +
+    '계산되므로, 가정을 바꾸면 본문의 숫자도 함께 바뀝니다.</div>';
+  return h + '</div>';
+}
+
+function renderICVerdict(){"""
+
+# 심사 결론 뷰에도 아이디어를 얹는다 (결론 → 근거 순으로 읽히도록)
+OLD_IC4_VERDICT = """  h += icMemoCard('verdict', '투자의견');
+  h += icMemoCard('bull', '상방 논리');"""
+NEW_IC4_VERDICT = """  h += icMemoCard('verdict', '투자의견');
+  h += icDebateCard();
+  h += icMemoCard('bull', '상방 논리');"""
+
+OLD_IC4_STYLE = """ul.memo li{font-size:13px;color:#4B5563;line-height:1.75;margin-bottom:6px}"""
+
+NEW_IC4_STYLE = """ul.memo li{font-size:13px;color:#4B5563;line-height:1.75;margin-bottom:6px}
+
+/* 투자 아이디어 카드 */
+.idea{border:1px solid #E5E5E8;border-radius:10px;background:#FFFFFF;margin-bottom:12px;overflow:hidden}
+.idea-head{display:flex;gap:10px;align-items:flex-start;padding:13px 15px;
+  border-bottom:1px solid #F3F4F6;background:#F9FAFB}
+.idea-n{width:22px;height:22px;border-radius:6px;background:#1E2185;color:#FFFFFF;
+  font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.idea-title{font-size:13px;font-weight:700;color:#0F0F12;margin:0;line-height:1.45}
+.idea-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.tag{font-size:9.5px;color:#4B5563;background:#F3F4F6;border-radius:999px;padding:2px 8px;font-weight:700}
+.tag.hi{background:#EDF3FF;color:#1E2185}
+.idea-body{padding:13px 15px}
+.idea-body p{font-size:12.5px;color:#374151;line-height:1.75;margin:0 0 12px}
+.idea-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.idea-box .h{font-size:9.5px;font-weight:700;letter-spacing:.04em;color:#6B7280;margin-bottom:5px}
+.idea-box ul{margin:0;padding-left:15px}
+.idea-box li{font-size:11.5px;color:#4B5563;line-height:1.65;margin-bottom:4px}
+.falsify{margin-top:14px;padding:10px 12px;border-radius:6px;background:#F9FAFB;
+  border:1px solid #E5E7EB;border-left:3px solid #DC2626;font-size:11.5px;color:#4B5563;line-height:1.7}
+.falsify b{color:#DC2626}
+
+/* 애널리스트 리포트 */
+.rp{max-width:960px;margin:0 auto}
+.rp-cover{border:1px solid #E5E5E8;border-radius:10px;background:#FFFFFF;padding:20px 22px}
+.rp-cover .co{font-family:'Outfit',system-ui,sans-serif;font-size:22px;font-weight:600;
+  letter-spacing:-.03em;color:#0F0F12}
+.rp-cover .sub{font-size:10.5px;color:#6B7280;margin-top:5px;line-height:1.6}
+.rp-sec{margin-top:26px}
+.rp-num{font-size:9.5px;font-weight:700;color:#5D68F7;letter-spacing:.12em}
+.rp-sec > h2{font-family:'Outfit',system-ui,sans-serif;font-size:15px;font-weight:600;
+  margin:3px 0 3px;color:#0F0F12;letter-spacing:-.02em}
+.rp-sec > p.desc{font-size:10.5px;color:#6B7280;margin:0 0 11px;line-height:1.6}
+.rp-sec .card{margin-bottom:0}
+
+/* 인쇄 — 리포트 뷰를 그대로 종이/PDF로 넘긴다. 셸은 전부 걷어낸다. */
+@media print{
+  .sidebar,#scrim,.topbar,#treePanel,.rp-print,.modal,.legend{display:none !important}
+  .app,.main,.stage,.stage-main{display:block !important;height:auto !important;overflow:visible !important}
+  #docView{display:block !important;overflow:visible !important;height:auto !important;
+    padding:0 !important;background:#FFFFFF !important}
+  .rp{max-width:none}
+  .card,.idea,.rp-sec{break-inside:avoid;page-break-inside:avoid}
+  .kpi-row{break-inside:avoid}
+  table.fm th{position:static !important}
+  table.fm th:first-child,table.fm td:first-child{position:static !important}
+  .table-wrap{overflow:visible !important}
+  a[href]:after{content:''}
+  @page{margin:14mm}
+}"""
+
+# ─────────────────────────────────────────────────────────────
 # P2  구성비 계산이 합계 트리를 전제하던 문제
 #
 # 부모값 대비 비중은 부모가 자식의 합일 때만 구성비다. 루트가 뺄셈인 모델
@@ -1211,6 +1606,13 @@ def main() -> None:
     p.sub("IC-3 사이드바", OLD_IC2_NAV, NEW_IC2_NAV)
     p.sub("IC-3 시나리오·피어 구현", OLD_IC2_ANCHOR, NEW_IC2_ANCHOR)
     p.sub("IC-3 밸류에이션에 피어 카드", OLD_IC2_VAL, NEW_IC2_VAL)
+    p.sub("IC-4 아이콘", OLD_IC4_ICON, NEW_IC4_ICON)
+    p.sub("IC-4 뷰 라우팅", OLD_IC4_ROUTE, NEW_IC4_ROUTE)
+    p.sub("IC-4 뷰 제목", OLD_IC4_TITLES, NEW_IC4_TITLES)
+    p.sub("IC-4 사이드바", OLD_IC4_NAV, NEW_IC4_NAV)
+    p.sub("IC-4 아이디어·리포트 구현", OLD_IC4_ANCHOR, NEW_IC4_ANCHOR)
+    p.sub("IC-4 심사 결론에 쟁점", OLD_IC4_VERDICT, NEW_IC4_VERDICT)
+    p.sub("IC-4 스타일·인쇄", OLD_IC4_STYLE, NEW_IC4_STYLE)
     p.sub("P2 구성비 분모", OLD_MIX, NEW_MIX)
     p.sub("P2 구성비 제목", OLD_MIX_TITLE, NEW_MIX_TITLE)
     p.sub("P1-2 toggleAll", OLD_TOGGLE_ALL, NEW_TOGGLE_ALL)

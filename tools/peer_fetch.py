@@ -8,9 +8,14 @@
 출처를 하나로 고정하는 것이 중요하다. 종목마다 다른 사이트에서 긁으면
 EBITDA 정의·기준일이 달라 비교가 성립하지 않는다.
 
+해외 피어는 아직 자동 수집하지 못한다. 이 환경의 이그레스 정책이 해외 시세
+출처를 막고 있어서다. --probe 로 그 상태를 확인하고, 열려 있지 않으면 값을
+비워 둔다 — 확인하지 못한 숫자를 채우는 것이 이 레포에서 가장 큰 사고다.
+
 사용:
     python3 tools/peer_fetch.py 009150 011070 222800
     python3 tools/peer_fetch.py --json 009150 011070 > peers.json
+    python3 tools/peer_fetch.py --probe
 """
 from __future__ import annotations
 
@@ -98,11 +103,61 @@ def parse(code: str, name: str, text: str) -> dict:
     }
 
 
+# 해외 피어 후보. MLCC는 무라타·TDK·야게오, FC-BGA는 이비덴·신코덴키가
+# 세계 선발주자이므로 목표배수 근거에는 이들이 들어가야 한다. 다만 WISEreport는
+# 국내 상장사만 다루고, 아래 출처들은 이 환경의 이그레스 정책이 막고 있다.
+# --probe 는 그 사실을 주장이 아니라 관측으로 남긴다.
+FOREIGN = [
+    ("무라타 6981.T",    "https://query1.finance.yahoo.com/v8/finance/chart/6981.T"),
+    ("TDK 6762.T",       "https://stockanalysis.com/quote/tyo/6762/"),
+    ("야게오 2327.TW",    "https://query1.finance.yahoo.com/v8/finance/chart/2327.TW"),
+    ("이비덴 4062.T",     "https://stockanalysis.com/quote/tyo/4062/"),
+    ("신코덴키 6967.T",   "https://query1.finance.yahoo.com/v8/finance/chart/6967.T"),
+]
+
+
+def probe() -> int:
+    """해외 출처에 실제로 닿는지 확인한다.
+
+    닿지 않으면 값을 지어내지 않고 비워 둔다 — 그것이 이 레포의 규약이다.
+    나중에 정책이 열리면 이 명령이 먼저 그것을 알려준다.
+    """
+    print("해외 피어 출처 도달 확인")
+    print("-" * 60)
+    ok = 0
+    for name, url in FOREIGN:
+        r = subprocess.run(
+            ["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}",
+             "--max-time", "20", "--cacert", CA, "-H", f"User-Agent: {UA}", url],
+            capture_output=True)
+        code = r.stdout.decode().strip() or "000"
+        err = r.stderr.decode().strip().splitlines()[-1:] or [""]
+        if code.startswith("2"):
+            ok += 1
+            print(f"  도달  {name:<16} {url}")
+        else:
+            print(f"  차단  {name:<16} {code or '-'}  {err[0]}")
+    print("-" * 60)
+    if ok == 0:
+        print("전부 차단됐다. PEERS.missing 을 그대로 두고, 값을 채우지 않는다.")
+        print("정책을 여는 방법은 companies/<종목>/DATA_REQUEST.md 참조.")
+    else:
+        print(f"{ok}개 출처에 도달했다. 파서를 붙일 수 있다.")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="피어 밸류에이션 지표 수집")
-    ap.add_argument("codes", nargs="+", help="종목코드 (예: 009150)")
+    ap.add_argument("codes", nargs="*", help="종목코드 (예: 009150)")
     ap.add_argument("--json", action="store_true", help="JSON으로 출력")
+    ap.add_argument("--probe", action="store_true",
+                    help="해외 피어 출처에 닿는지만 확인한다")
     args = ap.parse_args(argv)
+
+    if args.probe:
+        return probe()
+    if not args.codes:
+        ap.error("종목코드가 필요하다 (또는 --probe)")
 
     rows = []
     for c in args.codes:
