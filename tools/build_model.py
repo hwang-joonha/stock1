@@ -29,6 +29,7 @@ def build(data_path: str, template_path: str = TEMPLATE) -> str:
     with open(data_path, encoding="utf-8") as fh:
         data = fh.read().strip()
     data += _quarterly_block(data_path)
+    data += _costnature_block(data_path)
 
     try:
         head = html.index(DATA_START)
@@ -68,6 +69,24 @@ def _quarterly_block(data_path: str) -> str:
             "// 출처: " + str(doc.get("_출처", "")) + "\n"
             "// 갱신: python3 tools/build_quarterly.py " + path + "\n"
             "const QUARTERLY = " + json.dumps(doc, ensure_ascii=False) + ";\n")
+
+
+def _costnature_block(data_path: str) -> str:
+    """옆에 cost_nature.json이 있으면 COSTNATURE 선언으로 붙인다.
+
+    비용의 성격별 분류 주석 — 사업 구조 뷰의 비용 블록이 이것을 읽는다.
+    QUARTERLY와 같은 규약: 공시 확정값은 기계가 만들고 빌드가 주입한다.
+    화면 표시 전용이며 모델 노드가 아니다 — 게이트 G12가 Σ항목=합계와
+    합계 대 (매출−영업이익) 대사를 매 빌드마다 검사한다.
+    """
+    path = os.path.join(os.path.dirname(data_path) or ".", "cost_nature.json")
+    if not os.path.exists(path):
+        return ""
+    with open(path, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    return ("\n\n// ── COSTNATURE — 비용 성격별 분류 (자동 주입) ───────────────\n"
+            "// 출처: 사업보고서 '비용의 성격별 분류' 주석 (" + path + ")\n"
+            "const COSTNATURE = " + json.dumps(doc, ensure_ascii=False) + ";\n")
 
 
 def main(argv: list[str]) -> int:

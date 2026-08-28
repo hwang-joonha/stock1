@@ -19,6 +19,17 @@ const META={
   brand:'삼성전자 005930',
   logo:'S',
   revenueNode:'total_revenue',
+  // 사업 구조 뷰 — 부문별 보고 기준(조정 전) 매출·영업이익 노드 매핑.
+  bizMap:[
+    { label:'DX (완제품)', rev:'dx_rev', op:'dx_op',
+      note:'스마트폰·TV·가전 — 매출의 절반, 이익 기여는 낮음' },
+    { label:'DS (반도체)', rev:'ds_rev', op:'ds_op',
+      note:'메모리·파운드리·시스템LSI — **HBM 슈퍼사이클의 본체**, 이익의 대부분' },
+    { label:'SDC (디스플레이)', rev:'sdc_rev', op:'sdc_op', note:'중소형 OLED 중심' },
+    { label:'Harman (전장)', rev:'harman_rev', op:'harman_op', note:'전장·오디오' },
+  ],
+  bizNote:'부문 매출은 **부문별 보고 기준(내부거래 조정 전)** — 부문합이 연결 총매출을 상회함. ' +
+    '조정 열은 rev_adj 노드 참조.',
 };
 
 const YRS=['2021','2022','2023','2024','2025','2026','2027','2028','2029','2030'];

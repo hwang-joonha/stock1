@@ -462,6 +462,92 @@ def g11_memo(rep: dict) -> Result:
     return r.ok(f"아이디어 {len(ideas)}건 · 인용 {cites}개 전부 해석됨")
 
 
+def g12_costnature(rep: dict) -> Result:
+    """사업 구조 뷰의 비용 블록(COSTNATURE)이 공시·모델과 대사되는가.
+
+    세 가지를 본다.
+
+    **완전성.** 심사 레이어(MEMO)를 쓰는 모델은 사업 구조의 비용 블록을 둔다 —
+    PEERS와 같은 규약이다. 있다가 없어진 것을 잡는다.
+
+    **내부 정합.** Σ항목 = 공시 합계. 공시 표 자체의 반올림 잔차가 있는 경우
+    (티엘비 ±2천원) check.sumTol로 문서화된 만큼만 허용한다.
+
+    **모델 대사.** 합계 = 매출 − 영업이익 (모델 노드 기준). 주석 범위가
+    영업비용과 다른 해(LGD 2021~2022 손상차손 포함)는 check.gap에 기록된
+    값만큼의 차이만 허용한다 — 기록 없는 차이는 실패다.
+    """
+    r = Result("G12", "비용 성격별 대사")
+    cn = rep.get("costnature")
+    if not cn:
+        if rep.get("memo"):
+            return r.fail("COSTNATURE 없음 — 심사 레이어를 쓰는 모델은 사업 구조의 "
+                          "비용 블록을 둔다 (dart_fetch.py costnature → cost_nature.json)")
+        return r.skip("COSTNATURE 없음 — 사업 구조 비용 블록을 쓰지 않는 모델")
+
+    bad = []
+    years = cn.get("years") or []
+    items = cn.get("items") or []
+    total = (cn.get("total") or {}).get("values") or []
+    check = cn.get("check") or {}
+    yrs = rep["YRS"]
+    hist_n = rep["HIST_N"]
+
+    if years != yrs[:hist_n]:
+        bad.append(f"연도 축 불일치: COSTNATURE {years} ≠ 모델 실적 {yrs[:hist_n]}")
+    if len(total) != len(years):
+        bad.append("합계 배열 길이가 연도 수와 다름")
+    for it in items:
+        if len(it.get("values") or []) != len(years):
+            bad.append(f"{it.get('label')}: 값 배열 길이가 연도 수와 다름")
+
+    # 내부 정합 — Σ항목 = 합계
+    sum_tol = max(float(check.get("sumTol") or 0), 1e-6)
+    for i, y in enumerate(years):
+        if i >= len(total):
+            break
+        s = sum(it["values"][i] for it in items if len(it.get("values", [])) > i)
+        if abs(s - total[i]) > sum_tol:
+            bad.append(f"Σ항목@{y} {s:,.4f} ≠ 합계 {total[i]:,.4f}")
+
+    # 모델 대사 — 합계 = 매출 − 영업이익 (± 문서화된 gap)
+    basis = check.get("basis")
+    if basis in ("rev_minus_op", "rev_minus_op_gap"):
+        rev = rep["values"].get(check.get("revNode"))
+        op = rep["values"].get(check.get("opNode"))
+        if rev is None or op is None:
+            bad.append(f"check 노드 없음: {check.get('revNode')}/{check.get('opNode')}")
+        else:
+            gap = check.get("gap") or [0] * len(years)
+            tol = float(check.get("tol") or 1e-6)
+            if basis == "rev_minus_op_gap" and not (check.get("gapNote") or "").strip():
+                bad.append("gap이 기록됐는데 gapNote가 없다 — 설명 없는 차이는 쓸 수 없다")
+            for i, y in enumerate(years):
+                if i >= len(total):
+                    break
+                yi = yrs.index(y) if y in yrs else -1
+                if yi < 0:
+                    continue
+                d = total[i] - (rev[yi] - op[yi]) - gap[i]
+                if abs(d) > tol:
+                    bad.append(f"합계@{y} 대사 실패: 잔차 {d:,.4f} (허용 {tol})")
+    else:
+        bad.append("check.basis 없음 — 합계를 모델과 잇는 대사 기준이 선언돼야 한다")
+
+    # META.bizMap이 선언됐으면 노드가 실제로 있어야 한다.
+    meta = rep.get("meta") or {}
+    for i, m in enumerate(meta.get("bizMap") or []):
+        for f in ("rev", "op", "cost"):
+            node = m.get(f)
+            if node and node not in rep["values"]:
+                bad.append(f"META.bizMap[{i}].{f}: 노드 없음 {node}")
+
+    if bad:
+        return r.fail(_fmt_cells(bad))
+    n = len(items) * len(years)
+    return r.ok(f"항목 {len(items)}개 × {len(years)}개년 = {n}셀 · Σ=합계, 합계=(매출−영업이익) 대사")
+
+
 def validate(html_path: str, skip_golden: bool = False) -> list[Result]:
     rep = run_model(html_path)
     data_dir = os.path.dirname(os.path.abspath(html_path))
@@ -476,6 +562,7 @@ def validate(html_path: str, skip_golden: bool = False) -> list[Result]:
         g8_structure(html_path, rep),
         g_desc_tags(rep),
         g11_memo(rep),
+        g12_costnature(rep),
     ]
     if not skip_golden:
         results.append(g9_golden())

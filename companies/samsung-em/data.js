@@ -15,6 +15,15 @@ const META={
   title:'삼성전기 투자심사 모델',
   brand:'삼성전기 009150',
   logo:'S',
+  // 사업 구조 뷰 — 부문 매출↔비용 노드 매핑. 이익 = rev − cost 로 유도.
+  bizMap:[
+    { label:'컴포넌트', rev:'component_total', cost:'comp_cost',
+      note:'MLCC·칩인덕터 등 수동소자 — **AI 서버·전장**이 증분 수요처' },
+    { label:'광학솔루션', rev:'optics_total', cost:'optics_cost',
+      note:'스마트폰 카메라모듈 — 삼성전자 플래그십 의존' },
+    { label:'패키지솔루션', rev:'package_total', cost:'pkg_cost',
+      note:'FC-BGA 등 반도체 패키지기판 — **증설 사이클**의 중심, 투자판단의 Key' },
+  ],
 };
 
 // 실적 5개년(2021~2025) + 추정 5개년(2026~2030)

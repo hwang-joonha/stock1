@@ -87,6 +87,8 @@ const report = {
   peers:     (typeof PEERS === 'object' && PEERS) ? PEERS : null,
   consensus: (typeof CONSENSUS === 'object' && CONSENSUS) ? CONSENSUS : null,
   quarterly: (typeof QUARTERLY === 'object' && QUARTERLY) ? QUARTERLY : null,
+  costnature: (typeof COSTNATURE === 'object' && COSTNATURE) ? COSTNATURE : null,
+  meta:      (typeof META === 'object' && META) ? META : null,
   scenarios: (typeof SCENARIOS === 'object' && SCENARIOS) ? Object.keys(SCENARIOS) : null,
 };
 for (const k in MODEL) {

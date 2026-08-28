@@ -604,6 +604,15 @@ const META={
   title:'삼성전기 투자심사 모델',
   brand:'삼성전기 009150',
   logo:'S',
+  // 사업 구조 뷰 — 부문 매출↔비용 노드 매핑. 이익 = rev − cost 로 유도.
+  bizMap:[
+    { label:'컴포넌트', rev:'component_total', cost:'comp_cost',
+      note:'MLCC·칩인덕터 등 수동소자 — **AI 서버·전장**이 증분 수요처' },
+    { label:'광학솔루션', rev:'optics_total', cost:'optics_cost',
+      note:'스마트폰 카메라모듈 — 삼성전자 플래그십 의존' },
+    { label:'패키지솔루션', rev:'package_total', cost:'pkg_cost',
+      note:'FC-BGA 등 반도체 패키지기판 — **증설 사이클**의 중심, 투자판단의 Key' },
+  ],
 };
 
 // 실적 5개년(2021~2025) + 추정 5개년(2026~2030)
@@ -1521,6 +1530,11 @@ const SCENARIOS={
 // 출처: DART 정기보고서 영업부문정보 주석 (연결)
 // 갱신: python3 tools/build_quarterly.py companies/samsung-em/quarterly.json
 const QUARTERLY = {"_단위": "억원", "_출처": "DART 정기보고서 영업부문정보 주석 (연결)", "_방법": "정기보고서는 연초부터의 누적을 준다. 분기값은 누적의 차분이다. 부문합 = 합계 검산을 통과한 값만 기록한다.", "_보고서": {"2024-03": "20240516002024", "2024-06": "20240814004285", "2024-09": "20241114002537", "2024-12": "20250311001190", "2025-03": "20250515002323", "2025-06": "20250814004371", "2025-09": "20251114002848", "2025-12": "20260310003071", "2026-03": "20260515002842", "2026-06": "20260814003805"}, "quarters": {"2024Q1": {"컴포넌트": {"매출": 10229.8, "감가상각비": 1123.5, "영업이익": 969.4}, "패키지솔루션": {"매출": 4279.8, "감가상각비": 486.6, "영업이익": 206.8}, "광학솔루션": {"매출": 11733.4, "감가상각비": 174.3, "영업이익": 627.0}, "합계": {"매출": 26242.9, "감가상각비": 1784.4, "영업이익": 1803.2}}, "2024Q2": {"컴포넌트": {"매출": 11603.2, "감가상각비": 1068.5, "영업이익": 1418.4}, "패키지솔루션": {"매출": 4991.5, "감가상각비": 656.1, "영업이익": 415.7}, "광학솔루션": {"매출": 9206.6, "감가상각비": 184.2, "영업이익": 246.9}, "합계": {"매출": 25801.3, "감가상각비": 1908.8, "영업이익": 2081.0}}, "2024Q3": {"컴포넌트": {"매출": 11970.1, "감가상각비": 1013.6, "영업이익": 1454.0}, "패키지솔루션": {"매출": 5582.4, "감가상각비": 730.2, "영업이익": 524.9}, "광학솔루션": {"매출": 8421.5, "감가상각비": 181.0, "영업이익": 336.7}, "합계": {"매출": 25974.0, "감가상각비": 1924.8, "영업이익": 2315.5}}, "2024Q4": {"컴포넌트": {"매출": 10817.4, "감가상각비": 1037.2, "영업이익": 555.7}, "패키지솔루션": {"매출": 5492.9, "감가상각비": 800.2, "영업이익": 429.1}, "광학솔루션": {"매출": 8612.5, "감가상각비": 183.4, "영업이익": 165.6}, "합계": {"매출": 24922.8, "감가상각비": 2020.9, "영업이익": 1150.3}}, "2025Q1": {"컴포넌트": {"매출": 12162.7, "감가상각비": 995.9, "영업이익": 1335.2}, "패키지솔루션": {"매출": 4994.0, "감가상각비": 894.8, "영업이익": 227.4}, "광학솔루션": {"매출": 10229.8, "감가상각비": 146.1, "영업이익": 442.9}, "합계": {"매출": 27386.5, "감가상각비": 2036.8, "영업이익": 2005.5}}, "2025Q2": {"컴포넌트": {"매출": 12807.2, "감가상각비": 1082.0, "영업이익": 1566.6}, "패키지솔루션": {"매출": 5645.7, "감가상각비": 909.2, "영업이익": 248.1}, "광학솔루션": {"매출": 9393.4, "감가상각비": 125.2, "영업이익": 315.4}, "합계": {"매출": 27846.3, "감가상각비": 2116.4, "영업이익": 2130.1}}, "2025Q3": {"컴포넌트": {"매출": 13812.4, "감가상각비": 1135.1, "영업이익": 1807.1}, "패키지솔루션": {"매출": 5932.1, "감가상각비": 944.5, "영업이익": 399.9}, "광학솔루션": {"매출": 9145.9, "감가상각비": 115.9, "영업이익": 395.8}, "합계": {"매출": 28890.4, "감가상각비": 2195.5, "영업이익": 2602.8}}, "2025Q4": {"컴포넌트": {"매출": 13202.8, "감가상각비": 1179.4, "영업이익": 1384.8}, "패키지솔루션": {"매출": 6445.7, "감가상각비": 978.1, "영업이익": 476.9}, "광학솔루션": {"매출": 9373.0, "감가상각비": 126.0, "영업이익": 533.3}, "합계": {"매출": 29021.5, "감가상각비": 2283.4, "영업이익": 2395.0}}, "2026Q1": {"컴포넌트": {"매출": 14085.0, "감가상각비": 992.1, "영업이익": 1649.3}, "패키지솔루션": {"매출": 7250.2, "감가상각비": 1102.0, "영업이익": 552.7}, "광학솔루션": {"매출": 10756.0, "감가상각비": 136.8, "영업이익": 603.8}, "합계": {"매출": 32091.1, "감가상각비": 2231.0, "영업이익": 2805.7}}, "2026Q2": {"컴포넌트": {"매출": 16494.2, "감가상각비": 1133.0, "영업이익": 2741.1}, "패키지솔루션": {"매출": 7716.3, "감가상각비": 1092.0, "영업이익": 1049.7}, "광학솔루션": {"매출": 10361.5, "감가상각비": 140.6, "영업이익": 613.0}, "합계": {"매출": 34572.1, "감가상각비": 2365.7, "영업이익": 4403.7}}}};
+
+
+// ── COSTNATURE — 비용 성격별 분류 (자동 주입) ───────────────
+// 출처: 사업보고서 '비용의 성격별 분류' 주석 (companies/samsung-em/cost_nature.json)
+const COSTNATURE = {"_설명": "비용의 성격별 분류 주석 — 사업 구조 뷰의 비용 블록. 화면 표시 전용(모델 노드 아님).", "_단위": "억원", "_기준": "연결 전사 기준. 공시가 부문별 성격 분해를 주지 않으므로 부문 단위 비용 성격은 존재하지 않는 데이터다.", "_출처": {"2025·2024": "20260310003071 사업보고서(2025.12)", "2023": "20250311001190 사업보고서(2024.12) 전기 — 재작성(중단영업 분류) 기준", "2022·2021": "20230307000653 사업보고서(2022.12) — 최초 공시 기준"}, "_추출": "tools/dart_fetch.py costnature — 원문 표를 기계 추출·연쇄 대사", "years": ["2021", "2022", "2023", "2024", "2025"], "items": [{"label": "재고자산의 변동", "values": [-2854.07124, -1880.09684, -469.00427, -1501.75369, -647.52981]}, {"label": "원재료·상품 매입", "values": [40834.56869, 33722.03401, 34493.28459, 43500.44035, 44492.21988]}, {"label": "종업원급여", "values": [20673.96296, 21712.39504, 20695.80709, 22435.18187, 24458.29559]}, {"label": "감가상각·무형상각", "values": [8664.2771, 8787.98867, 8366.6901, 8402.33262, 9246.79415]}, {"label": "임가공비", "values": [3326.62847, 3174.63161, 2494.27538, 3187.98223, 3743.26644]}, {"label": "지급수수료", "values": [1958.28967, 1946.93562, 1723.89255, 2085.1137, 2470.69993]}, {"label": "기타 경비", "values": [16255.53954, 15313.15536, 15444.48206, 17926.04292, 20324.05799]}, {"label": "중단영업 차감", "values": [-6977.56225, -359.88403, -430.75262, -444.36881, -76.52357]}], "total": {"label": "성격별 비용 합계", "values": [81881.63294, 82417.15944, 82318.67488, 95590.97119, 104011.2806]}, "check": {"basis": "rev_minus_op", "revNode": "total_revenue", "opNode": "op_profit", "tol": 0.011}};
 
 // <<<DATA:END>>>
 
@@ -4468,6 +4482,7 @@ var FEATHER = {
   activity:'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
   filter:'<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
   'pie-chart':'<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',
+  'pie-chart':'<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',
   'alert-triangle':'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
   maximize:'<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>',
   info:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
@@ -4700,6 +4715,7 @@ function buildSidebar(){
   // Investment case — MARKET이 선언된 모델에서만 뜬다.
   if(typeof MARKET === 'object' && MARKET){
     html += '<div class="nav-group"><div class="nav-caption">Investment case</div>' +
+      navBtn('ic_biz', 'pie-chart', '사업 구조') +
       navBtn('ic_overview', 'target', '투자 개요', icUpsideLabel()) +
       navBtn('ic_valuation', 'trending-up', '밸류에이션') +
       navBtn('ic_scenario', 'layers', '시나리오',
@@ -4740,7 +4756,7 @@ function buildSidebar(){
 
 // ─── 라우팅 ─────────────────────────────────────────────────
 var VIEW_TITLES = { canvas:'전체 캔버스', summary:'요약 대시보드', assumptions:'가정·근거',
-  ic_overview:'투자 개요', ic_valuation:'밸류에이션',
+  ic_biz:'사업 구조', ic_overview:'투자 개요', ic_valuation:'밸류에이션',
   ic_scenario:'시나리오', ic_ideas:'투자 아이디어',
   ic_monitor:'분기 모니터링', ic_sens:'민감도',
   ic_verdict:'심사 결론', ic_report:'심사 리포트',
@@ -4871,6 +4887,7 @@ function renderView(view){
   if(view === 'ic_overview') return renderICOverview();
   if(view === 'ic_scenario') return renderICScenario();
   if(view === 'ic_ideas') return renderICIdeas();
+  if(view === 'ic_biz') return renderICBiz();
   if(view === 'ic_monitor') return renderICMonitor();
   if(view === 'ic_sens') return renderICSensitivity();
   if(view === 'ic_report') return renderICReport();
@@ -5454,6 +5471,182 @@ function icPeerCard(){
     '<th>PER (E)</th><th>1년 수익률</th></tr>' + rows + '</table></div>');
 }
 
+// ── 사업 구조 ─────────────────────────────────────────────────
+// COSTNATURE는 공시 원문에서 기계가 만든다(dart_fetch.py costnature →
+// cost_nature.json → 빌드가 주입). 전사 연결 기준이다 — 공시가 부문별
+// 성격 분해를 주지 않으므로 부문 단위 비용 성격은 존재하지 않는 데이터다.
+// 게이트 G12가 Σ항목=합계와 합계 대 (매출−영업이익) 대사를 매 빌드마다 한다.
+
+// 비용 계열 램프 — design-guide/tokens.js neutral 800~300.
+var ICVN = ['#1F2937', '#374151', '#4B5563', '#6B7280', '#9CA3AF', '#D1D5DB'];
+
+function cnHas(){ return typeof COSTNATURE === 'object' && COSTNATURE && COSTNATURE.items; }
+
+// 부문 목록. META.bizMap = [{label, rev, op?, cost?, note?}]이 정본이고,
+// 없으면 매출 노드의 합 분해에서 유도한다 — 그 경우 설명·이익 매핑은 없다.
+function bizSegs(){
+  if(typeof META === 'object' && META && META.bizMap){
+    return META.bizMap.filter(function(m){ return m.rev && MODEL[m.rev]; });
+  }
+  var rid = revenueId();
+  if(!isSumOfChildren(rid)) return [];
+  return childrenOf(rid).filter(function(c){ return isMoney(MODEL[c].u); })
+    .map(function(c){ return { label: MODEL[c].label || c, rev: c }; });
+}
+function bizSegOp(m, i){
+  if(m.op && MODEL[m.op]) return val(m.op, i);
+  if(m.cost && MODEL[m.cost]) return val(m.rev, i) - val(m.cost, i);
+  return null;
+}
+
+// ① 매출 구성 — 무엇을 파는가.
+function icBizRevBlock(compact){
+  var segs = bizSegs();
+  if(segs.length < 2){
+    if(compact) return '';
+    return '<div class="notice">부문 분해 없음 — 공시가 매출을 부문(제품)으로 나누지 않는다. ' +
+      (isProductOfChildren(revenueId())
+        ? '이 모델의 매출 구조는 출하량 × 단가 분해다 — 리포트 §4 참조.'
+        : '매출은 단일 계열로 굴린다.') + '</div>';
+  }
+  var t = icLastIdx(), hEnd = HIST_N - 1;
+  var series = segs.map(function(m){
+    return { name: m.label, values: YRS.map(function(_, i){ return val(m.rev, i); }) };
+  });
+  var sum = function(i){
+    var s = 0; segs.forEach(function(m){ s += Math.abs(val(m.rev, i)); }); return s;
+  };
+  var rows = '';
+  segs.forEach(function(m){
+    var vH = val(m.rev, hEnd);
+    var s0 = val(m.rev, 0) / sum(0), sH = vH / sum(hEnd), sT = val(m.rev, t) / sum(t);
+    var d = (sH - s0) * 100;
+    rows += '<tr><td>' + esc(m.label) + '</td>' +
+      '<td>' + esc(fmtSmart(vH)) + '</td>' +
+      '<td><b>' + (sH * 100).toFixed(1) + '%</b></td>' +
+      '<td class="' + (d >= 0 ? 'pos' : 'neg') + '">' + (d >= 0 ? '+' : '') + d.toFixed(1) + '%p</td>' +
+      '<td>' + (sT * 100).toFixed(1) + '%</td>' +
+      '<td style="text-align:left;white-space:normal">' + icRich(m.note || '') + '</td></tr>';
+  });
+  var head = '<tr><th style="text-align:left">부문</th><th>' + esc(YRS[hEnd]) + ' 매출</th>' +
+    '<th>비중</th><th>' + esc(YRS[0]) + '→' + esc(YRS[hEnd]) + '</th>' +
+    '<th>' + esc(YRS[t]) + 'E 비중</th><th style="text-align:left">내용</th></tr>';
+  return icChartCard('매출 구성 — 무엇을 파는가',
+      '구성비 100% 기준 · ' + YRS[0] + '~' + YRS[hEnd] + ' 실적, 이후 모델 추정',
+      icSvgStack(YRS, series)) +
+    card('', '', UNITS.money,
+      '<div class="table-wrap"><table class="fm">' + head + rows + '</table></div>') +
+    ((typeof META === 'object' && META && META.bizNote)
+      ? '<div class="notice">' + icRich(META.bizNote) + '</div>' : '');
+}
+
+// ② 비용 성격별 구성 — 무엇에 쓰는가.
+function icBizCostBlock(compact){
+  if(!cnHas()){
+    if(compact) return '';
+    return '<div class="notice">COSTNATURE 미선언 — python3 tools/dart_fetch.py costnature 로 ' +
+      'cost_nature.json 을 만들어 data.js 옆에 두면 빌드가 주입한다.</div>';
+  }
+  var cn = COSTNATURE, ys = cn.years, li = ys.length - 1;
+  var revAt = function(i){
+    var node = cn.check && cn.check.revNode, yi = YRS.indexOf(ys[i]);
+    return (node && MODEL[node] && yi >= 0) ? val(node, yi) : null;
+  };
+  // 스택은 양수 항목 상위 5개 + 나머지 묶음. 음수 행(재고 변동·차감)은 표에서만 —
+  // 100% 스택에 음수를 섞으면 구성비가 거짓말이 된다.
+  var pos = cn.items.filter(function(it){ return it.values[li] > 0; })
+    .slice().sort(function(a, b){ return b.values[li] - a.values[li]; });
+  var top = pos.slice(0, 5), rest = pos.slice(5);
+  var series = top.map(function(it){ return { name: it.label, values: it.values }; });
+  if(rest.length){
+    series.push({ name: '그 외 ' + rest.length + '개', values: ys.map(function(_, i){
+      var s = 0; rest.forEach(function(it){ s += it.values[i]; }); return s; }) });
+  }
+  var rows = '';
+  cn.items.forEach(function(it){
+    var sh = revAt(li) ? it.values[li] / revAt(li) : null;
+    var sh0 = revAt(0) ? it.values[0] / revAt(0) : null;
+    var d = (sh !== null && sh0 !== null) ? (sh - sh0) * 100 : null;
+    rows += '<tr><td>' + esc(it.label) + '</td>';
+    ys.forEach(function(_, i){ rows += '<td>' + esc(fmtSmart(it.values[i])) + '</td>'; });
+    rows += '<td><b>' + (sh === null ? '—' : (sh * 100).toFixed(1) + '%') + '</b></td>' +
+      (d === null ? '<td>—</td>'
+        : '<td class="' + (d <= 0 ? 'pos' : 'neg') + '">' + (d >= 0 ? '+' : '') + d.toFixed(1) + '%p</td>') +
+      '</tr>';
+  });
+  var tot = cn.total.values, shT = revAt(li) ? tot[li] / revAt(li) : null;
+  var shT0 = revAt(0) ? tot[0] / revAt(0) : null;
+  var dT = (shT !== null && shT0 !== null) ? (shT - shT0) * 100 : null;
+  rows += '<tr class="total"><td>' + esc(cn.total.label) + '</td>';
+  ys.forEach(function(_, i){ rows += '<td>' + esc(fmtSmart(tot[i])) + '</td>'; });
+  rows += '<td><b>' + (shT === null ? '—' : (shT * 100).toFixed(1) + '%') + '</b></td>' +
+    (dT === null ? '<td>—</td>'
+      : '<td class="' + (dT <= 0 ? 'pos' : 'neg') + '">' + (dT >= 0 ? '+' : '') + dT.toFixed(1) + '%p</td>') +
+    '</tr>';
+  var head = '<tr><th style="text-align:left">항목</th>';
+  ys.forEach(function(y){ head += '<th>' + esc(y) + '</th>'; });
+  head += '<th>' + esc(ys[li]) + ' 대매출</th><th>' + esc(ys[0]) + '→' + esc(ys[li]) + '</th></tr>';
+  var note = (cn.check && cn.check.gapNote) ? '<div class="notice">' + esc(cn.check.gapNote) + '</div>' : '';
+  return icChartCard('비용 구성 — 무엇에 쓰는가',
+      '사업보고서 \'비용의 성격별 분류\' 주석 · 연결 전사 기준 (부문별 분해는 공시가 주지 않음) · ' +
+      '양수 항목 구성비 100% 기준', icSvgStack(ys, series, { ramp: ICVN })) +
+    card('', '', UNITS.money,
+      '<div class="table-wrap"><table class="fm">' + head + rows + '</table></div>') + note;
+}
+
+// ③ 이익 구조 — 남는 것은 어디서 남는가.
+// 부문 이익이 없으면(KT&G처럼 공시가 안 주면) 조용히 생략한다.
+function icBizProfitBlock(compact){
+  var hEnd = HIST_N - 1;
+  var segs = bizSegs().filter(function(m){ return bizSegOp(m, hEnd) !== null; });
+  if(segs.length < 2) return '';
+  var revSum = 0, opSum = 0, anyLoss = false;
+  segs.forEach(function(m){
+    var op = bizSegOp(m, hEnd);
+    revSum += Math.abs(val(m.rev, hEnd)); opSum += op;
+    if(op <= 0) anyLoss = true;
+  });
+  var bars = [], rows = '';
+  segs.forEach(function(m){
+    var rv = val(m.rev, hEnd), op = bizSegOp(m, hEnd);
+    var rs = Math.abs(rv) / revSum, opm = rv ? op / rv : null;
+    // 적자 부문이 있으면 이익 비중은 말이 안 된다 — 그 해에는 비중을 접는다.
+    var os = (!anyLoss && opSum) ? op / opSum : null;
+    var gap = (os !== null) ? (os - rs) * 100 : null;
+    bars.push({ label: m.label, value: opm * 100, text: (opm * 100).toFixed(1) + '%',
+                color: op < 0 ? ICV.neg : ICV.rev });
+    rows += '<tr><td>' + esc(m.label) + '</td>' +
+      '<td>' + (rs * 100).toFixed(1) + '%</td>' +
+      '<td>' + (os === null ? (op <= 0 ? '적자' : '—') : '<b>' + (os * 100).toFixed(1) + '%</b>') + '</td>' +
+      '<td>' + (opm === null ? '—' : (opm * 100).toFixed(1) + '%') + '</td>' +
+      (gap === null ? '<td>—</td>'
+        : '<td class="' + (gap >= 0 ? 'pos' : 'neg') + '">' + (gap >= 0 ? '+' : '') + gap.toFixed(1) + '%p</td>') +
+      '</tr>';
+  });
+  var head = '<tr><th style="text-align:left">부문</th><th>매출 비중</th><th>영업이익 비중</th>' +
+    '<th>영업이익률</th><th>이익−매출 비중</th></tr>';
+  return icChartCard('이익 구조 — 어디서 남는가',
+      YRS[hEnd] + ' 실적 기준 · 막대 = 부문 영업이익률', icSvgHBars(bars, { labelW: 150 })) +
+    card('', '', '',
+      '<div class="table-wrap"><table class="fm">' + head + rows + '</table></div>');
+}
+
+function renderICBiz(){
+  var h = '<div class="page">';
+  h += '<div class="page-head"><div class="eyebrow caps">' + ic('pie-chart', 16) +
+    ' Investment case</div><h1>사업 구조</h1></div>';
+  if(cnHas()){
+    var srcs = [];
+    for(var k in COSTNATURE._출처){ srcs.push(COSTNATURE._출처[k]); }
+    h += '<div class="notice">비용 성격별 출처: ' + esc(srcs.join(' · ')) +
+      ' — 화면 표시 전용, 모델에 투입되지 않는 값. 게이트 G12가 매 빌드마다 대사.</div>';
+  }
+  h += icBizRevBlock(false);
+  h += icBizCostBlock(false);
+  h += icBizProfitBlock(false);
+  return h + '</div>';
+}
+
 // ── 분기 확정값 ───────────────────────────────────────────────
 // QUARTERLY는 공시 원문에서 기계가 만든다(tools/build_quarterly.py).
 // 모델의 시간축은 연간이므로 이 값들은 모델에 들어가지 않는다 — 옆에 두고
@@ -5852,7 +6045,8 @@ function icSvgHBars(rows, opts){
 }
 
 // 100% 스택 — 구성비 추이. 색은 매출 램프에서만 가져온다.
-function icSvgStack(labels, series){
+function icSvgStack(labels, series, opts){
+  var ramp = (opts && opts.ramp) || ICV.ramp;
   var W = 720, H = 178, L = 8, R = 96, T = 10, B = 26;
   var iw = W - L - R, ih = H - T - B, n = labels.length;
   var step = iw / n, bw = Math.min(46, step * 0.62), g = '';
@@ -5864,9 +6058,14 @@ function icSvgStack(labels, series){
       var frac = tot ? Math.abs(sr.values[i]) / tot : 0, h = ih * frac;
       var y = T + ih - acc - h;
       g += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) +
-           '" height="' + h.toFixed(1) + '" fill="' + ICV.ramp[k % ICV.ramp.length] + '"/>';
-      if(frac > 0.08) g += _t(x + bw / 2, y + h / 2 + 3, (frac * 100).toFixed(0) + '%',
-                              8.5, '#FFFFFF', 'middle', 700);
+           '" height="' + h.toFixed(1) + '" fill="' + ramp[k % ramp.length] + '"/>';
+      if(frac > 0.08){
+        // 밝은 색 조각에는 어두운 라벨 — 대략적 휘도(r/2 + g)로 가른다.
+        var fc = ramp[k % ramp.length];
+        var lum = parseInt(fc.slice(1, 3), 16) * 0.5 + parseInt(fc.slice(3, 5), 16);
+        g += _t(x + bw / 2, y + h / 2 + 3, (frac * 100).toFixed(0) + '%',
+                8.5, lum > 260 ? ICV.ink : '#FFFFFF', 'middle', 700);
+      }
       acc += h;
     });
     g += _t(x + bw / 2, H - 8, labels[i], 8.5);
@@ -5874,7 +6073,7 @@ function icSvgStack(labels, series){
   series.forEach(function(sr, k){
     var y = T + 6 + k * 15;
     g += '<rect x="' + (W - R + 4) + '" y="' + (y - 8) + '" width="9" height="9" rx="2" fill="' +
-         ICV.ramp[k % ICV.ramp.length] + '"/>';
+         ramp[k % ramp.length] + '"/>';
     g += _t(W - R + 18, y, sr.name, 9, ICV.text, 'start');
   });
   return icSvg(W, H, g);
@@ -6093,10 +6292,13 @@ function renderICReport(){
   h += icSec('01', '투자 논거 요약', (MEMO && MEMO.thesis) ? MEMO.thesis.sub : '',
     '<div class="card pad">' + icMemoBody('thesis') + '</div>');
 
-  // 2. 사업 구조
-  if(typeof MEMO === 'object' && MEMO && MEMO.company){
-    h += icSec('02', '사업 구조와 경쟁 포지션', MEMO.company.sub || '',
-      '<div class="card pad">' + icMemoBody('company') + '</div>');
+  // 2. 사업 구조 — 정성(MEMO.company) 위에 정량(매출 구성·비용 성격·이익 구조).
+  var bizQ = icBizRevBlock(true) + icBizCostBlock(true) + icBizProfitBlock(true);
+  if((typeof MEMO === 'object' && MEMO && MEMO.company) || bizQ){
+    h += icSec('02', '사업 구조와 경쟁 포지션',
+      (typeof MEMO === 'object' && MEMO && MEMO.company && MEMO.company.sub) || '',
+      ((typeof MEMO === 'object' && MEMO && MEMO.company)
+        ? '<div class="card pad">' + icMemoBody('company') + '</div>' : '') + bizQ);
   }
 
   // 3. 실적과 추정

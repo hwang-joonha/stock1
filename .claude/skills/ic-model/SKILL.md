@@ -63,6 +63,13 @@ python3 tools/dart_fetch.py doc <접수번호> <목차번호> # 본문
 - **연결 재무상태표** — 현금·차입금 (순차입금)
 - **연결 현금흐름표** — 유형자산 취득 (CAPEX)
 - **주식의 총수** — 발행주식수
+- **비용의 성격별 분류 주석** — `dart_fetch.py costnature <접수번호>`로 추출해
+  `cost_nature.json`으로 정규화한다 ← 사업 구조 뷰의 비용 블록.
+  당기/전기 연쇄가 보고서 사이에서 정확히 일치하는지, Σ항목 = 합계 =
+  매출 − 영업이익이 성립하는지 확인하고 어긋나는 해는 `check.gap`으로
+  기록한다 (범위가 다른 공시 — LGD 2021~2022 참조). 스키마는
+  `framework/html_template_spec.md` §2.4b, 선례는 다섯 종목의
+  `companies/*/cost_nature.json`
 
 확인할 것:
 - 부문합 = 연결 매출액인가 (오차 0)
@@ -119,7 +126,13 @@ python3 tools/build_excel.py companies/<종목>/model.html    # → model.xlsx
 python3 tools/validate_model.py companies/<종목>/model.html
 ```
 
-게이트 G1~G10이 전부 통과해야 한다. 하나라도 실패하면 고치고 다시 돌린다.
+게이트 G1~G12가 전부 통과해야 한다. 하나라도 실패하면 고치고 다시 돌린다.
+G12는 `cost_nature.json`(빌드가 `COSTNATURE`로 주입)을 대사한다 — MEMO를 쓰는
+모델에 COSTNATURE가 없으면 실패한다 (PEERS와 같은 규약).
+
+부문이 있는 종목은 `META.bizMap`으로 매출↔이익(또는 비용) 노드를 매핑해야
+사업 구조 뷰의 이익 구조 블록이 뜬다. 부문마다 `note` 한 줄(무엇을 파는가)을
+함께 적는다.
 
 ### 5. 피어 그룹
 
@@ -284,6 +297,7 @@ companies/<종목>/
   03_valuation.md             설계 — 밸류에이션·판단
   dart_extract.json           공시 원문 추출값 (출처 포함)
   historicals.json            G1 대사 기준
+  cost_nature.json            성격별 비용 — G12 대사 기준 (사업 구조 뷰)
   data.js                     손으로 쓰는 유일한 파일
   model.html                  빌드 산출물 (외부 요청 없이 동작)
   model.xlsx                  빌드 산출물 (수식 내장)

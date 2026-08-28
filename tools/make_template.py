@@ -2438,6 +2438,253 @@ const MODEL={
 };"""
 
 
+# ─────────────────────────────────────────────────────────────
+# IC-7  사업 구조 뷰 — "무엇으로 돈을 버는가"
+#
+# 모델은 "가정을 바꾸면 얼마"에, 리포트는 "왜 사는가"에 답했지만
+# "이 회사가 무엇으로 돈을 버는가"는 §4의 숫자 표에 흩어져 있었다.
+# 심사의 첫 질문을 전용 뷰로 만든다 — Investment case 그룹 맨 앞.
+#
+#   ① 매출 구성   — MODEL의 부문 노드. META.bizMap이 정본, 없으면 합 분해에서 유도.
+#   ② 비용 성격별 — COSTNATURE(사업보고서 '비용의 성격별 분류' 주석, 빌드가 주입).
+#                    화면 표시 전용, 모델에 투입되지 않는다. G12가 대사한다.
+#   ③ 이익 구조   — 부문 매출비중 대 이익비중. 매출↔이익 매핑이 있을 때만.
+#
+# 리포트 §2(사업 구조와 경쟁 포지션)에도 같은 블록이 실린다 — 정성 MEMO 위에 정량.
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC7_ICON = """  filter:'<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',"""
+NEW_IC7_ICON = OLD_IC7_ICON + """
+  'pie-chart':'<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',"""
+
+OLD_IC7_ROUTE = """  if(view === 'ic_monitor') return renderICMonitor();"""
+NEW_IC7_ROUTE = """  if(view === 'ic_biz') return renderICBiz();
+  if(view === 'ic_monitor') return renderICMonitor();"""
+
+OLD_IC7_TITLES = """  ic_overview:'투자 개요', ic_valuation:'밸류에이션',"""
+NEW_IC7_TITLES = """  ic_biz:'사업 구조', ic_overview:'투자 개요', ic_valuation:'밸류에이션',"""
+
+OLD_IC7_NAV = """      navBtn('ic_overview', 'target', '투자 개요', icUpsideLabel()) +"""
+NEW_IC7_NAV = """      navBtn('ic_biz', 'pie-chart', '사업 구조') +
+      navBtn('ic_overview', 'target', '투자 개요', icUpsideLabel()) +"""
+
+# 100% 스택에 램프 옵션 — 비용 계열은 neutral 램프를 쓴다 (tokens.js 규약).
+OLD_IC7_STACK = """function icSvgStack(labels, series){
+  var W = 720, H = 178, L = 8, R = 96, T = 10, B = 26;"""
+NEW_IC7_STACK = """function icSvgStack(labels, series, opts){
+  var ramp = (opts && opts.ramp) || ICV.ramp;
+  var W = 720, H = 178, L = 8, R = 96, T = 10, B = 26;"""
+
+OLD_IC7_STACK_RAMP = """ICV.ramp[k % ICV.ramp.length]"""
+NEW_IC7_STACK_RAMP = """ramp[k % ramp.length]"""
+
+# 스택 조각 라벨 색 — 밝은 램프 단(neutral 300 등)에 흰 글자를 얹으면 안 보인다.
+OLD_IC7_STACK_LABEL = """      if(frac > 0.08) g += _t(x + bw / 2, y + h / 2 + 3, (frac * 100).toFixed(0) + '%',
+                              8.5, '#FFFFFF', 'middle', 700);"""
+NEW_IC7_STACK_LABEL = """      if(frac > 0.08){
+        // 밝은 색 조각에는 어두운 라벨 — 대략적 휘도(r/2 + g)로 가른다.
+        var fc = ramp[k % ramp.length];
+        var lum = parseInt(fc.slice(1, 3), 16) * 0.5 + parseInt(fc.slice(3, 5), 16);
+        g += _t(x + bw / 2, y + h / 2 + 3, (frac * 100).toFixed(0) + '%',
+                8.5, lum > 260 ? ICV.ink : '#FFFFFF', 'middle', 700);
+      }"""
+
+OLD_IC7_ANCHOR = """// ── 분기 확정값 ─"""
+
+NEW_IC7_ANCHOR = """// ── 사업 구조 ─────────────────────────────────────────────────
+// COSTNATURE는 공시 원문에서 기계가 만든다(dart_fetch.py costnature →
+// cost_nature.json → 빌드가 주입). 전사 연결 기준이다 — 공시가 부문별
+// 성격 분해를 주지 않으므로 부문 단위 비용 성격은 존재하지 않는 데이터다.
+// 게이트 G12가 Σ항목=합계와 합계 대 (매출−영업이익) 대사를 매 빌드마다 한다.
+
+// 비용 계열 램프 — design-guide/tokens.js neutral 800~300.
+var ICVN = ['#1F2937', '#374151', '#4B5563', '#6B7280', '#9CA3AF', '#D1D5DB'];
+
+function cnHas(){ return typeof COSTNATURE === 'object' && COSTNATURE && COSTNATURE.items; }
+
+// 부문 목록. META.bizMap = [{label, rev, op?, cost?, note?}]이 정본이고,
+// 없으면 매출 노드의 합 분해에서 유도한다 — 그 경우 설명·이익 매핑은 없다.
+function bizSegs(){
+  if(typeof META === 'object' && META && META.bizMap){
+    return META.bizMap.filter(function(m){ return m.rev && MODEL[m.rev]; });
+  }
+  var rid = revenueId();
+  if(!isSumOfChildren(rid)) return [];
+  return childrenOf(rid).filter(function(c){ return isMoney(MODEL[c].u); })
+    .map(function(c){ return { label: MODEL[c].label || c, rev: c }; });
+}
+function bizSegOp(m, i){
+  if(m.op && MODEL[m.op]) return val(m.op, i);
+  if(m.cost && MODEL[m.cost]) return val(m.rev, i) - val(m.cost, i);
+  return null;
+}
+
+// ① 매출 구성 — 무엇을 파는가.
+function icBizRevBlock(compact){
+  var segs = bizSegs();
+  if(segs.length < 2){
+    if(compact) return '';
+    return '<div class="notice">부문 분해 없음 — 공시가 매출을 부문(제품)으로 나누지 않는다. ' +
+      (isProductOfChildren(revenueId())
+        ? '이 모델의 매출 구조는 출하량 × 단가 분해다 — 리포트 §4 참조.'
+        : '매출은 단일 계열로 굴린다.') + '</div>';
+  }
+  var t = icLastIdx(), hEnd = HIST_N - 1;
+  var series = segs.map(function(m){
+    return { name: m.label, values: YRS.map(function(_, i){ return val(m.rev, i); }) };
+  });
+  var sum = function(i){
+    var s = 0; segs.forEach(function(m){ s += Math.abs(val(m.rev, i)); }); return s;
+  };
+  var rows = '';
+  segs.forEach(function(m){
+    var vH = val(m.rev, hEnd);
+    var s0 = val(m.rev, 0) / sum(0), sH = vH / sum(hEnd), sT = val(m.rev, t) / sum(t);
+    var d = (sH - s0) * 100;
+    rows += '<tr><td>' + esc(m.label) + '</td>' +
+      '<td>' + esc(fmtSmart(vH)) + '</td>' +
+      '<td><b>' + (sH * 100).toFixed(1) + '%</b></td>' +
+      '<td class="' + (d >= 0 ? 'pos' : 'neg') + '">' + (d >= 0 ? '+' : '') + d.toFixed(1) + '%p</td>' +
+      '<td>' + (sT * 100).toFixed(1) + '%</td>' +
+      '<td style="text-align:left;white-space:normal">' + icRich(m.note || '') + '</td></tr>';
+  });
+  var head = '<tr><th style="text-align:left">부문</th><th>' + esc(YRS[hEnd]) + ' 매출</th>' +
+    '<th>비중</th><th>' + esc(YRS[0]) + '→' + esc(YRS[hEnd]) + '</th>' +
+    '<th>' + esc(YRS[t]) + 'E 비중</th><th style="text-align:left">내용</th></tr>';
+  return icChartCard('매출 구성 — 무엇을 파는가',
+      '구성비 100% 기준 · ' + YRS[0] + '~' + YRS[hEnd] + ' 실적, 이후 모델 추정',
+      icSvgStack(YRS, series)) +
+    card('', '', UNITS.money,
+      '<div class="table-wrap"><table class="fm">' + head + rows + '</table></div>') +
+    ((typeof META === 'object' && META && META.bizNote)
+      ? '<div class="notice">' + icRich(META.bizNote) + '</div>' : '');
+}
+
+// ② 비용 성격별 구성 — 무엇에 쓰는가.
+function icBizCostBlock(compact){
+  if(!cnHas()){
+    if(compact) return '';
+    return '<div class="notice">COSTNATURE 미선언 — python3 tools/dart_fetch.py costnature 로 ' +
+      'cost_nature.json 을 만들어 data.js 옆에 두면 빌드가 주입한다.</div>';
+  }
+  var cn = COSTNATURE, ys = cn.years, li = ys.length - 1;
+  var revAt = function(i){
+    var node = cn.check && cn.check.revNode, yi = YRS.indexOf(ys[i]);
+    return (node && MODEL[node] && yi >= 0) ? val(node, yi) : null;
+  };
+  // 스택은 양수 항목 상위 5개 + 나머지 묶음. 음수 행(재고 변동·차감)은 표에서만 —
+  // 100% 스택에 음수를 섞으면 구성비가 거짓말이 된다.
+  var pos = cn.items.filter(function(it){ return it.values[li] > 0; })
+    .slice().sort(function(a, b){ return b.values[li] - a.values[li]; });
+  var top = pos.slice(0, 5), rest = pos.slice(5);
+  var series = top.map(function(it){ return { name: it.label, values: it.values }; });
+  if(rest.length){
+    series.push({ name: '그 외 ' + rest.length + '개', values: ys.map(function(_, i){
+      var s = 0; rest.forEach(function(it){ s += it.values[i]; }); return s; }) });
+  }
+  var rows = '';
+  cn.items.forEach(function(it){
+    var sh = revAt(li) ? it.values[li] / revAt(li) : null;
+    var sh0 = revAt(0) ? it.values[0] / revAt(0) : null;
+    var d = (sh !== null && sh0 !== null) ? (sh - sh0) * 100 : null;
+    rows += '<tr><td>' + esc(it.label) + '</td>';
+    ys.forEach(function(_, i){ rows += '<td>' + esc(fmtSmart(it.values[i])) + '</td>'; });
+    rows += '<td><b>' + (sh === null ? '—' : (sh * 100).toFixed(1) + '%') + '</b></td>' +
+      (d === null ? '<td>—</td>'
+        : '<td class="' + (d <= 0 ? 'pos' : 'neg') + '">' + (d >= 0 ? '+' : '') + d.toFixed(1) + '%p</td>') +
+      '</tr>';
+  });
+  var tot = cn.total.values, shT = revAt(li) ? tot[li] / revAt(li) : null;
+  var shT0 = revAt(0) ? tot[0] / revAt(0) : null;
+  var dT = (shT !== null && shT0 !== null) ? (shT - shT0) * 100 : null;
+  rows += '<tr class="total"><td>' + esc(cn.total.label) + '</td>';
+  ys.forEach(function(_, i){ rows += '<td>' + esc(fmtSmart(tot[i])) + '</td>'; });
+  rows += '<td><b>' + (shT === null ? '—' : (shT * 100).toFixed(1) + '%') + '</b></td>' +
+    (dT === null ? '<td>—</td>'
+      : '<td class="' + (dT <= 0 ? 'pos' : 'neg') + '">' + (dT >= 0 ? '+' : '') + dT.toFixed(1) + '%p</td>') +
+    '</tr>';
+  var head = '<tr><th style="text-align:left">항목</th>';
+  ys.forEach(function(y){ head += '<th>' + esc(y) + '</th>'; });
+  head += '<th>' + esc(ys[li]) + ' 대매출</th><th>' + esc(ys[0]) + '→' + esc(ys[li]) + '</th></tr>';
+  var note = (cn.check && cn.check.gapNote) ? '<div class="notice">' + esc(cn.check.gapNote) + '</div>' : '';
+  return icChartCard('비용 구성 — 무엇에 쓰는가',
+      '사업보고서 \\'비용의 성격별 분류\\' 주석 · 연결 전사 기준 (부문별 분해는 공시가 주지 않음) · ' +
+      '양수 항목 구성비 100% 기준', icSvgStack(ys, series, { ramp: ICVN })) +
+    card('', '', UNITS.money,
+      '<div class="table-wrap"><table class="fm">' + head + rows + '</table></div>') + note;
+}
+
+// ③ 이익 구조 — 남는 것은 어디서 남는가.
+// 부문 이익이 없으면(KT&G처럼 공시가 안 주면) 조용히 생략한다.
+function icBizProfitBlock(compact){
+  var hEnd = HIST_N - 1;
+  var segs = bizSegs().filter(function(m){ return bizSegOp(m, hEnd) !== null; });
+  if(segs.length < 2) return '';
+  var revSum = 0, opSum = 0, anyLoss = false;
+  segs.forEach(function(m){
+    var op = bizSegOp(m, hEnd);
+    revSum += Math.abs(val(m.rev, hEnd)); opSum += op;
+    if(op <= 0) anyLoss = true;
+  });
+  var bars = [], rows = '';
+  segs.forEach(function(m){
+    var rv = val(m.rev, hEnd), op = bizSegOp(m, hEnd);
+    var rs = Math.abs(rv) / revSum, opm = rv ? op / rv : null;
+    // 적자 부문이 있으면 이익 비중은 말이 안 된다 — 그 해에는 비중을 접는다.
+    var os = (!anyLoss && opSum) ? op / opSum : null;
+    var gap = (os !== null) ? (os - rs) * 100 : null;
+    bars.push({ label: m.label, value: opm * 100, text: (opm * 100).toFixed(1) + '%',
+                color: op < 0 ? ICV.neg : ICV.rev });
+    rows += '<tr><td>' + esc(m.label) + '</td>' +
+      '<td>' + (rs * 100).toFixed(1) + '%</td>' +
+      '<td>' + (os === null ? (op <= 0 ? '적자' : '—') : '<b>' + (os * 100).toFixed(1) + '%</b>') + '</td>' +
+      '<td>' + (opm === null ? '—' : (opm * 100).toFixed(1) + '%') + '</td>' +
+      (gap === null ? '<td>—</td>'
+        : '<td class="' + (gap >= 0 ? 'pos' : 'neg') + '">' + (gap >= 0 ? '+' : '') + gap.toFixed(1) + '%p</td>') +
+      '</tr>';
+  });
+  var head = '<tr><th style="text-align:left">부문</th><th>매출 비중</th><th>영업이익 비중</th>' +
+    '<th>영업이익률</th><th>이익−매출 비중</th></tr>';
+  return icChartCard('이익 구조 — 어디서 남는가',
+      YRS[hEnd] + ' 실적 기준 · 막대 = 부문 영업이익률', icSvgHBars(bars, { labelW: 150 })) +
+    card('', '', '',
+      '<div class="table-wrap"><table class="fm">' + head + rows + '</table></div>');
+}
+
+function renderICBiz(){
+  var h = '<div class="page">';
+  h += '<div class="page-head"><div class="eyebrow caps">' + ic('pie-chart', 16) +
+    ' Investment case</div><h1>사업 구조</h1></div>';
+  if(cnHas()){
+    var srcs = [];
+    for(var k in COSTNATURE._출처){ srcs.push(COSTNATURE._출처[k]); }
+    h += '<div class="notice">비용 성격별 출처: ' + esc(srcs.join(' · ')) +
+      ' — 화면 표시 전용, 모델에 투입되지 않는 값. 게이트 G12가 매 빌드마다 대사.</div>';
+  }
+  h += icBizRevBlock(false);
+  h += icBizCostBlock(false);
+  h += icBizProfitBlock(false);
+  return h + '</div>';
+}
+
+// ── 분기 확정값 ─"""
+
+# 리포트 §2 — 정성 MEMO 위에 정량 블록을 얹는다.
+OLD_IC7_RP2 = """  // 2. 사업 구조
+  if(typeof MEMO === 'object' && MEMO && MEMO.company){
+    h += icSec('02', '사업 구조와 경쟁 포지션', MEMO.company.sub || '',
+      '<div class="card pad">' + icMemoBody('company') + '</div>');
+  }"""
+NEW_IC7_RP2 = """  // 2. 사업 구조 — 정성(MEMO.company) 위에 정량(매출 구성·비용 성격·이익 구조).
+  var bizQ = icBizRevBlock(true) + icBizCostBlock(true) + icBizProfitBlock(true);
+  if((typeof MEMO === 'object' && MEMO && MEMO.company) || bizQ){
+    h += icSec('02', '사업 구조와 경쟁 포지션',
+      (typeof MEMO === 'object' && MEMO && MEMO.company && MEMO.company.sub) || '',
+      ((typeof MEMO === 'object' && MEMO && MEMO.company)
+        ? '<div class="card pad">' + icMemoBody('company') + '</div>' : '') + bizQ);
+  }"""
+
+
 def _cut_data_region(text: str) -> str:
     """YRS 선언 앞 주석부터 MODEL 리터럴 끝까지를 마커+예제로 교체한다."""
     from extract_engine import _scan_assignment
@@ -2529,6 +2776,15 @@ def main() -> None:
     p.sub("IC-6 분기 차트", OLD_IC6_QT, NEW_IC6_QT)
     p.sub("IC-6 민감도 막대", OLD_IC6_SENS, NEW_IC6_SENS)
     p.sub("IC-6 타이포·차트 스타일", OLD_IC6_STYLE, NEW_IC6_STYLE)
+    p.sub("IC-7 아이콘", OLD_IC7_ICON, NEW_IC7_ICON)
+    p.sub("IC-7 뷰 라우팅", OLD_IC7_ROUTE, NEW_IC7_ROUTE)
+    p.sub("IC-7 뷰 제목", OLD_IC7_TITLES, NEW_IC7_TITLES)
+    p.sub("IC-7 사이드바", OLD_IC7_NAV, NEW_IC7_NAV)
+    p.sub("IC-7 스택 램프 옵션", OLD_IC7_STACK, NEW_IC7_STACK)
+    p.sub("IC-7 스택 램프 적용", OLD_IC7_STACK_RAMP, NEW_IC7_STACK_RAMP, count=2)
+    p.sub("IC-7 스택 라벨 대비", OLD_IC7_STACK_LABEL, NEW_IC7_STACK_LABEL)
+    p.sub("IC-7 사업 구조 구현", OLD_IC7_ANCHOR, NEW_IC7_ANCHOR)
+    p.sub("IC-7 리포트 §2 정량", OLD_IC7_RP2, NEW_IC7_RP2)
     p.sub("P2 구성비 분모", OLD_MIX, NEW_MIX)
     p.sub("P2 구성비 제목", OLD_MIX_TITLE, NEW_MIX_TITLE)
     p.sub("P1-2 toggleAll", OLD_TOGGLE_ALL, NEW_TOGGLE_ALL)

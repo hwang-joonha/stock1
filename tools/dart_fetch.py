@@ -11,6 +11,7 @@
     python3 tools/dart_fetch.py toc <접수번호>            # 목차
     python3 tools/dart_fetch.py doc <접수번호> <목차번호> # 본문 텍스트
     python3 tools/dart_fetch.py segments <접수번호>       # 영업부문정보 주석
+    python3 tools/dart_fetch.py costnature <접수번호>     # 비용의 성격별 분류 주석
 """
 from __future__ import annotations
 
@@ -236,6 +237,148 @@ def segments(rcp_no: str, node_hint: str = "영업부문정보") -> dict:
     return out
 
 
+# ── 비용의 성격별 분류 주석 파싱 ────────────────────────────────
+# 사업보고서 주석의 "비용의 성격별 분류"(회사에 따라 "영업비용 — 성격별 비용")는
+# 영업비용을 원재료·인건비·상각비 같은 성격으로 쪼갠 유일한 공시다.
+# 사업 구조 뷰의 비용 블록이 이 표에서 나온다.
+#
+# DART 뷰어의 XBRL 표는 to_text를 거치면 "라벨 줄 → 값 줄"의 쌍으로 펴진다.
+# 그룹 헤더(자식을 거느린 라벨)는 값 줄 없이 다음 라벨이 이어지므로,
+# "숫자 줄은 직전 라벨의 값"이라는 규칙 하나로 전체가 풀린다. 라벨 중복
+# (합계 행과 그룹 헤더가 같은 이름)이 있으므로 dict가 아니라 순서 있는
+# 쌍 목록으로 돌려준다 — 정규화(합계/자식 구분)는 종목 쪽에서 한다.
+
+_CN_TITLE_RE = re.compile(r"비용의 성격별 분류|성격별\s*비용|성격별로 분류")
+_CN_UNIT_RE = re.compile(r"\(단위\s*:\s*([^)]+)\)")
+_CN_NUM_RE = re.compile(r"^\(?-?[\d,]+\)?$")
+_CN_ANCHOR_RE = re.compile(r"제품 및 재공품 등의 변동|재공품 및 제품의 변동|재고자산의 변동")
+_CN_PERIOD_RE = re.compile(r"^(당|전)\s*[분반]?\s*기$|^제\s*\d+\s*기(말)?$")
+# 성격별 표가 맞는지 확인하는 의미 검사 — 법인세·자본변동 같은 다른 표를 거른다.
+# 진짜 성격별 표에는 재료/재고 행과 급여 행과 상각 행이 전부 있다.
+_CN_SEMANTIC = (re.compile(r"원재료|매입액|재고자산의 변동|재공품"),
+                re.compile(r"급여|인건비"), re.compile(r"상각"))
+
+
+def _cn_lines(body: str) -> list[str]:
+    lines = [ln.strip().rstrip("|").strip() for ln in body.split("\n")]
+    return [ln for ln in lines if ln and ln not in ("　", "공시금액")
+            and not _CN_UNIT_RE.fullmatch(ln)]
+
+
+def _cn_pairs(lines: list[str]) -> list[list]:
+    """라벨/값 줄 목록을 (라벨, 값) 쌍으로 짝짓는다."""
+    pairs, pending = [], None
+    for ln in lines:
+        if _CN_NUM_RE.fullmatch(ln):
+            v = _to_int(ln)
+            if pending is not None and v is not None:
+                pairs.append([pending, v])
+            pending = None
+        else:
+            pending = ln
+    return pairs
+
+
+def _cn_parse(body: str) -> dict:
+    """한 후보 구간을 {기간: [[라벨, 값], ...]}으로 파싱한다.
+
+    표는 두 가지 모양으로 온다.
+      A. XBRL 뷰어 — '당기' 헤더 아래 라벨 줄/값 줄 쌍이 이어진다.
+      B. 고전 표  — '구 분 | 당 기 | 전 기' 헤더 아래 라벨 + 열 수만큼 값.
+    """
+    lines = _cn_lines(body)
+
+    # 모양 B — 구분 헤더에 이어 기간 열 이름들이 온다.
+    for i, ln in enumerate(lines):
+        if not re.fullmatch(r"구\s*분", ln):
+            continue
+        cols, j = [], i + 1
+        while j < len(lines) and _CN_PERIOD_RE.fullmatch(lines[j]):
+            cols.append(re.sub(r"\s+", "", lines[j]))
+            j += 1
+        if not cols:
+            continue
+        periods = {c: [] for c in cols}
+        label, vals = None, []
+        for ln2 in lines[j:]:
+            if _CN_NUM_RE.fullmatch(ln2):
+                vals.append(_to_int(ln2))
+                if len(vals) == len(cols) and label:
+                    for c, v in zip(cols, vals):
+                        periods[c].append([label, v])
+                    label, vals = None, []
+            else:
+                # 다음 주석 제목이 나오면 표가 끝난 것이다.
+                if re.match(r"^\d{1,2}[-.]", ln2) and any(periods.values()):
+                    break
+                label, vals = ln2, []
+        return periods
+
+    # 모양 A — 당기/전기 블록. 같은 기간 헤더가 다시 나오면 다음 표가
+    # 시작된 것이므로 거기서 멈춘다 — 뒤 표가 앞 표를 덮어쓰면 안 된다.
+    periods, cur, buf = {}, None, []
+    for ln in lines:
+        if ln in ("당기", "전기", "당분기", "전분기"):
+            if cur and buf:
+                periods[cur] = _cn_pairs(buf)
+            if ln in periods:
+                cur = None
+                break
+            cur, buf = ln, []
+            continue
+        if cur and ("에 대한 기술" in ln or ln.endswith("내역")):
+            periods[cur] = _cn_pairs(buf)
+            cur, buf = None, []
+            if len(periods) >= 2:
+                break
+            continue
+        if cur:
+            buf.append(ln)
+    if cur and buf:
+        periods[cur] = _cn_pairs(buf)
+    return periods
+
+
+def _cn_valid(periods: dict) -> bool:
+    rows = [p for v in periods.values() for p in v]
+    return (len(rows) >= 6 and
+            all(any(rx.search(lb) for lb, _ in rows) for rx in _CN_SEMANTIC))
+
+
+def costnature(rcp_no: str) -> dict:
+    """성격별 비용 주석을 {기간: [[라벨, 값], ...]}으로 돌려준다.
+
+    값 단위는 공시 그대로다(unit 필드 참조 — 천원/백만원이 회사마다 다르다).
+    환산은 호출하는 쪽에서 한다.
+
+    제목이 회계정책 산문에도 나오므로 후보 위치를 전부 시도하고,
+    파싱 결과가 성격별 표답게 생겼는지(_cn_valid)로 판정한다.
+    옛 보고서는 제목 없이 영업이익 주석 안에 표만 들어 있다 —
+    관용 첫 행(재공품 변동)을 앵커로 쓰는 폴백이 그 경우를 받는다.
+    """
+    items = toc(rcp_no)
+    nodes = [n for n in items if "성격별" in n["text"] and "연결" in n["text"]]
+    if not nodes:
+        nodes = [n for n in items if "연결재무제표 주석" in n["text"]]
+    if not nodes:
+        nodes = [n for n in items if "성격별" in n["text"]]
+    if not nodes:
+        raise SystemExit(f"{rcp_no}: 성격별 비용 주석을 찾지 못했다")
+    text = document(nodes[0])
+
+    starts = [m.start() for m in _CN_TITLE_RE.finditer(text)]
+    starts += [max(0, m.start() - 150) for m in _CN_ANCHOR_RE.finditer(text)]
+    for start in starts:
+        body = text[start:start + 8000]
+        periods = _cn_parse(body)
+        if _cn_valid(periods):
+            unit_m = _CN_UNIT_RE.search(body)
+            return {"rcpNo": rcp_no,
+                    "unit": unit_m.group(1).strip() if unit_m else "?",
+                    "periods": periods}
+    raise SystemExit(f"{rcp_no}: 성격별 비용 표를 파싱하지 못했다")
+
+
 def main(argv: list[str]) -> int:
     if not argv:
         print(__doc__)
@@ -253,6 +396,9 @@ def main(argv: list[str]) -> int:
     elif cmd == "segments":
         import json
         print(json.dumps(segments(argv[1]), ensure_ascii=False, indent=2))
+    elif cmd == "costnature":
+        import json
+        print(json.dumps(costnature(argv[1]), ensure_ascii=False, indent=2))
     else:
         print(__doc__)
         return 1
