@@ -337,6 +337,19 @@ ul.memo li{font-size:13px;color:#4B5563;line-height:1.75;margin-bottom:6px}
   border:1px solid #E5E7EB;border-left:3px solid #DC2626;font-size:11.5px;color:#4B5563;line-height:1.7}
 .falsify b{color:#DC2626}
 
+/* 토네이도 막대 — 좌우 대칭으로 한 행에 음/양을 함께 둔다 */
+.tor{display:flex;align-items:center;gap:2px;min-width:180px}
+.tor-l,.tor-r{flex:1;display:flex;height:11px}
+.tor-l{justify-content:flex-end}
+.tor-l span{background:#9CA3AF;border-radius:2px 0 0 2px;display:block;height:100%}
+.tor-r span{background:#5D68F7;border-radius:0 2px 2px 0;display:block;height:100%}
+
+/* 아이디어의 최신 진행 상황 — 논거보다 먼저 눈에 들어와야 한다 */
+.idea-upd{margin:0 0 12px;padding:10px 12px;border-radius:6px;background:#EDF3FF;
+  border:1px solid #C5D5FF;border-left:3px solid #1E2185;font-size:11.5px;
+  color:#1E2185;line-height:1.7}
+.idea-upd b{color:#1E2185}
+
 /* 애널리스트 리포트 */
 .rp{max-width:960px;margin:0 auto}
 .rp-cover{border:1px solid #E5E5E8;border-radius:10px;background:#FFFFFF;padding:20px 22px}
@@ -1000,7 +1013,8 @@ const MEMO={
         +'광학, 그리고 이익을 먹으면서 미래를 만드는 패키지. 투자 판단은 세 번째에 달려 있다.',
     points:[
       '패키지솔루션이 이 종목의 축이다. 매출이 5년간 37% 느는 동안 감가상각비가 3.3배 늘어 '
-        +'영업이익이 4,646억(2022)에서 1,352억(2025)으로 줄었다. 증설이 이익을 먹고 있는 국면이다.',
+        +'영업이익이 4,646억(2022)에서 1,352억(2025)으로 줄었다. 증설이 이익을 먹고 있는 국면이다. '
+        +'다만 2026Q2 확정으로 이 국면이 끝나가는 징후가 나왔다 — 부문 영업이익률 13.6%.',
       '이익 회복의 상당 부분은 시간이 해결한다. 기타비용률을 2025년 수준에 고정해도 '
         +'2030 영업이익률이 8.1%에서 10.5%로 오른다 — 감가상각 증가율이 매출 증가율보다 '
         +'낮아지는 기계적 효과다. 여기에 비용률 개선이 얹히면 12.1%가 된다.',
@@ -1024,10 +1038,13 @@ const MEMO={
         +'전망치로 정규화하면 프리미엄이 실재한다.',
       '"부품사 5~8배"는 여전히 유효하되 성숙 부품사에만 그렇다 — LG이노텍 8.3배, '
         +'비에이치 4.8배. 재평가는 업종 전체가 아니라 AI 기판·MLCC에 국한돼 있다.',
-      '가장 중요한 것: 컨센서스가 본 모델보다 48% 높은 2026 EBITDA(29,752억 vs 20,165억)를 '
+      '가장 중요한 것: 컨센서스가 본 모델보다 48% 높은 2026 EBITDA(29,752억 vs {{ebitda@2026}}억)를 '
         +'전제하고 있다. 즉 "2030년에 모델 추정의 2.3배가 필요하다"는 갭의 상당 부분을 '
         +'시장은 이미 2026년에 반영했다. 갭은 시장의 비합리가 아니라 본 모델 성장률 가정이 '
         +'보수적인 데서도 온다.',
+      '2026 상반기 확정 실적이 그 질문에 절반쯤 답했다. EBITDA 11,806억은 본 모델 연간 '
+        +'추정의 59%로 선형(50%)을 앞서고, 컨센서스 전제로는 40%에 그친다. 실적은 두 값 '
+        +'사이에 있다 — 본 모델은 낮고 컨센서스는 높다. 분기 모니터링 뷰에서 매 분기 갱신된다.',
       '목표배수 15배는 AI 기판 피어의 2026 컨센서스 범위(14.1~21.3배) 하단에 놓았다. '
         +'성숙 부품사(3.5~6.2배)보다는 확실히 높되 피어 중에서는 보수적인 자리다. '
         +'Base가 −55%를 가리키는 이유의 절반이 이 선택이고, 나머지 절반이 EBITDA 추정 차이다.',
@@ -1046,6 +1063,10 @@ const MEMO={
       '본 모델의 Base 가정은 보수적으로 설정했다. 컨센서스가 2026 EBITDA를 본 모델보다 '
         +'48% 높게 보고 있으므로, 심사에서는 그 차이가 어디서 오는지를 먼저 좁히는 것이 '
         +'목표가를 다투는 것보다 생산적이다.',
+      '2026 상반기 확정 실적이 본 모델 경로를 앞선다(EBITDA 진행률 59%, 선형 50%). '
+        +'Base 가정을 손보면 −55%는 줄어든다. 다만 여기서는 초안 가정을 그대로 두었다 — '
+        +'실적이 앞선다고 그때마다 가정을 끌어올리면 모델이 주가를 뒤쫓게 되고, '
+        +'"무엇을 전제했는가"의 기록이 사라진다. 갱신은 심사자가 명시적으로 결정할 일이다.',
       '피어 배수도 지금 시점의 값이다. 테마가 식으면 피어 배수가 먼저 내려오고 그러면 '
         +'목표배수 15배의 근거도 함께 흔들린다 — 모니터링 지표에 피어 배수를 포함한다.',
     ],
@@ -1107,6 +1128,21 @@ const MEMO={
             +'감가상각 증가율이 매출 증가율 아래로 내려가는 순간 이익은 계단식으로 돌아온다. '
             +'본 모델은 기타비용률을 2025년 수준에 고정한 상태에서도 2030년 전사 영업이익률이 '
             +'8.1%에서 10.5%로 오른다 — 이 부분은 가정이 아니라 감가상각 산식의 결과다.',
+      // 화면이 계산하는 확인지표. QUARTERLY(공시 확정 분기값)에서 바로 읽는다.
+      // good은 좋은 방향 — 이것이 있어야 화면이 ▲를 초록으로 칠할지 빨강으로
+      // 칠할지 판단할 수 있다.
+      update:'2026Q2 확정 — 패키지 부문 영업이익률이 4.4%(2025Q2)에서 13.6%로 올랐다. '
+            +'감가상각비는 전년 동기 909억 → 1,092억으로 아직 늘지만(+20%) 매출이 '
+            +'5,646억 → 7,716억(+37%)으로 더 빨리 늘어, 반증 조건이 요구하는 방향과 '
+            +'반대로 움직이고 있다. 직전 분기 대비로는 감가상각비가 1,102억 → 1,092억으로 '
+            +'처음 꺾였다. 이 아이디어는 실현 국면에 들어갔다.',
+      track:[
+        {label:'패키지솔루션 영업이익률', seg:'패키지솔루션', metric:'영업이익률', good:'up'},
+        {label:'패키지 감가상각비 (분기)', seg:'패키지솔루션', metric:'감가상각비', good:'down'},
+        {label:'패키지 감가상각비 YoY', seg:'패키지솔루션', metric:'감가상각비',
+         kind:'yoy', good:'down'},
+        {label:'패키지 매출 YoY', seg:'패키지솔루션', metric:'매출', kind:'yoy', good:'up'},
+      ],
       catalysts:[
         '분기 CAPEX가 2025년 수준(연 11,921억)에서 뚜렷하게 꺾이는 것',
         '건설중인자산 잔액(2025년 1조 2,165억)의 감소 전환',
@@ -1135,6 +1171,15 @@ const MEMO={
             +'되돌아온다. 본 모델은 비용률 개선을 보수적으로만 반영했고, 그 몫이 2030년 '
             +'영업이익 기준 2,605억(전체의 13%)이다 — 이 아이디어가 맞으면 상방이 열리고 '
             +'틀려도 Base가 훼손되지는 않는 비대칭 구조다.',
+      update:'2026Q2 확정 — 컴포넌트 기타비용률이 79.3%(2025Q2) → 76.5%로 내려왔고 '
+            +'매출은 12,807억 → 16,494억(+29%)이다. 물량과 함께 비용률이 되돌아온다는 '
+            +'가동률 가설이 지금까지는 맞는 쪽이다. 부문 영업이익률도 12.2% → 16.6%. '
+            +'다만 2021년 수준(66%)까지는 아직 멀다.',
+      track:[
+        {label:'컴포넌트 기타비용률', seg:'컴포넌트', metric:'기타비용률', good:'down'},
+        {label:'컴포넌트 영업이익률', seg:'컴포넌트', metric:'영업이익률', good:'up'},
+        {label:'컴포넌트 매출 YoY', seg:'컴포넌트', metric:'매출', kind:'yoy', good:'up'},
+      ],
       catalysts:[
         '전장·AI 서버용 고용량 MLCC 비중 상승에 따른 믹스 개선',
         '스마트폰 출하 회복으로 인한 가동률 상승',
@@ -1158,10 +1203,20 @@ const MEMO={
       tag:'가정 검증',
       thesis:'현재 시가총액은 2025년 EBITDA의 58배이고, 본 모델 2030년 추정으로도 34배다. '
             +'Base(목표배수 15배)는 −55%를 가리킨다. 그러나 시장 컨센서스는 2026년 EBITDA를 '
-            +'29,752억으로 보고 있고 본 모델은 20,165억이다 — 시장이 48% 높게 본다. '
+            +'29,752억으로 보고 있고 본 모델은 {{ebitda@2026}}억이다 — 시장이 48% 높게 본다. '
             +'즉 "2030년에 모델의 2.3배가 필요하다"는 괴리의 상당 부분을 시장은 이미 2026년에 '
             +'반영해 두었다. 그러므로 심사의 질문은 "적정가가 얼마인가"가 아니라 '
             +'"컨센서스의 2026년이 실제로 오는가"다. 이 질문은 두 분기 안에 답이 난다.',
+      update:'2026 상반기 확정 — 매출 66,663억, 영업이익 7,209억, EBITDA 11,806억. '
+            +'본 모델 2026 연간 추정 대비 진행률이 각각 54%·65%·59%로 선형 기준(50%)을 '
+            +'앞선다. 반대로 컨센서스가 전제한 EBITDA 29,752억 기준으로는 40%에 그친다. '
+            +'즉 실적은 **본 모델보다 위, 컨센서스보다 아래**에 있다. 두 질문의 답이 '
+            +'동시에 나온 셈이다 — 본 모델 가정이 보수적이었고, 컨센서스는 낙관적이었다.',
+      track:[
+        {label:'전사 매출 (분기)', seg:'합계', metric:'매출', good:'up'},
+        {label:'전사 영업이익률', seg:'합계', metric:'영업이익률', good:'up'},
+        {label:'전사 매출 YoY', seg:'합계', metric:'매출', kind:'yoy', good:'up'},
+      ],
       catalysts:[
         '2026년 반기 실적 — 컨센서스 경로와 모델 경로 중 어느 쪽에 붙는지가 드러난다',
         'AI 서버·전장 수주 공시 또는 고객사 물량 가이던스',
@@ -1174,7 +1229,7 @@ const MEMO={
         '컨센서스가 맞더라도 배수가 먼저 내려오면 주가는 빠진다 — 실적과 배수는 별개 변수다',
         '본 모델이 보수적인 것과 시장이 과열인 것은 동시에 참일 수 있다',
       ],
-      falsify:'2026년 상반기 누적 EBITDA가 본 모델 연간 경로(20,165억)의 절반 수준에 그치면 '
+      falsify:'2026년 상반기 누적 EBITDA가 본 모델 연간 경로({{ebitda@2026}}억)의 절반 수준에 그치면 '
              +'컨센서스가 틀린 것이고, 현재 가격의 전제가 무너진 것으로 본다. 반대로 컨센서스 '
              +'경로에 올라타면 본 모델의 성장률 가정을 상향해야 한다.',
     },
@@ -1245,6 +1300,23 @@ const PEERS={
   ],
 };
 
+// ── CONSENSUS — 시장이 전제하는 실적 ────────────────────────
+// 목표가를 다투기 전에 물어야 할 것은 "시장과 나는 무엇을 다르게 보는가"다.
+// 그 값을 MEMO 산문에 적어두면 갱신할 때 본문만 낡는다. 블록으로 꺼내
+// 화면이 모델과의 괴리를 그 자리에서 계산하게 한다.
+//
+// 산출 경로: WISEreport의 2026 컨센서스 EV/EBITDA 34.6배와 현재 시가총액에서
+// 역산했다. 컨센서스 EBITDA = (시가총액 + 순차입금) ÷ 34.6.
+// 애널리스트 추정치를 직접 받은 것이 아니라 배수에서 되돌린 값이므로,
+// 순차입금 정의 차이만큼의 오차가 있다.
+const CONSENSUS={
+  asOf:'2026-08-27',
+  source:'WISEreport 2026 컨센서스 EV/EBITDA 34.6배에서 역산',
+  items:[
+    {year:2026, node:'ebitda', value:29752},
+  ],
+};
+
 // ── SCENARIOS — Bull / Bear 프리셋 ──────────────────────────
 // Base는 초안값이므로 여기 두지 않는다. [주관] 노드만 흔든다.
 // 시뮬레이터 상단 케이스 바에서 전환한다.
@@ -1277,6 +1349,12 @@ const SCENARIOS={
     target_ev_ebitda:  [10,10,10,10,10,10,10,10,10,10],
   },
 };
+
+// ── QUARTERLY — 분기 확정값 (자동 주입) ─────────────────────
+// 출처: DART 정기보고서 영업부문정보 주석 (연결)
+// 갱신: python3 tools/build_quarterly.py companies/samsung-em/quarterly.json
+const QUARTERLY = {"_단위": "억원", "_출처": "DART 정기보고서 영업부문정보 주석 (연결)", "_방법": "정기보고서는 연초부터의 누적을 준다. 분기값은 누적의 차분이다. 부문합 = 합계 검산을 통과한 값만 기록한다.", "_보고서": {"2024-03": "20240516002024", "2024-06": "20240814004285", "2024-09": "20241114002537", "2024-12": "20250311001190", "2025-03": "20250515002323", "2025-06": "20250814004371", "2025-09": "20251114002848", "2025-12": "20260310003071", "2026-03": "20260515002842", "2026-06": "20260814003805"}, "quarters": {"2024Q1": {"컴포넌트": {"매출": 10229.8, "감가상각비": 1123.5, "영업이익": 969.4}, "패키지솔루션": {"매출": 4279.8, "감가상각비": 486.6, "영업이익": 206.8}, "광학솔루션": {"매출": 11733.4, "감가상각비": 174.3, "영업이익": 627.0}, "합계": {"매출": 26242.9, "감가상각비": 1784.4, "영업이익": 1803.2}}, "2024Q2": {"컴포넌트": {"매출": 11603.2, "감가상각비": 1068.5, "영업이익": 1418.4}, "패키지솔루션": {"매출": 4991.5, "감가상각비": 656.1, "영업이익": 415.7}, "광학솔루션": {"매출": 9206.6, "감가상각비": 184.2, "영업이익": 246.9}, "합계": {"매출": 25801.3, "감가상각비": 1908.8, "영업이익": 2081.0}}, "2024Q3": {"컴포넌트": {"매출": 11970.1, "감가상각비": 1013.6, "영업이익": 1454.0}, "패키지솔루션": {"매출": 5582.4, "감가상각비": 730.2, "영업이익": 524.9}, "광학솔루션": {"매출": 8421.5, "감가상각비": 181.0, "영업이익": 336.7}, "합계": {"매출": 25974.0, "감가상각비": 1924.8, "영업이익": 2315.5}}, "2024Q4": {"컴포넌트": {"매출": 10817.4, "감가상각비": 1037.2, "영업이익": 555.7}, "패키지솔루션": {"매출": 5492.9, "감가상각비": 800.2, "영업이익": 429.1}, "광학솔루션": {"매출": 8612.5, "감가상각비": 183.4, "영업이익": 165.6}, "합계": {"매출": 24922.8, "감가상각비": 2020.9, "영업이익": 1150.3}}, "2025Q1": {"컴포넌트": {"매출": 12162.7, "감가상각비": 995.9, "영업이익": 1335.2}, "패키지솔루션": {"매출": 4994.0, "감가상각비": 894.8, "영업이익": 227.4}, "광학솔루션": {"매출": 10229.8, "감가상각비": 146.1, "영업이익": 442.9}, "합계": {"매출": 27386.5, "감가상각비": 2036.8, "영업이익": 2005.5}}, "2025Q2": {"컴포넌트": {"매출": 12807.2, "감가상각비": 1082.0, "영업이익": 1566.6}, "패키지솔루션": {"매출": 5645.7, "감가상각비": 909.2, "영업이익": 248.1}, "광학솔루션": {"매출": 9393.4, "감가상각비": 125.2, "영업이익": 315.4}, "합계": {"매출": 27846.3, "감가상각비": 2116.4, "영업이익": 2130.1}}, "2025Q3": {"컴포넌트": {"매출": 13812.4, "감가상각비": 1135.1, "영업이익": 1807.1}, "패키지솔루션": {"매출": 5932.1, "감가상각비": 944.5, "영업이익": 399.9}, "광학솔루션": {"매출": 9145.9, "감가상각비": 115.9, "영업이익": 395.8}, "합계": {"매출": 28890.4, "감가상각비": 2195.5, "영업이익": 2602.8}}, "2025Q4": {"컴포넌트": {"매출": 13202.8, "감가상각비": 1179.4, "영업이익": 1384.8}, "패키지솔루션": {"매출": 6445.7, "감가상각비": 978.1, "영업이익": 476.9}, "광학솔루션": {"매출": 9373.0, "감가상각비": 126.0, "영업이익": 533.3}, "합계": {"매출": 29021.5, "감가상각비": 2283.4, "영업이익": 2395.0}}, "2026Q1": {"컴포넌트": {"매출": 14085.0, "감가상각비": 992.1, "영업이익": 1649.3}, "패키지솔루션": {"매출": 7250.2, "감가상각비": 1102.0, "영업이익": 552.7}, "광학솔루션": {"매출": 10756.0, "감가상각비": 136.8, "영업이익": 603.8}, "합계": {"매출": 32091.1, "감가상각비": 2231.0, "영업이익": 2805.7}}, "2026Q2": {"컴포넌트": {"매출": 16494.2, "감가상각비": 1133.0, "영업이익": 2741.1}, "패키지솔루션": {"매출": 7716.3, "감가상각비": 1092.0, "영업이익": 1049.7}, "광학솔루션": {"매출": 10361.5, "감가상각비": 140.6, "영업이익": 613.0}, "합계": {"매출": 34572.1, "감가상각비": 2365.7, "영업이익": 4403.7}}}};
+
 // <<<DATA:END>>>
 
 // ============================================================
@@ -4212,6 +4290,8 @@ var FEATHER = {
   'trending-up':'<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
   zap:'<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
   'book-open':'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+  activity:'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+  filter:'<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
   'pie-chart':'<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',
   'alert-triangle':'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
   maximize:'<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>',
@@ -4453,6 +4533,10 @@ function buildSidebar(){
       navBtn('ic_ideas', 'zap', '투자 아이디어',
              (typeof MEMO === 'object' && MEMO && MEMO.ideas)
                ? String(MEMO.ideas.length) : '') +
+      navBtn('ic_monitor', 'activity', '분기 모니터링',
+             (typeof QUARTERLY === 'object' && QUARTERLY && QUARTERLY.quarters)
+               ? String(Object.keys(QUARTERLY.quarters).length) : '') +
+      navBtn('ic_sens', 'filter', '민감도') +
       navBtn('ic_verdict', 'file-text', '심사 결론') +
       navBtn('ic_report', 'book-open', '심사 리포트') +
       '</div>';
@@ -4483,6 +4567,7 @@ function buildSidebar(){
 var VIEW_TITLES = { canvas:'전체 캔버스', summary:'요약 대시보드', assumptions:'가정·근거',
   ic_overview:'투자 개요', ic_valuation:'밸류에이션',
   ic_scenario:'시나리오', ic_ideas:'투자 아이디어',
+  ic_monitor:'분기 모니터링', ic_sens:'민감도',
   ic_verdict:'심사 결론', ic_report:'심사 리포트',
   pl:'전체 테이블', checks:'검증·이슈' };
 function go(view){
@@ -4611,6 +4696,8 @@ function renderView(view){
   if(view === 'ic_overview') return renderICOverview();
   if(view === 'ic_scenario') return renderICScenario();
   if(view === 'ic_ideas') return renderICIdeas();
+  if(view === 'ic_monitor') return renderICMonitor();
+  if(view === 'ic_sens') return renderICSensitivity();
   if(view === 'ic_report') return renderICReport();
   if(view === 'ic_valuation') return renderICValuation();
   if(view === 'ic_verdict') return renderICVerdict();
@@ -4991,6 +5078,7 @@ function renderICValuation(){
     '<div class="table-wrap"><table class="fm"><tr><th>목표배수 가정</th>' +
     '<th>필요 EBITDA</th><th>모델 대비</th></tr>' + need.join('') + '</table></div>');
 
+  h += icConsensusCard();
   h += icPeerCard();
   h += icMemoCard('valuation', '밸류에이션 판단');
   return h + '</div>';
@@ -5105,6 +5193,278 @@ function icPeerCard(){
     '<th>PER (E)</th><th>1년 수익률</th></tr>' + rows + '</table></div>');
 }
 
+// ── 분기 확정값 ───────────────────────────────────────────────
+// QUARTERLY는 공시 원문에서 기계가 만든다(tools/build_quarterly.py).
+// 모델의 시간축은 연간이므로 이 값들은 모델에 들어가지 않는다 — 옆에 두고
+// "모델이 그린 경로 위를 실제로 걷고 있는가"를 묻는 데만 쓴다.
+function qHas(){ return typeof QUARTERLY === 'object' && QUARTERLY && QUARTERLY.quarters; }
+function qKeys(){ return qHas() ? Object.keys(QUARTERLY.quarters).sort() : []; }
+function qYear(k){ return parseInt(k.slice(0, 4), 10); }
+
+// 파생 지표까지 여기서 낸다. 기타비용 = 매출 − 영업이익 − 감가상각비 로,
+// 모델의 비용 분해와 같은 정의다 (02_cost_methodology).
+function qVal(k, seg, metric){
+  if(!qHas()) return null;
+  var rec = QUARTERLY.quarters[k];
+  if(!rec || !rec[seg]) return null;
+  var r = rec[seg], rev = r['매출'], op = r['영업이익'], dep = r['감가상각비'];
+  if(metric === '영업이익률') return (rev ? op / rev : null);
+  if(metric === '기타비용률') return (rev != null && op != null && dep != null && rev)
+    ? (rev - op - dep) / rev : null;
+  var v = r[metric];
+  return v === undefined ? null : v;
+}
+// 전년 동기 대비. 분기 데이터에서 계절성을 걷어내는 최소한의 장치다.
+function qYoY(k, seg, metric){
+  var prev = (qYear(k) - 1) + k.slice(4);
+  var a = qVal(prev, seg, metric), b = qVal(k, seg, metric);
+  return (a && isFinite(a) && a !== 0) ? b / a - 1 : null;
+}
+function qFmt(metric, v){
+  if(v === null || v === undefined || !isFinite(v)) return '—';
+  if(metric === '영업이익률' || metric === '기타비용률') return (v * 100).toFixed(1) + '%';
+  return fmtSmart(v);
+}
+
+// ── 모니터링 뷰 ───────────────────────────────────────────────
+function renderICMonitor(){
+  var h = '<div class="page">';
+  h += '<div class="page-head"><div class="eyebrow caps">' + ic('activity', 16) +
+    ' Investment case</div><h1>분기 모니터링</h1></div>';
+  if(!qHas()){
+    return h + '<div class="notice">분기 확정값(QUARTERLY)이 없습니다. ' +
+      'tools/build_quarterly.py 로 만들어 data.js 옆에 quarterly.json 으로 두면 ' +
+      '이 화면이 켜집니다.</div></div>';
+  }
+  var ks = qKeys(), last = ks[ks.length - 1];
+  h += '<div class="notice">' + esc(QUARTERLY._출처 || '') +
+    ' · 최신 확정 <b>' + esc(last) + '</b> · 단위 ' + esc(QUARTERLY._단위 || '') +
+    ' — 이 값들은 모델에 들어가지 않습니다. 모델이 그린 경로 위를 실제로 걷고 ' +
+    '있는지 대조하는 데만 씁니다.</div>';
+
+  h += icYtdCard(last);
+  h += icQuarterTable(ks);
+  h += icTrackCards(ks);
+  return h + '</div>';
+}
+
+// 진행률 — 당해 누적 실적이 모델 연간 추정의 몇 %인가.
+// 선형 기준(분기 수/4)과 나란히 놓아야 "앞서 있다/뒤처져 있다"를 말할 수 있다.
+function icYtdCard(last){
+  var y = qYear(last), n = parseInt(last.slice(5), 10);
+  var yi = YRS.indexOf(String(y));
+  if(yi < 0) return '';
+  var ks = qKeys().filter(function(k){ return qYear(k) === y; });
+  var rows = '', pace = n / 4;
+  [['매출', 'total_revenue'], ['영업이익', 'op_profit']].forEach(function(pair){
+    var metric = pair[0], id = pair[1];
+    if(!MODEL[id]) return;
+    var ytd = 0, ok = true;
+    ks.forEach(function(k){ var v = qVal(k, '합계', metric); if(v === null) ok = false; else ytd += v; });
+    if(!ok) return;
+    var plan = val(id, yi), rate = plan ? ytd / plan : null;
+    var gap = rate === null ? null : rate - pace;
+    rows += '<tr><td>' + esc(metric) + '</td>' +
+      '<td>' + esc(fmtSmart(ytd)) + '</td>' +
+      '<td>' + esc(fmtSmart(plan)) + '</td>' +
+      '<td>' + (rate === null ? '—' : (rate * 100).toFixed(0) + '%') + '</td>' +
+      '<td class="' + (gap >= 0 ? 'pos' : 'neg') + '">' +
+        (gap === null ? '—' : (gap >= 0 ? '+' : '') + (gap * 100).toFixed(0) + '%p') + '</td></tr>';
+  });
+  // EBITDA는 노드 정의(감가상각비만)와 같은 방식으로 분기에서도 만든다.
+  if(MODEL.ebitda){
+    var e = 0, ok2 = true;
+    ks.forEach(function(k){
+      var op = qVal(k, '합계', '영업이익'), dp = qVal(k, '합계', '감가상각비');
+      if(op === null || dp === null) ok2 = false; else e += op + dp;
+    });
+    if(ok2){
+      var plan2 = val('ebitda', yi), rate2 = plan2 ? e / plan2 : null;
+      var gap2 = rate2 === null ? null : rate2 - pace;
+      rows += '<tr class="total"><td>EBITDA</td><td>' + esc(fmtSmart(e)) + '</td>' +
+        '<td>' + esc(fmtSmart(plan2)) + '</td>' +
+        '<td>' + (rate2 === null ? '—' : (rate2 * 100).toFixed(0) + '%') + '</td>' +
+        '<td class="' + (gap2 >= 0 ? 'pos' : 'neg') + '">' +
+          (gap2 === null ? '—' : (gap2 >= 0 ? '+' : '') + (gap2 * 100).toFixed(0) + '%p') +
+        '</td></tr>';
+    }
+  }
+  return card(y + ' 진행률 — 누적 실적 대 모델 추정',
+    n + '개 분기 확정 · 선형 기준 ' + (pace * 100).toFixed(0) + '%', UNITS.money,
+    '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">항목</th>' +
+    '<th>누적 실적</th><th>모델 연간</th><th>진행률</th><th>선형 대비</th></tr>' +
+    rows + '</table></div>');
+}
+
+function icQuarterTable(ks){
+  var head = '<tr><th style="text-align:left">항목</th>';
+  ks.forEach(function(k){ head += '<th>' + esc(k) + '</th>'; });
+  head += '</tr>';
+  var body = '';
+  var line = function(label, seg, metric, cls){
+    var r = '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + esc(label) + '</td>';
+    ks.forEach(function(k){ r += '<td>' + esc(qFmt(metric, qVal(k, seg, metric))) + '</td>'; });
+    return r + '</tr>';
+  };
+  body += line('매출', '합계', '매출', 'total');
+  body += line('영업이익', '합계', '영업이익');
+  body += line('영업이익률', '합계', '영업이익률');
+  ['컴포넌트', '패키지솔루션', '광학솔루션'].forEach(function(seg){
+    var rec = QUARTERLY.quarters[ks[ks.length - 1]];
+    if(!rec || !rec[seg]) return;
+    body += line(seg + ' 매출', seg, '매출', 'total');
+    body += line('  영업이익률', seg, '영업이익률');
+    body += line('  기타비용률', seg, '기타비용률');
+    body += line('  감가상각비', seg, '감가상각비');
+  });
+  return card('분기 확정 실적', '공시 원문 · 누적의 차분으로 만든 분기값', UNITS.money,
+    '<div class="table-wrap"><table class="fm">' + head + body + '</table></div>');
+}
+
+// 아이디어별 확인지표. ideas[].track 이 있으면 화면이 계산한다.
+function icTrackCards(ks){
+  var list = (typeof MEMO === 'object' && MEMO) ? MEMO.ideas : null;
+  if(!list || !list.length) return '';
+  var h = '';
+  list.forEach(function(d, i){
+    if(!d.track || !d.track.length) return;
+    var rows = '';
+    d.track.forEach(function(t){
+      var cells = '';
+      ks.slice(-6).forEach(function(k){
+        var v = t.kind === 'yoy' ? qYoY(k, t.seg, t.metric) : qVal(k, t.seg, t.metric);
+        cells += '<td>' + (t.kind === 'yoy'
+          ? (v === null ? '—' : (v >= 0 ? '+' : '') + (v * 100).toFixed(0) + '%')
+          : esc(qFmt(t.metric, v))) + '</td>';
+      });
+      // 방향 판정 — 최근 값이 직전 값 대비 좋은 쪽으로 움직였는가
+      var a = t.kind === 'yoy' ? qYoY(ks[ks.length - 2], t.seg, t.metric)
+                               : qVal(ks[ks.length - 2], t.seg, t.metric);
+      var b = t.kind === 'yoy' ? qYoY(ks[ks.length - 1], t.seg, t.metric)
+                               : qVal(ks[ks.length - 1], t.seg, t.metric);
+      var mark = '—', cls = '';
+      if(a !== null && b !== null && a !== b){
+        var up = b > a, good = (t.good === 'down') ? !up : up;
+        mark = (up ? '▲' : '▼');
+        cls = good ? 'pos' : 'neg';
+      }
+      rows += '<tr><td style="white-space:normal">' + esc(t.label) + '</td>' + cells +
+        '<td class="' + cls + '">' + mark + '</td></tr>';
+    });
+    var head = '<tr><th style="text-align:left">확인 지표</th>';
+    ks.slice(-6).forEach(function(k){ head += '<th>' + esc(k) + '</th>'; });
+    head += '<th>방향</th></tr>';
+    h += card('아이디어 ' + (i + 1) + ' — ' + (d.title || ''),
+      d.falsify ? '반증 조건 — ' + d.falsify : '', '',
+      '<div class="table-wrap"><table class="fm">' + head + rows + '</table></div>');
+  });
+  return h;
+}
+
+// ── 자동 민감도 (토네이도) ────────────────────────────────────
+// 어느 가정이 결과를 지배하는지 손으로 고르지 않는다. 전 입력을 같은 폭으로
+// 흔들어 루트 변화를 정렬한다. 추정 구간만 흔든다 — 실적은 확정값이다.
+function icSensitivity(pct){
+  var t = icLastIdx(), base = val(rootId(), t), out = [];
+  INPUT_KEYS.forEach(function(k){
+    var d = MODEL[k];
+    if(!d || !DEFAULTS_S[k]) return;
+    var shift = function(sign){
+      var arr = SV[k].slice();
+      for(var i = HIST_N; i < YRS.length; i++) arr[i] = arr[i] * (1 + sign * pct);
+      var ov = {}; ov[k] = arr;
+      var r = icSolve(ov, [rootId()], t);
+      return r[rootId()];
+    };
+    var up = shift(1), dn = shift(-1);
+    if(!isFinite(up) || !isFinite(dn)) return;
+    out.push({ key:k, label:d.label || k, up:up - base, dn:dn - base,
+               span:Math.abs(up - dn) });
+  });
+  out.sort(function(a, b){ return b.span - a.span; });
+  return { base:base, rows:out };
+}
+
+function renderICSensitivity(){
+  var h = '<div class="page">';
+  h += '<div class="page-head"><div class="eyebrow caps">' + ic('filter', 16) +
+    ' Investment case</div><h1>민감도</h1></div>';
+  var PCT = 0.10;
+  h += '<div class="notice">가정변수를 각각 <b>±' + (PCT * 100).toFixed(0) + '%</b> ' +
+    '흔들어 ' + esc(YRS[icLastIdx()]) + ' ' + esc(MODEL[rootId()].label || rootId()) +
+    '의 변화를 정렬했습니다. 추정 구간만 흔듭니다 — 실적은 확정값입니다. ' +
+    '위쪽 몇 개가 이 모델의 실질적인 가정입니다.</div>';
+
+  var r = icSensitivity(PCT), max = r.rows.length ? r.rows[0].span : 1;
+  var rows = '';
+  r.rows.slice(0, 14).forEach(function(x){
+    // 막대는 충격의 방향이 아니라 **결과의 방향**으로 눕힌다. 비용률처럼
+    // 올리면 값이 내려가는 변수가 있어서, 충격 방향으로 그리면 왼쪽 막대가
+    // 상승을 뜻하는 화면이 된다.
+    var lo = Math.min(x.up, x.dn), hi = Math.max(x.up, x.dn);
+    var wl = max ? Math.round(Math.max(0, -lo) / max * 100) : 0;
+    var wr = max ? Math.round(Math.max(0, hi) / max * 100) : 0;
+    var pctUp = r.base ? x.up / r.base : 0, pctDn = r.base ? x.dn / r.base : 0;
+    rows += '<tr><td style="white-space:normal">' + esc(x.label) + '</td>' +
+      '<td><div class="tor"><div class="tor-l"><span style="width:' + wl + '%"></span></div>' +
+      '<div class="tor-r"><span style="width:' + wr + '%"></span></div></div></td>' +
+      '<td class="' + (pctDn >= 0 ? 'pos' : 'neg') + '">' +
+        (pctDn >= 0 ? '+' : '') + (pctDn * 100).toFixed(1) + '%</td>' +
+      '<td class="' + (pctUp >= 0 ? 'pos' : 'neg') + '">' +
+        (pctUp >= 0 ? '+' : '') + (pctUp * 100).toFixed(1) + '%</td></tr>';
+  });
+  h += card('가정변수 영향도',
+    '막대 왼쪽은 불리한 쪽, 오른쪽은 유리한 쪽. 값은 ' +
+    (MODEL[rootId()].label || rootId()) + ' 대비 변화율.', '',
+    '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">가정변수</th>' +
+    '<th style="text-align:center">불리 ← → 유리</th>' +
+    '<th>−' + (PCT * 100).toFixed(0) + '% 적용</th>' +
+    '<th>+' + (PCT * 100).toFixed(0) + '% 적용</th></tr>' + rows + '</table></div>');
+  return h + '</div>';
+}
+
+// ── 컨센서스 ─────────────────────────────────────────────────
+// 시장이 무엇을 전제하는지는 목표가만큼 중요하다. 산문에 적어두면 갱신될 때
+// 본문만 낡는다. 블록으로 꺼내 화면이 괴리를 계산하게 한다.
+function icConsensusCard(){
+  if(typeof CONSENSUS !== 'object' || !CONSENSUS || !CONSENSUS.items) return '';
+  var rows = '';
+  CONSENSUS.items.forEach(function(it){
+    var yi = YRS.indexOf(String(it.year));
+    var mine = (yi >= 0 && MODEL[it.node]) ? val(it.node, yi) : null;
+    var gap = (mine && it.value) ? it.value / mine - 1 : null;
+    rows += '<tr><td>' + esc(it.year) + ' ' +
+      esc(MODEL[it.node] ? (MODEL[it.node].label || it.node) : it.node) + '</td>' +
+      '<td>' + esc(fmtSmart(it.value)) + '</td>' +
+      '<td>' + (mine === null ? '—' : esc(fmtSmart(mine))) + '</td>' +
+      '<td class="' + (gap >= 0 ? 'neg' : 'pos') + '">' +
+        (gap === null ? '—' : (gap >= 0 ? '+' : '') + (gap * 100).toFixed(0) + '%') +
+      '</td></tr>';
+  });
+  return card('컨센서스 대비', '괴리 = 컨센서스 ÷ 본 모델 − 1. 양수면 시장이 더 낙관적이다.',
+    UNITS.money,
+    '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">항목</th>' +
+    '<th>컨센서스</th><th>본 모델</th><th>괴리</th></tr>' + rows + '</table></div>' +
+    '<div class="notice" style="margin:12px 0 0">기준일 <b>' + esc(CONSENSUS.asOf || '') +
+    '</b> · ' + esc(CONSENSUS.source || '') + '</div>');
+}
+
+// ── 산문 속 숫자를 모델에서 읽는다 ─────────────────────────────
+// {{node@2030}} 은 그 자리에서 모델값으로 치환된다. 산문에 숫자를 박아두면
+// 가정을 바꿨을 때 본문만 옛 숫자로 남는다 — 그것을 문법으로 막는다.
+// 해석되지 않는 인용은 게이트 G11이 잡는다.
+function icText(s){
+  if(typeof s !== 'string' || s.indexOf('{{') < 0) return s;
+  return s.replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*@\s*(\d{4})\s*(?:\|\s*(\w+))?\s*\}\}/g,
+    function(all, id, year, fmt){
+      var i = YRS.indexOf(year);
+      if(i < 0 || !MODEL[id]) return all;      // 해석 실패는 그대로 남긴다
+      if(fmt === 'money') return icMoney(val(id, i));
+      if(fmt === 'raw') return String(Math.round(val(id, i)));
+      return fmtV(id, i);
+    });
+}
+
 // ── 투자 아이디어 ─────────────────────────────────────────────
 // 아이디어는 문장 하나가 아니라 구조다. 논거·촉매·확인지표·리스크가 붙어야
 // 분기마다 "이 아이디어가 아직 살아 있는가"를 물을 수 있다. 그리고 반증 조건 —
@@ -5118,15 +5478,18 @@ function icIdeaCard(d, i){
   var box = function(title, arr){
     if(!arr || !arr.length) return '';
     var li = '';
-    arr.forEach(function(x){ li += '<li>' + esc(x) + '</li>'; });
+    arr.forEach(function(x){ li += '<li>' + esc(icText(x)) + '</li>'; });
     return '<div class="idea-box"><div class="h">' + esc(title) + '</div><ul>' + li + '</ul></div>';
   };
 
   var body = '';
-  if(d.thesis) body += '<p>' + esc(d.thesis) + '</p>';
+  // 최신 확정 분기가 이 아이디어에 무엇을 말하는지. 논거보다 먼저 읽혀야 한다 —
+  // 심사에서 묻는 것은 "그때 무슨 생각을 했나"가 아니라 "지금 어떻게 되고 있나"다.
+  if(d.update) body += '<div class="idea-upd"><b>진행</b> — ' + esc(icText(d.update)) + '</div>';
+  if(d.thesis) body += '<p>' + esc(icText(d.thesis)) + '</p>';
   var grid = box('촉매', d.catalysts) + box('확인 지표', d.kpis) + box('리스크', d.risks);
   if(grid) body += '<div class="idea-grid">' + grid + '</div>';
-  if(d.falsify) body += '<div class="falsify"><b>반증 조건</b> — ' + esc(d.falsify) + '</div>';
+  if(d.falsify) body += '<div class="falsify"><b>반증 조건</b> — ' + esc(icText(d.falsify)) + '</div>';
 
   return '<div class="idea"><div class="idea-head">' +
     '<div class="idea-n">' + (i + 1) + '</div>' +
@@ -5164,9 +5527,9 @@ function icDebateCard(){
   if(!d || !d.length) return '';
   var rows = '';
   d.forEach(function(x){
-    rows += '<tr><td style="white-space:normal;min-width:150px">' + esc(x.q) + '</td>' +
-      '<td style="white-space:normal">' + esc(x.yes || '') + '</td>' +
-      '<td style="white-space:normal">' + esc(x.no || '') + '</td></tr>';
+    rows += '<tr><td style="white-space:normal;min-width:150px">' + esc(icText(x.q)) + '</td>' +
+      '<td style="white-space:normal">' + esc(icText(x.yes || '')) + '</td>' +
+      '<td style="white-space:normal">' + esc(icText(x.no || '')) + '</td></tr>';
   });
   return card('심사 쟁점', '한 질문에 양쪽을 함께 적는다', '',
     '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">쟁점</th>' +
@@ -5217,10 +5580,10 @@ function icMemoBody(key){
   var m = (typeof MEMO === 'object' && MEMO) ? MEMO[key] : null;
   if(!m) return '<div class="notice">MEMO.' + esc(key) + ' 없음</div>';
   var b = '';
-  if(m.lead) b += '<p class="lead">' + esc(m.lead) + '</p>';
+  if(m.lead) b += '<p class="lead">' + esc(icText(m.lead)) + '</p>';
   if(m.points && m.points.length){
     b += '<ul class="memo">';
-    m.points.forEach(function(x){ b += '<li>' + esc(x) + '</li>'; });
+    m.points.forEach(function(x){ b += '<li>' + esc(icText(x)) + '</li>'; });
     b += '</ul>';
   }
   return b;
@@ -5327,6 +5690,7 @@ function renderICReport(){
     vb += card('목표배수 민감도', '칸 값 = 현재 시가총액 대비 괴리. 굵은 행이 현재 가정.', '',
       '<div class="table-wrap"><table class="fm">' + hh + bb + '</table></div>');
   }
+  vb += icConsensusCard();
   vb += icPeerCard();
   vb += '<div class="card pad">' + icMemoBody('valuation') + '</div>';
   h += icSec('06', '밸류에이션', (MEMO && MEMO.valuation) ? MEMO.valuation.sub : '', vb);
@@ -5353,6 +5717,14 @@ function renderICReport(){
         '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">시나리오</th>' +
         '<th>매출</th><th>영업이익</th><th>EBITDA</th><th>적정 시총</th><th>현재가 대비</th></tr>' +
         rws + '</table></div>'));
+  }
+
+  // 7.5 분기 진행 상황 — 모델 경로 위를 걷고 있는가
+  if(qHas()){
+    var lastQ = qKeys()[qKeys().length - 1];
+    h += icSec('07b', '분기 진행 상황',
+      '공시 확정 분기값 대 모델 연간 추정 · 최신 확정 ' + lastQ,
+      icYtdCard(lastQ) + icQuarterTable(qKeys().slice(-6)));
   }
 
   // 8. 리스크
@@ -5409,10 +5781,10 @@ function icMemoCard(key, title){
   if(!m) return card(title, '', '',
     '<div class="notice">MEMO.' + esc(key) + ' 가 data.js에 없습니다.</div>');
   var body = '';
-  if(m.lead) body += '<p class="lead">' + esc(m.lead) + '</p>';
+  if(m.lead) body += '<p class="lead">' + esc(icText(m.lead)) + '</p>';
   if(m.points && m.points.length){
     body += '<ul class="memo">';
-    m.points.forEach(function(x){ body += '<li>' + esc(x) + '</li>'; });
+    m.points.forEach(function(x){ body += '<li>' + esc(icText(x)) + '</li>'; });
     body += '</ul>';
   }
   return card(title, m.sub || '', '', body);

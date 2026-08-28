@@ -314,6 +314,111 @@ def g_desc_tags(rep: dict) -> Result:
     return r.ok(f"입력 {len(rep['inputs'])}개 전부 태그 있음")
 
 
+
+# ── 심사 레이어 무결성 ────────────────────────────────────────
+_CITE_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*@\s*(\d{4})\s*(?:\|\s*(\w+))?\s*\}\}")
+_CITE_FMT = {"money", "raw"}
+
+
+def _walk_strings(obj, path=""):
+    """선언 블록 안의 모든 문자열을 (경로, 값)으로 흘려보낸다."""
+    if isinstance(obj, str):
+        yield path, obj
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from _walk_strings(v, f"{path}.{k}" if path else str(k))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield from _walk_strings(v, f"{path}[{i}]")
+
+
+def g11_memo(rep: dict) -> Result:
+    """심사 레이어가 심사에 쓸 수 있는 상태인가.
+
+    두 가지를 본다.
+
+    **숫자 인용.** MEMO 산문에 모델 숫자를 손으로 적으면 가정을 바꿨을 때
+    본문만 옛 숫자로 남는다. {{node@연도}} 문법을 쓰면 화면이 그 자리에서
+    모델값을 읽는다. 여기서는 그 인용이 실제로 해석되는지 — 노드가 있고
+    연도가 축에 있는지 — 를 검사한다. 해석 못 하는 인용은 화면에 중괄호가
+    그대로 뜨므로 조용한 실패가 아니라 시끄러운 실패지만, 심사장에서
+    발견하는 것보다 빌드에서 발견하는 편이 낫다.
+
+    **구조.** 반증 조건 없는 아이디어는 분기 리뷰에서 검증할 수 없고,
+    한쪽만 적은 쟁점은 논거가 아니라 주장이다. 규약이 지켜지는지 본다.
+    """
+    r = Result("G11", "심사 레이어 무결성")
+    memo = rep.get("memo")
+    if not memo:
+        return r.skip("MEMO 없음 — 심사 레이어를 쓰지 않는 모델")
+
+    yrs, bad = set(rep["YRS"]), []
+
+    # 1) 숫자 인용
+    cites = 0
+    for path, text in _walk_strings(memo, "MEMO"):
+        for m in _CITE_RE.finditer(text):
+            cites += 1
+            node, year, fmt = m.group(1), m.group(2), m.group(3)
+            if node not in rep["values"]:
+                bad.append(f"{path}: 인용 노드 없음 {{{{{node}@{year}}}}}")
+            elif year not in yrs:
+                bad.append(f"{path}: 인용 연도 축 밖 {{{{{node}@{year}}}}}")
+            elif fmt and fmt not in _CITE_FMT:
+                bad.append(f"{path}: 모르는 서식 |{fmt}")
+        # 열린 중괄호만 있고 문법에 안 맞는 것도 잡는다
+        for stray in re.finditer(r"\{\{(?:(?!\}\}).)*\}\}", text):
+            if not _CITE_RE.fullmatch(stray.group(0)):
+                bad.append(f"{path}: 인용 문법 아님 {stray.group(0)[:40]}")
+
+    # 2) 아이디어 구조
+    ideas = memo.get("ideas") or []
+    for i, d in enumerate(ideas):
+        tag = f"MEMO.ideas[{i}]"
+        for field in ("title", "thesis", "falsify"):
+            if not (d.get(field) or "").strip():
+                bad.append(f"{tag}: {field} 없음")
+        if not (d.get("catalysts") or d.get("kpis") or d.get("track")):
+            bad.append(f"{tag}: 확인할 것이 하나도 없음 (catalysts/kpis/track)")
+        if not d.get("risks"):
+            bad.append(f"{tag}: risks 없음")
+        for j, t in enumerate(d.get("track") or []):
+            if not t.get("label") or not t.get("seg") or not t.get("metric"):
+                bad.append(f"{tag}.track[{j}]: label/seg/metric 필요")
+            if t.get("good") not in ("up", "down", None):
+                bad.append(f"{tag}.track[{j}]: good은 up 또는 down")
+
+    # 3) 쟁점은 양쪽을 적는다
+    for i, d in enumerate(memo.get("debate") or []):
+        for field in ("q", "yes", "no"):
+            if not (d.get(field) or "").strip():
+                bad.append(f"MEMO.debate[{i}]: {field} 없음 — 한쪽만 적은 것은 논거가 아니다")
+
+    # 4) 출처가 붙어 있는가
+    for name, blk, keys in (("PEERS", rep.get("peers"), ("asOf", "source")),
+                            ("CONSENSUS", rep.get("consensus"), ("asOf", "source"))):
+        if not blk:
+            continue
+        for k in keys:
+            if not (blk.get(k) or "").strip():
+                bad.append(f"{name}.{k} 없음 — 기준일과 출처 없는 시장 수치는 쓸 수 없다")
+    peers = rep.get("peers") or {}
+    if peers.get("list"):
+        selves = [x for x in peers["list"] if x.get("group") == "self"]
+        if len(selves) != 1:
+            bad.append(f"PEERS: group:'self' 행이 {len(selves)}개 (정확히 1개여야 함)")
+    cons = rep.get("consensus") or {}
+    for i, it in enumerate(cons.get("items") or []):
+        if it.get("node") not in rep["values"]:
+            bad.append(f"CONSENSUS.items[{i}]: 노드 없음 {it.get('node')}")
+        if str(it.get("year")) not in yrs:
+            bad.append(f"CONSENSUS.items[{i}]: 연도 축 밖 {it.get('year')}")
+
+    if bad:
+        return r.fail(_fmt_cells(bad))
+    return r.ok(f"아이디어 {len(ideas)}건 · 인용 {cites}개 전부 해석됨")
+
+
 def validate(html_path: str, skip_golden: bool = False) -> list[Result]:
     rep = run_model(html_path)
     data_dir = os.path.dirname(os.path.abspath(html_path))
@@ -327,6 +432,7 @@ def validate(html_path: str, skip_golden: bool = False) -> list[Result]:
         g7_excel(html_path, rep),
         g8_structure(html_path, rep),
         g_desc_tags(rep),
+        g11_memo(rep),
     ]
     if not skip_golden:
         results.append(g9_golden())

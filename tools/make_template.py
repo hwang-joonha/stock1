@@ -1407,6 +1407,426 @@ NEW_IC4_STYLE = """ul.memo li{font-size:13px;color:#4B5563;line-height:1.75;marg
 }"""
 
 # ─────────────────────────────────────────────────────────────
+# IC-5  분기 추적 · 모니터링 · 자동 민감도 · 컨센서스 · 숫자 인용
+#
+# 네 가지 공백을 메운다.
+#
+#   1) 아이디어의 반증 조건은 전부 분기 단위인데 모델의 시간축은 연간이다.
+#      QUARTERLY(공시 확정 분기값)를 옆에 두고 대조한다.
+#   2) 확인지표를 사람이 눈으로 좇게 두면 분기마다 잊는다. ideas[].track에
+#      기계가 읽을 형태로 적고 화면이 계산한다.
+#   3) 어느 가정이 결과를 지배하는지 손으로 고르고 있었다. 전 입력을 흔들어
+#      정렬해 보여준다 — 토네이도.
+#   4) 컨센서스가 MEMO 산문에만 있었다. CONSENSUS 블록으로 꺼내 모델과의
+#      괴리를 화면이 계산하게 한다.
+#
+# 그리고 산문 안의 숫자가 모델과 어긋나는 것을 구조적으로 막는다.
+# MEMO 텍스트에 {{node@연도}} 를 쓰면 그 자리에서 모델값으로 치환된다.
+# 게이트 G11이 인용이 해석되는지 검사한다.
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC5_ICON = """  'book-open':'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',"""
+NEW_IC5_ICON = OLD_IC5_ICON + """
+  activity:'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+  filter:'<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',"""
+
+OLD_IC5_ROUTE = """  if(view === 'ic_ideas') return renderICIdeas();"""
+NEW_IC5_ROUTE = """  if(view === 'ic_ideas') return renderICIdeas();
+  if(view === 'ic_monitor') return renderICMonitor();
+  if(view === 'ic_sens') return renderICSensitivity();"""
+
+OLD_IC5_TITLES = """  ic_scenario:'시나리오', ic_ideas:'투자 아이디어',"""
+NEW_IC5_TITLES = """  ic_scenario:'시나리오', ic_ideas:'투자 아이디어',
+  ic_monitor:'분기 모니터링', ic_sens:'민감도',"""
+
+OLD_IC5_NAV = """      navBtn('ic_verdict', 'file-text', '심사 결론') +"""
+NEW_IC5_NAV = """      navBtn('ic_monitor', 'activity', '분기 모니터링',
+             (typeof QUARTERLY === 'object' && QUARTERLY && QUARTERLY.quarters)
+               ? String(Object.keys(QUARTERLY.quarters).length) : '') +
+      navBtn('ic_sens', 'filter', '민감도') +
+      navBtn('ic_verdict', 'file-text', '심사 결론') +"""
+
+OLD_IC5_ANCHOR = """// ── 투자 아이디어 ─────────────────────────────────────────────"""
+
+NEW_IC5_ANCHOR = """// ── 분기 확정값 ───────────────────────────────────────────────
+// QUARTERLY는 공시 원문에서 기계가 만든다(tools/build_quarterly.py).
+// 모델의 시간축은 연간이므로 이 값들은 모델에 들어가지 않는다 — 옆에 두고
+// "모델이 그린 경로 위를 실제로 걷고 있는가"를 묻는 데만 쓴다.
+function qHas(){ return typeof QUARTERLY === 'object' && QUARTERLY && QUARTERLY.quarters; }
+function qKeys(){ return qHas() ? Object.keys(QUARTERLY.quarters).sort() : []; }
+function qYear(k){ return parseInt(k.slice(0, 4), 10); }
+
+// 파생 지표까지 여기서 낸다. 기타비용 = 매출 − 영업이익 − 감가상각비 로,
+// 모델의 비용 분해와 같은 정의다 (02_cost_methodology).
+function qVal(k, seg, metric){
+  if(!qHas()) return null;
+  var rec = QUARTERLY.quarters[k];
+  if(!rec || !rec[seg]) return null;
+  var r = rec[seg], rev = r['매출'], op = r['영업이익'], dep = r['감가상각비'];
+  if(metric === '영업이익률') return (rev ? op / rev : null);
+  if(metric === '기타비용률') return (rev != null && op != null && dep != null && rev)
+    ? (rev - op - dep) / rev : null;
+  var v = r[metric];
+  return v === undefined ? null : v;
+}
+// 전년 동기 대비. 분기 데이터에서 계절성을 걷어내는 최소한의 장치다.
+function qYoY(k, seg, metric){
+  var prev = (qYear(k) - 1) + k.slice(4);
+  var a = qVal(prev, seg, metric), b = qVal(k, seg, metric);
+  return (a && isFinite(a) && a !== 0) ? b / a - 1 : null;
+}
+function qFmt(metric, v){
+  if(v === null || v === undefined || !isFinite(v)) return '—';
+  if(metric === '영업이익률' || metric === '기타비용률') return (v * 100).toFixed(1) + '%';
+  return fmtSmart(v);
+}
+
+// ── 모니터링 뷰 ───────────────────────────────────────────────
+function renderICMonitor(){
+  var h = '<div class="page">';
+  h += '<div class="page-head"><div class="eyebrow caps">' + ic('activity', 16) +
+    ' Investment case</div><h1>분기 모니터링</h1></div>';
+  if(!qHas()){
+    return h + '<div class="notice">분기 확정값(QUARTERLY)이 없습니다. ' +
+      'tools/build_quarterly.py 로 만들어 data.js 옆에 quarterly.json 으로 두면 ' +
+      '이 화면이 켜집니다.</div></div>';
+  }
+  var ks = qKeys(), last = ks[ks.length - 1];
+  h += '<div class="notice">' + esc(QUARTERLY._출처 || '') +
+    ' · 최신 확정 <b>' + esc(last) + '</b> · 단위 ' + esc(QUARTERLY._단위 || '') +
+    ' — 이 값들은 모델에 들어가지 않습니다. 모델이 그린 경로 위를 실제로 걷고 ' +
+    '있는지 대조하는 데만 씁니다.</div>';
+
+  h += icYtdCard(last);
+  h += icQuarterTable(ks);
+  h += icTrackCards(ks);
+  return h + '</div>';
+}
+
+// 진행률 — 당해 누적 실적이 모델 연간 추정의 몇 %인가.
+// 선형 기준(분기 수/4)과 나란히 놓아야 "앞서 있다/뒤처져 있다"를 말할 수 있다.
+function icYtdCard(last){
+  var y = qYear(last), n = parseInt(last.slice(5), 10);
+  var yi = YRS.indexOf(String(y));
+  if(yi < 0) return '';
+  var ks = qKeys().filter(function(k){ return qYear(k) === y; });
+  var rows = '', pace = n / 4;
+  [['매출', 'total_revenue'], ['영업이익', 'op_profit']].forEach(function(pair){
+    var metric = pair[0], id = pair[1];
+    if(!MODEL[id]) return;
+    var ytd = 0, ok = true;
+    ks.forEach(function(k){ var v = qVal(k, '합계', metric); if(v === null) ok = false; else ytd += v; });
+    if(!ok) return;
+    var plan = val(id, yi), rate = plan ? ytd / plan : null;
+    var gap = rate === null ? null : rate - pace;
+    rows += '<tr><td>' + esc(metric) + '</td>' +
+      '<td>' + esc(fmtSmart(ytd)) + '</td>' +
+      '<td>' + esc(fmtSmart(plan)) + '</td>' +
+      '<td>' + (rate === null ? '—' : (rate * 100).toFixed(0) + '%') + '</td>' +
+      '<td class="' + (gap >= 0 ? 'pos' : 'neg') + '">' +
+        (gap === null ? '—' : (gap >= 0 ? '+' : '') + (gap * 100).toFixed(0) + '%p') + '</td></tr>';
+  });
+  // EBITDA는 노드 정의(감가상각비만)와 같은 방식으로 분기에서도 만든다.
+  if(MODEL.ebitda){
+    var e = 0, ok2 = true;
+    ks.forEach(function(k){
+      var op = qVal(k, '합계', '영업이익'), dp = qVal(k, '합계', '감가상각비');
+      if(op === null || dp === null) ok2 = false; else e += op + dp;
+    });
+    if(ok2){
+      var plan2 = val('ebitda', yi), rate2 = plan2 ? e / plan2 : null;
+      var gap2 = rate2 === null ? null : rate2 - pace;
+      rows += '<tr class="total"><td>EBITDA</td><td>' + esc(fmtSmart(e)) + '</td>' +
+        '<td>' + esc(fmtSmart(plan2)) + '</td>' +
+        '<td>' + (rate2 === null ? '—' : (rate2 * 100).toFixed(0) + '%') + '</td>' +
+        '<td class="' + (gap2 >= 0 ? 'pos' : 'neg') + '">' +
+          (gap2 === null ? '—' : (gap2 >= 0 ? '+' : '') + (gap2 * 100).toFixed(0) + '%p') +
+        '</td></tr>';
+    }
+  }
+  return card(y + ' 진행률 — 누적 실적 대 모델 추정',
+    n + '개 분기 확정 · 선형 기준 ' + (pace * 100).toFixed(0) + '%', UNITS.money,
+    '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">항목</th>' +
+    '<th>누적 실적</th><th>모델 연간</th><th>진행률</th><th>선형 대비</th></tr>' +
+    rows + '</table></div>');
+}
+
+function icQuarterTable(ks){
+  var head = '<tr><th style="text-align:left">항목</th>';
+  ks.forEach(function(k){ head += '<th>' + esc(k) + '</th>'; });
+  head += '</tr>';
+  var body = '';
+  var line = function(label, seg, metric, cls){
+    var r = '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + esc(label) + '</td>';
+    ks.forEach(function(k){ r += '<td>' + esc(qFmt(metric, qVal(k, seg, metric))) + '</td>'; });
+    return r + '</tr>';
+  };
+  body += line('매출', '합계', '매출', 'total');
+  body += line('영업이익', '합계', '영업이익');
+  body += line('영업이익률', '합계', '영업이익률');
+  ['컴포넌트', '패키지솔루션', '광학솔루션'].forEach(function(seg){
+    var rec = QUARTERLY.quarters[ks[ks.length - 1]];
+    if(!rec || !rec[seg]) return;
+    body += line(seg + ' 매출', seg, '매출', 'total');
+    body += line('  영업이익률', seg, '영업이익률');
+    body += line('  기타비용률', seg, '기타비용률');
+    body += line('  감가상각비', seg, '감가상각비');
+  });
+  return card('분기 확정 실적', '공시 원문 · 누적의 차분으로 만든 분기값', UNITS.money,
+    '<div class="table-wrap"><table class="fm">' + head + body + '</table></div>');
+}
+
+// 아이디어별 확인지표. ideas[].track 이 있으면 화면이 계산한다.
+function icTrackCards(ks){
+  var list = (typeof MEMO === 'object' && MEMO) ? MEMO.ideas : null;
+  if(!list || !list.length) return '';
+  var h = '';
+  list.forEach(function(d, i){
+    if(!d.track || !d.track.length) return;
+    var rows = '';
+    d.track.forEach(function(t){
+      var cells = '';
+      ks.slice(-6).forEach(function(k){
+        var v = t.kind === 'yoy' ? qYoY(k, t.seg, t.metric) : qVal(k, t.seg, t.metric);
+        cells += '<td>' + (t.kind === 'yoy'
+          ? (v === null ? '—' : (v >= 0 ? '+' : '') + (v * 100).toFixed(0) + '%')
+          : esc(qFmt(t.metric, v))) + '</td>';
+      });
+      // 방향 판정 — 최근 값이 직전 값 대비 좋은 쪽으로 움직였는가
+      var a = t.kind === 'yoy' ? qYoY(ks[ks.length - 2], t.seg, t.metric)
+                               : qVal(ks[ks.length - 2], t.seg, t.metric);
+      var b = t.kind === 'yoy' ? qYoY(ks[ks.length - 1], t.seg, t.metric)
+                               : qVal(ks[ks.length - 1], t.seg, t.metric);
+      var mark = '—', cls = '';
+      if(a !== null && b !== null && a !== b){
+        var up = b > a, good = (t.good === 'down') ? !up : up;
+        mark = (up ? '▲' : '▼');
+        cls = good ? 'pos' : 'neg';
+      }
+      rows += '<tr><td style="white-space:normal">' + esc(t.label) + '</td>' + cells +
+        '<td class="' + cls + '">' + mark + '</td></tr>';
+    });
+    var head = '<tr><th style="text-align:left">확인 지표</th>';
+    ks.slice(-6).forEach(function(k){ head += '<th>' + esc(k) + '</th>'; });
+    head += '<th>방향</th></tr>';
+    h += card('아이디어 ' + (i + 1) + ' — ' + (d.title || ''),
+      d.falsify ? '반증 조건 — ' + d.falsify : '', '',
+      '<div class="table-wrap"><table class="fm">' + head + rows + '</table></div>');
+  });
+  return h;
+}
+
+// ── 자동 민감도 (토네이도) ────────────────────────────────────
+// 어느 가정이 결과를 지배하는지 손으로 고르지 않는다. 전 입력을 같은 폭으로
+// 흔들어 루트 변화를 정렬한다. 추정 구간만 흔든다 — 실적은 확정값이다.
+function icSensitivity(pct){
+  var t = icLastIdx(), base = val(rootId(), t), out = [];
+  INPUT_KEYS.forEach(function(k){
+    var d = MODEL[k];
+    if(!d || !DEFAULTS_S[k]) return;
+    var shift = function(sign){
+      var arr = SV[k].slice();
+      for(var i = HIST_N; i < YRS.length; i++) arr[i] = arr[i] * (1 + sign * pct);
+      var ov = {}; ov[k] = arr;
+      var r = icSolve(ov, [rootId()], t);
+      return r[rootId()];
+    };
+    var up = shift(1), dn = shift(-1);
+    if(!isFinite(up) || !isFinite(dn)) return;
+    out.push({ key:k, label:d.label || k, up:up - base, dn:dn - base,
+               span:Math.abs(up - dn) });
+  });
+  out.sort(function(a, b){ return b.span - a.span; });
+  return { base:base, rows:out };
+}
+
+function renderICSensitivity(){
+  var h = '<div class="page">';
+  h += '<div class="page-head"><div class="eyebrow caps">' + ic('filter', 16) +
+    ' Investment case</div><h1>민감도</h1></div>';
+  var PCT = 0.10;
+  h += '<div class="notice">가정변수를 각각 <b>±' + (PCT * 100).toFixed(0) + '%</b> ' +
+    '흔들어 ' + esc(YRS[icLastIdx()]) + ' ' + esc(MODEL[rootId()].label || rootId()) +
+    '의 변화를 정렬했습니다. 추정 구간만 흔듭니다 — 실적은 확정값입니다. ' +
+    '위쪽 몇 개가 이 모델의 실질적인 가정입니다.</div>';
+
+  var r = icSensitivity(PCT), max = r.rows.length ? r.rows[0].span : 1;
+  var rows = '';
+  r.rows.slice(0, 14).forEach(function(x){
+    // 막대는 충격의 방향이 아니라 **결과의 방향**으로 눕힌다. 비용률처럼
+    // 올리면 값이 내려가는 변수가 있어서, 충격 방향으로 그리면 왼쪽 막대가
+    // 상승을 뜻하는 화면이 된다.
+    var lo = Math.min(x.up, x.dn), hi = Math.max(x.up, x.dn);
+    var wl = max ? Math.round(Math.max(0, -lo) / max * 100) : 0;
+    var wr = max ? Math.round(Math.max(0, hi) / max * 100) : 0;
+    var pctUp = r.base ? x.up / r.base : 0, pctDn = r.base ? x.dn / r.base : 0;
+    rows += '<tr><td style="white-space:normal">' + esc(x.label) + '</td>' +
+      '<td><div class="tor"><div class="tor-l"><span style="width:' + wl + '%"></span></div>' +
+      '<div class="tor-r"><span style="width:' + wr + '%"></span></div></div></td>' +
+      '<td class="' + (pctDn >= 0 ? 'pos' : 'neg') + '">' +
+        (pctDn >= 0 ? '+' : '') + (pctDn * 100).toFixed(1) + '%</td>' +
+      '<td class="' + (pctUp >= 0 ? 'pos' : 'neg') + '">' +
+        (pctUp >= 0 ? '+' : '') + (pctUp * 100).toFixed(1) + '%</td></tr>';
+  });
+  h += card('가정변수 영향도',
+    '막대 왼쪽은 불리한 쪽, 오른쪽은 유리한 쪽. 값은 ' +
+    (MODEL[rootId()].label || rootId()) + ' 대비 변화율.', '',
+    '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">가정변수</th>' +
+    '<th style="text-align:center">불리 ← → 유리</th>' +
+    '<th>−' + (PCT * 100).toFixed(0) + '% 적용</th>' +
+    '<th>+' + (PCT * 100).toFixed(0) + '% 적용</th></tr>' + rows + '</table></div>');
+  return h + '</div>';
+}
+
+// ── 컨센서스 ─────────────────────────────────────────────────
+// 시장이 무엇을 전제하는지는 목표가만큼 중요하다. 산문에 적어두면 갱신될 때
+// 본문만 낡는다. 블록으로 꺼내 화면이 괴리를 계산하게 한다.
+function icConsensusCard(){
+  if(typeof CONSENSUS !== 'object' || !CONSENSUS || !CONSENSUS.items) return '';
+  var rows = '';
+  CONSENSUS.items.forEach(function(it){
+    var yi = YRS.indexOf(String(it.year));
+    var mine = (yi >= 0 && MODEL[it.node]) ? val(it.node, yi) : null;
+    var gap = (mine && it.value) ? it.value / mine - 1 : null;
+    rows += '<tr><td>' + esc(it.year) + ' ' +
+      esc(MODEL[it.node] ? (MODEL[it.node].label || it.node) : it.node) + '</td>' +
+      '<td>' + esc(fmtSmart(it.value)) + '</td>' +
+      '<td>' + (mine === null ? '—' : esc(fmtSmart(mine))) + '</td>' +
+      '<td class="' + (gap >= 0 ? 'neg' : 'pos') + '">' +
+        (gap === null ? '—' : (gap >= 0 ? '+' : '') + (gap * 100).toFixed(0) + '%') +
+      '</td></tr>';
+  });
+  return card('컨센서스 대비', '괴리 = 컨센서스 ÷ 본 모델 − 1. 양수면 시장이 더 낙관적이다.',
+    UNITS.money,
+    '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">항목</th>' +
+    '<th>컨센서스</th><th>본 모델</th><th>괴리</th></tr>' + rows + '</table></div>' +
+    '<div class="notice" style="margin:12px 0 0">기준일 <b>' + esc(CONSENSUS.asOf || '') +
+    '</b> · ' + esc(CONSENSUS.source || '') + '</div>');
+}
+
+// ── 산문 속 숫자를 모델에서 읽는다 ─────────────────────────────
+// {{node@2030}} 은 그 자리에서 모델값으로 치환된다. 산문에 숫자를 박아두면
+// 가정을 바꿨을 때 본문만 옛 숫자로 남는다 — 그것을 문법으로 막는다.
+// 해석되지 않는 인용은 게이트 G11이 잡는다.
+function icText(s){
+  if(typeof s !== 'string' || s.indexOf('{{') < 0) return s;
+  return s.replace(/\\{\\{\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*@\\s*(\\d{4})\\s*(?:\\|\\s*(\\w+))?\\s*\\}\\}/g,
+    function(all, id, year, fmt){
+      var i = YRS.indexOf(year);
+      if(i < 0 || !MODEL[id]) return all;      // 해석 실패는 그대로 남긴다
+      if(fmt === 'money') return icMoney(val(id, i));
+      if(fmt === 'raw') return String(Math.round(val(id, i)));
+      return fmtV(id, i);
+    });
+}
+
+// ── 투자 아이디어 ─────────────────────────────────────────────"""
+
+# MEMO 텍스트가 화면에 나가는 모든 경로에 인용 치환을 건다.
+OLD_IC5_MEMOCARD = """  var body = '';
+  if(m.lead) body += '<p class="lead">' + esc(m.lead) + '</p>';
+  if(m.points && m.points.length){
+    body += '<ul class="memo">';
+    m.points.forEach(function(x){ body += '<li>' + esc(x) + '</li>'; });
+    body += '</ul>';
+  }
+  return card(title, m.sub || '', '', body);"""
+NEW_IC5_MEMOCARD = """  var body = '';
+  if(m.lead) body += '<p class="lead">' + esc(icText(m.lead)) + '</p>';
+  if(m.points && m.points.length){
+    body += '<ul class="memo">';
+    m.points.forEach(function(x){ body += '<li>' + esc(icText(x)) + '</li>'; });
+    body += '</ul>';
+  }
+  return card(title, m.sub || '', '', body);"""
+
+OLD_IC5_MEMOBODY = """  var b = '';
+  if(m.lead) b += '<p class="lead">' + esc(m.lead) + '</p>';
+  if(m.points && m.points.length){
+    b += '<ul class="memo">';
+    m.points.forEach(function(x){ b += '<li>' + esc(x) + '</li>'; });
+    b += '</ul>';
+  }
+  return b;"""
+NEW_IC5_MEMOBODY = """  var b = '';
+  if(m.lead) b += '<p class="lead">' + esc(icText(m.lead)) + '</p>';
+  if(m.points && m.points.length){
+    b += '<ul class="memo">';
+    m.points.forEach(function(x){ b += '<li>' + esc(icText(x)) + '</li>'; });
+    b += '</ul>';
+  }
+  return b;"""
+
+OLD_IC5_IDEA = """  var body = '';
+  if(d.thesis) body += '<p>' + esc(d.thesis) + '</p>';
+  var grid = box('촉매', d.catalysts) + box('확인 지표', d.kpis) + box('리스크', d.risks);
+  if(grid) body += '<div class="idea-grid">' + grid + '</div>';
+  if(d.falsify) body += '<div class="falsify"><b>반증 조건</b> — ' + esc(d.falsify) + '</div>';"""
+NEW_IC5_IDEA = """  var body = '';
+  // 최신 확정 분기가 이 아이디어에 무엇을 말하는지. 논거보다 먼저 읽혀야 한다 —
+  // 심사에서 묻는 것은 "그때 무슨 생각을 했나"가 아니라 "지금 어떻게 되고 있나"다.
+  if(d.update) body += '<div class="idea-upd"><b>진행</b> — ' + esc(icText(d.update)) + '</div>';
+  if(d.thesis) body += '<p>' + esc(icText(d.thesis)) + '</p>';
+  var grid = box('촉매', d.catalysts) + box('확인 지표', d.kpis) + box('리스크', d.risks);
+  if(grid) body += '<div class="idea-grid">' + grid + '</div>';
+  if(d.falsify) body += '<div class="falsify"><b>반증 조건</b> — ' + esc(icText(d.falsify)) + '</div>';"""
+
+OLD_IC5_BOX = """    var li = '';
+    arr.forEach(function(x){ li += '<li>' + esc(x) + '</li>'; });"""
+NEW_IC5_BOX = """    var li = '';
+    arr.forEach(function(x){ li += '<li>' + esc(icText(x)) + '</li>'; });"""
+
+OLD_IC5_DEBATE = """    rows += '<tr><td style="white-space:normal;min-width:150px">' + esc(x.q) + '</td>' +
+      '<td style="white-space:normal">' + esc(x.yes || '') + '</td>' +
+      '<td style="white-space:normal">' + esc(x.no || '') + '</td></tr>';"""
+NEW_IC5_DEBATE = """    rows += '<tr><td style="white-space:normal;min-width:150px">' + esc(icText(x.q)) + '</td>' +
+      '<td style="white-space:normal">' + esc(icText(x.yes || '')) + '</td>' +
+      '<td style="white-space:normal">' + esc(icText(x.no || '')) + '</td></tr>';"""
+
+# 밸류에이션 뷰에 컨센서스 카드
+OLD_IC5_VAL = """  h += icPeerCard();
+  h += icMemoCard('valuation', '밸류에이션 판단');"""
+NEW_IC5_VAL = """  h += icConsensusCard();
+  h += icPeerCard();
+  h += icMemoCard('valuation', '밸류에이션 판단');"""
+
+# 리포트에도 — 밸류에이션 섹션과 모니터링 섹션
+OLD_IC5_RPVAL = """  vb += icPeerCard();
+  vb += '<div class="card pad">' + icMemoBody('valuation') + '</div>';"""
+NEW_IC5_RPVAL = """  vb += icConsensusCard();
+  vb += icPeerCard();
+  vb += '<div class="card pad">' + icMemoBody('valuation') + '</div>';"""
+
+OLD_IC5_RPRISK = """  // 8. 리스크
+  h += icSec('08', '리스크와 모니터링',"""
+NEW_IC5_RPRISK = """  // 7.5 분기 진행 상황 — 모델 경로 위를 걷고 있는가
+  if(qHas()){
+    var lastQ = qKeys()[qKeys().length - 1];
+    h += icSec('07b', '분기 진행 상황',
+      '공시 확정 분기값 대 모델 연간 추정 · 최신 확정 ' + lastQ,
+      icYtdCard(lastQ) + icQuarterTable(qKeys().slice(-6)));
+  }
+
+  // 8. 리스크
+  h += icSec('08', '리스크와 모니터링',"""
+
+OLD_IC5_STYLE = """.falsify b{color:#DC2626}"""
+NEW_IC5_STYLE = """.falsify b{color:#DC2626}
+
+/* 토네이도 막대 — 좌우 대칭으로 한 행에 음/양을 함께 둔다 */
+.tor{display:flex;align-items:center;gap:2px;min-width:180px}
+.tor-l,.tor-r{flex:1;display:flex;height:11px}
+.tor-l{justify-content:flex-end}
+.tor-l span{background:#9CA3AF;border-radius:2px 0 0 2px;display:block;height:100%}
+.tor-r span{background:#5D68F7;border-radius:0 2px 2px 0;display:block;height:100%}
+
+/* 아이디어의 최신 진행 상황 — 논거보다 먼저 눈에 들어와야 한다 */
+.idea-upd{margin:0 0 12px;padding:10px 12px;border-radius:6px;background:#EDF3FF;
+  border:1px solid #C5D5FF;border-left:3px solid #1E2185;font-size:11.5px;
+  color:#1E2185;line-height:1.7}
+.idea-upd b{color:#1E2185}"""
+
+# ─────────────────────────────────────────────────────────────
 # P2  구성비 계산이 합계 트리를 전제하던 문제
 #
 # 부모값 대비 비중은 부모가 자식의 합일 때만 구성비다. 루트가 뺄셈인 모델
@@ -1613,6 +2033,20 @@ def main() -> None:
     p.sub("IC-4 아이디어·리포트 구현", OLD_IC4_ANCHOR, NEW_IC4_ANCHOR)
     p.sub("IC-4 심사 결론에 쟁점", OLD_IC4_VERDICT, NEW_IC4_VERDICT)
     p.sub("IC-4 스타일·인쇄", OLD_IC4_STYLE, NEW_IC4_STYLE)
+    p.sub("IC-5 아이콘", OLD_IC5_ICON, NEW_IC5_ICON)
+    p.sub("IC-5 뷰 라우팅", OLD_IC5_ROUTE, NEW_IC5_ROUTE)
+    p.sub("IC-5 뷰 제목", OLD_IC5_TITLES, NEW_IC5_TITLES)
+    p.sub("IC-5 사이드바", OLD_IC5_NAV, NEW_IC5_NAV)
+    p.sub("IC-5 모니터링·민감도·인용 구현", OLD_IC5_ANCHOR, NEW_IC5_ANCHOR)
+    p.sub("IC-5 인용 치환 (memo card)", OLD_IC5_MEMOCARD, NEW_IC5_MEMOCARD)
+    p.sub("IC-5 인용 치환 (memo body)", OLD_IC5_MEMOBODY, NEW_IC5_MEMOBODY)
+    p.sub("IC-5 인용 치환 (아이디어)", OLD_IC5_IDEA, NEW_IC5_IDEA)
+    p.sub("IC-5 인용 치환 (목록)", OLD_IC5_BOX, NEW_IC5_BOX)
+    p.sub("IC-5 인용 치환 (쟁점)", OLD_IC5_DEBATE, NEW_IC5_DEBATE)
+    p.sub("IC-5 밸류에이션에 컨센서스", OLD_IC5_VAL, NEW_IC5_VAL)
+    p.sub("IC-5 리포트에 컨센서스", OLD_IC5_RPVAL, NEW_IC5_RPVAL)
+    p.sub("IC-5 리포트에 분기 진행", OLD_IC5_RPRISK, NEW_IC5_RPRISK)
+    p.sub("IC-5 토네이도 스타일", OLD_IC5_STYLE, NEW_IC5_STYLE)
     p.sub("P2 구성비 분모", OLD_MIX, NEW_MIX)
     p.sub("P2 구성비 제목", OLD_MIX_TITLE, NEW_MIX_TITLE)
     p.sub("P1-2 toggleAll", OLD_TOGGLE_ALL, NEW_TOGGLE_ALL)

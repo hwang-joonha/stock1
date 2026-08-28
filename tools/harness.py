@@ -82,6 +82,12 @@ const report = {
   sumNodes: {},
   orphans: [],
   unusedInputs: unusedInputs(),
+  // 심사 레이어 선언 블록. G11이 구조와 숫자 인용을 검사한다.
+  memo:      (typeof MEMO === 'object' && MEMO) ? MEMO : null,
+  peers:     (typeof PEERS === 'object' && PEERS) ? PEERS : null,
+  consensus: (typeof CONSENSUS === 'object' && CONSENSUS) ? CONSENSUS : null,
+  quarterly: (typeof QUARTERLY === 'object' && QUARTERLY) ? QUARTERLY : null,
+  scenarios: (typeof SCENARIOS === 'object' && SCENARIOS) ? Object.keys(SCENARIOS) : null,
 };
 for (const k in MODEL) {
   report.values[k] = MODEL[k].v.slice();

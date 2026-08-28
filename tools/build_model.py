@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 
@@ -27,6 +28,7 @@ def build(data_path: str, template_path: str = TEMPLATE) -> str:
         html = fh.read()
     with open(data_path, encoding="utf-8") as fh:
         data = fh.read().strip()
+    data += _quarterly_block(data_path)
 
     try:
         head = html.index(DATA_START)
@@ -47,6 +49,25 @@ def build(data_path: str, template_path: str = TEMPLATE) -> str:
         + "\n"
         + html[tail:]
     )
+
+
+
+def _quarterly_block(data_path: str) -> str:
+    """옆에 quarterly.json이 있으면 QUARTERLY 선언으로 붙인다.
+
+    분기 확정값은 기계가 만든다(tools/build_quarterly.py). 손으로 쓰는 파일에
+    넣으면 갱신할 때마다 사람이 수백 개 숫자를 옮겨 적게 된다 — 그 순간
+    "data.js가 유일한 수기 파일"이라는 규약이 사람을 해치는 규약이 된다.
+    """
+    path = os.path.join(os.path.dirname(data_path) or ".", "quarterly.json")
+    if not os.path.exists(path):
+        return ""
+    with open(path, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    return ("\n\n// ── QUARTERLY — 분기 확정값 (자동 주입) ─────────────────────\n"
+            "// 출처: " + str(doc.get("_출처", "")) + "\n"
+            "// 갱신: python3 tools/build_quarterly.py " + path + "\n"
+            "const QUARTERLY = " + json.dumps(doc, ensure_ascii=False) + ";\n")
 
 
 def main(argv: list[str]) -> int:
