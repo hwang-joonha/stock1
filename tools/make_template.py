@@ -2947,6 +2947,67 @@ NEW_U1_HARD4 = """    ['Assumptions','모든 입력값(가정변수) 집중 시�
 
 
 
+
+# ─────────────────────────────────────────────────────────────
+# IC-9  시나리오 기대값·상하방 배율
+#
+# Bull/Base/Bear를 나열만 하면 심사의 실제 질문 — "이 비대칭이면 담을
+# 만한가" — 에 답하지 못한다. 상하방 배율은 확률 없이 계산되고,
+# 확률 가중 기대 괴리는 MEMO.probs([주관] 확률)가 있을 때만 붙는다.
+# G11이 확률의 합=1과 키 유효성을 검사한다.
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC9_TABLE = """  h += card(YRS[t] + ' 시나리오 비교', '굵은 행이 Base(초안값)', UNITS.money,
+    '<div class="table-wrap"><table class="fm"><tr><th>시나리오</th><th>매출</th>' +
+    '<th>영업이익</th><th>OPM</th><th>EBITDA</th><th>적정 시총</th>' +
+    '<th>현재가 대비</th></tr>' + rows + '</table></div>');"""
+NEW_IC9_TABLE = OLD_IC9_TABLE + """
+  h += icScenarioEV(cases, solved, mc0);"""
+
+OLD_IC9_ANCHOR = """// ── 적정가 경로 대 현재 시총 — 요약 대시보드 첫 카드 ──────────"""
+NEW_IC9_ANCHOR = """// ── 시나리오 기대값·상하방 배율 ───────────────────────────────
+// 심사의 실제 질문은 "적정가가 얼마인가"가 아니라 "이 비대칭이면 담을
+// 만한가"다. 배율은 확률 없이 계산되고, 기대 괴리는 [주관] 확률 선언 시에만.
+function icScenarioEV(cases, solved, mc){
+  if(!mc) return '';
+  var ups = cases.map(function(c, i){ return solved[i][rootId()] / mc - 1; });
+  var hi = Math.max.apply(null, ups), lo = Math.min.apply(null, ups);
+  var htm = '<div class="kpi-row" style="margin-bottom:0">';
+  if(hi > 0 && lo < 0){
+    var rr = hi / -lo;
+    htm += icStat('상하방 배율', rr.toFixed(1) + ' : 1',
+      '최상 +' + (hi * 100).toFixed(0) + '% 대 최악 ' + (lo * 100).toFixed(0) + '%',
+      rr >= 1 ? 'pos' : 'neg');
+  } else {
+    htm += icStat('상하방 배율', hi <= 0 ? '전 케이스 하방' : '전 케이스 상방',
+      '최상 ' + (hi >= 0 ? '+' : '') + (hi * 100).toFixed(0) + '% · 최악 ' +
+      (lo >= 0 ? '+' : '') + (lo * 100).toFixed(0) + '%', hi <= 0 ? 'neg' : 'pos');
+  }
+  var probs = (typeof MEMO === 'object' && MEMO && MEMO.probs) ? MEMO.probs : null;
+  if(probs){
+    var ev = 0, ok = true, parts = [];
+    cases.forEach(function(c, i){
+      var p = probs[c.name];
+      if(p == null){ ok = false; return; }
+      ev += p * ups[i];
+      parts.push(c.name + ' ' + (p * 100).toFixed(0) + '%');
+    });
+    if(ok){
+      htm += icStat('확률 가중 기대 괴리', (ev >= 0 ? '+' : '') + (ev * 100).toFixed(0) + '%',
+        parts.join(' · ') + ' — [주관] 확률', ev >= 0 ? 'pos' : 'neg');
+    }
+  }
+  htm += '</div>';
+  var sub = probs
+    ? ('확률은 심사자의 [주관] 판단' + (MEMO.probsNote ? ' — ' + MEMO.probsNote : ''))
+    : 'MEMO.probs 미선언 — 확률 가중 기대값 없이 배율만 표시.';
+  return card('기대값과 비대칭', sub, '', htm);
+}
+
+// ── 적정가 경로 대 현재 시총 — 요약 대시보드 첫 카드 ──────────"""
+
+
+
 def _cut_data_region(text: str) -> str:
     """YRS 선언 앞 주석부터 MODEL 리터럴 끝까지를 마커+예제로 교체한다."""
     from extract_engine import _scan_assignment
@@ -3076,6 +3137,8 @@ def main() -> None:
     p.sub("UI-1 표기 2", OLD_U1_HARD2, NEW_U1_HARD2)
     p.sub("UI-1 표기 3", OLD_U1_HARD3, NEW_U1_HARD3)
     p.sub("UI-1 표기 4", OLD_U1_HARD4, NEW_U1_HARD4)
+    p.sub("IC-9 시나리오 기대값 카드", OLD_IC9_TABLE, NEW_IC9_TABLE)
+    p.sub("IC-9 기대값 구현", OLD_IC9_ANCHOR, NEW_IC9_ANCHOR)
 
     p.text = _cut_data_region(p.text)
     p.applied.append("DATA 데이터 블록 → 주입 마커")

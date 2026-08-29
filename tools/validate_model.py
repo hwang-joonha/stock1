@@ -430,6 +430,28 @@ def g11_memo(rep: dict) -> Result:
             if not (d.get(field) or "").strip():
                 bad.append(f"MEMO.debate[{i}]: {field} 없음 — 한쪽만 적은 것은 논거가 아니다")
 
+    # 3a) 시나리오 확률 — 선언하면 케이스와 합이 맞아야 한다.
+    #     합이 1이 아닌 확률로 기대값을 띄우면 화면이 거짓말을 한다.
+    probs = memo.get("probs")
+    if probs:
+        scen = set(rep.get("scenarios") or [])
+        for k in probs:
+            if k != "Base" and k not in scen:
+                bad.append(f"MEMO.probs: 시나리오에 없는 키 {k}")
+            v = probs[k]
+            if not (isinstance(v, (int, float)) and 0 < v <= 1):
+                bad.append(f"MEMO.probs.{k}: 확률은 (0, 1] 숫자여야 한다")
+        if "Base" not in probs:
+            bad.append("MEMO.probs: Base 확률이 없다")
+        missing = [s for s in scen if s not in probs]
+        if missing:
+            bad.append(f"MEMO.probs: 확률 없는 시나리오 {missing} — 전 케이스에 줘야 기대값이 선다")
+        s = sum(v for v in probs.values() if isinstance(v, (int, float)))
+        if abs(s - 1) > 1e-6:
+            bad.append(f"MEMO.probs 합 {s:g} ≠ 1")
+        if not (memo.get("probsNote") or "").strip():
+            bad.append("MEMO.probsNote 없음 — 확률의 근거 한 줄이 있어야 한다")
+
     # 3b) 목표배수·할인율의 근거인 피어가 있는가
     #     한 번 편집 중에 PEERS 블록이 통째로 사라졌는데 전 게이트가 통과했다.
     #     선택 블록이라도 "있다가 없어진 것"은 잡아야 한다.
