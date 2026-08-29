@@ -128,6 +128,41 @@ node_id: {
 3. **이익 구조** — bizMap에 `op`(부문 영업이익 노드) 또는 `cost`(부문 비용 노드,
    이익 = rev − cost)가 있을 때만. 없으면(KT&G) 조용히 생략된다.
 
+**주주 몫 참고 체인.** `net_income`(지배)·`eps`·`dps` 노드를 관례 이름으로
+선언하면 투자 개요에 함의 PER·배당수익률 KPI, 주주 몫 표, 보유 관점(연율화)
+카드가, 리포트 §3에 순이익·EPS·DPS 행이 붙는다. 밸류에이션 루트에는 들어가지
+않는 참고 체인이다(KT&G ebitda 선례 — `parent`로만 트리에 붙는다). 구조:
+
+```
+net_income = IF(ni_hist > 0, ni_actual, (op_profit + nonop) × (1 − tax_rate) × ctrl_ratio)
+eps = net_income / shares × 100        (shares 단위: 백만주)
+dps = IF(ni_hist > 0, dps_a, eps × payout)
+```
+
+실적(ni_actual·dps_a)은 연결포괄손익계산서·배당에 관한 사항의 확정값 — G1이
+historicals의 `net_income`·`dps` 행과 대사한다. 순이익은 적자 연도가 있을 수
+있어 hist 마스크 관용구를 쓴다.
+
+**시나리오 확률.** `MEMO.probs = {Base:0.5, Bull:0.3, Bear:0.2}` +
+`MEMO.probsNote`(근거 한 줄)를 선언하면 시나리오 뷰에 확률 가중 기대 괴리가
+붙는다. 상하방 배율은 확률 없이도 계산된다. G11이 합=1·전 케이스 부여·근거
+유무를 검사한다.
+
+**가격 대 모델 이력.** `MARKET.history = [{asOf, price, mktcap, fair, note}]`
+— MARKET 갱신·가정 개정 때마다 그때의 (주가, 모델 적정가) 쌍을 남긴다.
+투자 개요의 이력 카드가 "모델이 주가를 뒤쫓는가"를 보여준다. **갱신 규약:
+MARKET을 새 값으로 바꾸기 전에 기존 스냅숏 + 당시 적정가를 history에 밀어
+넣는다.** G11이 각 항목의 4개 필드를 검사한다.
+
+**다음 확인 일정.** `MEMO.events = [{d:'YYYY-MM-DD', label, check?}]` — 법정
+공시 기한(분기 +45일, 사업 +90일)·촉매 시점. 분기 모니터링 상단에 D-day로
+뜬다 (QUARTERLY 없이도 뜬다). G11이 날짜 형식을 검사한다.
+
+**워치리스트.** `python3 tools/build_index.py`가 companies/*/model.html을
+하네스로 실행해 루트의 index.html을 만든다 — 괴리·기대 괴리·상하방 배율·
+함의 PER·배당수익률·컨센서스·분기 진행률 한 장. 모델을 다시 빌드했으면
+index도 다시 만든다.
+
 ---
 
 ### 2.5 파생되는 것 — 쓰지 않는다

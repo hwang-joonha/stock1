@@ -452,6 +452,18 @@ def g11_memo(rep: dict) -> Result:
         if not (memo.get("probsNote") or "").strip():
             bad.append("MEMO.probsNote 없음 — 확률의 근거 한 줄이 있어야 한다")
 
+    # 3a-2) 일정·이력 — 형식이 깨지면 D-day 계산과 이력 표가 조용히 이상해진다.
+    for i, e in enumerate(memo.get("events") or []):
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(e.get("d") or "")):
+            bad.append(f"MEMO.events[{i}].d: YYYY-MM-DD 형식이어야 한다")
+        if not (e.get("label") or "").strip():
+            bad.append(f"MEMO.events[{i}].label 없음")
+    mk_blk = rep.get("market") or {}
+    for i, e in enumerate(mk_blk.get("history") or []):
+        for f in ("asOf", "price", "mktcap", "fair"):
+            if e.get(f) in (None, ""):
+                bad.append(f"MARKET.history[{i}].{f} 없음 — (시장, 모델) 쌍이 완전해야 이력이 된다")
+
     # 3b) 목표배수·할인율의 근거인 피어가 있는가
     #     한 번 편집 중에 PEERS 블록이 통째로 사라졌는데 전 게이트가 통과했다.
     #     선택 블록이라도 "있다가 없어진 것"은 잡아야 한다.

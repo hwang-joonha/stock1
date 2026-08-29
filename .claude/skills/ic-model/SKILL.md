@@ -63,6 +63,10 @@ python3 tools/dart_fetch.py doc <접수번호> <목차번호> # 본문
 - **연결 재무상태표** — 현금·차입금 (순차입금)
 - **연결 현금흐름표** — 유형자산 취득 (CAPEX)
 - **주식의 총수** — 발행주식수
+- **연결 포괄손익계산서 + 배당에 관한 사항** — 지배주주 순이익·세전이익·
+  법인세·DPS를 확정한다 ← 주주 몫 참고 체인(net_income·eps·dps)의 실적.
+  historicals에 `net_income`·`dps` 행으로 넣어 G1이 대사한다. 스키마는
+  `framework/html_template_spec.md` §2.4b "주주 몫 참고 체인"
 - **비용의 성격별 분류 주석** — `dart_fetch.py costnature <접수번호>`로 추출해
   `cost_nature.json`으로 정규화한다 ← 사업 구조 뷰의 비용 블록.
   당기/전기 연쇄가 보고서 사이에서 정확히 일치하는지, Σ항목 = 합계 =
@@ -133,6 +137,14 @@ G12는 `cost_nature.json`(빌드가 `COSTNATURE`로 주입)을 대사한다 — 
 부문이 있는 종목은 `META.bizMap`으로 매출↔이익(또는 비용) 노드를 매핑해야
 사업 구조 뷰의 이익 구조 블록이 뜬다. 부문마다 `note` 한 줄(무엇을 파는가)을
 함께 적는다.
+
+심사 레이어에 함께 넣을 것 (전부 G11이 검사):
+- `MEMO.probs` + `probsNote` — 시나리오 확률([주관], 합=1)과 근거 한 줄
+- `MEMO.events` — 다음 분기·사업보고서 법정 기한과 촉매 시점 (D-day 카드)
+- `MARKET.history` — 최초 스냅숏 한 건. **이후 MARKET 갱신·가정 개정 때마다
+  직전 (주가, 적정가) 쌍을 여기 밀어 넣는다** — 모델이 주가를 뒤쫓는지의 기록
+
+빌드 후 워치리스트 갱신: `python3 tools/build_index.py` (루트 index.html).
 
 ### 5. 피어 그룹
 

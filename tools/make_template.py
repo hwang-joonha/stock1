@@ -3008,6 +3008,97 @@ function icScenarioEV(cases, solved, mc){
 
 
 
+
+# ─────────────────────────────────────────────────────────────
+# IC-10  가격 대 모델 이력 · 다음 확인 일정
+#
+# MARKET이 한 시점 스냅숏이라 "지금 −27%"만 있고 괴리의 시계열이 없었다.
+# 갱신·가정 개정 때마다 (시장, 모델) 쌍을 MARKET.history에 남기면
+# "모델이 주가를 뒤쫓는가"를 화면이 감시한다.
+# MEMO.events는 법정 공시 기한·촉매 시점 — 분기 모니터링이 달력이 된다.
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC10_OWNER = """  h += icOwnerCard();
+  h += icHoldingCard();"""
+NEW_IC10_OWNER = """  h += icOwnerCard();
+  h += icHoldingCard();
+  h += icMarketHistCard();"""
+
+OLD_IC10_MON = """  if(!qHas()){
+    return h + '<div class="notice">분기 확정값(QUARTERLY) 미선언 — ' +
+      'tools/build_quarterly.py 로 생성해 data.js 옆에 quarterly.json 으로 두면 화면 활성화.</div></div>';
+  }"""
+NEW_IC10_MON = """  // 일정은 분기 데이터가 없어도 뜬다 — 다음 확인 시점이 모니터링의 절반이다.
+  h += icEventsCard();
+  if(!qHas()){
+    return h + '<div class="notice">분기 확정값(QUARTERLY) 미선언 — ' +
+      'tools/build_quarterly.py 로 생성해 data.js 옆에 quarterly.json 으로 두면 화면 활성화.</div></div>';
+  }"""
+
+OLD_IC10_ANCHOR = """// ── 시나리오 기대값·상하방 배율 ───────────────────────────────"""
+NEW_IC10_ANCHOR = """// ── 가격 대 모델 이력 ─────────────────────────────────────────
+// MARKET.history = [{asOf, price, mktcap, fair, note}] — 갱신·개정 때마다
+// 그때의 (주가, 모델 적정가) 쌍을 남긴다. 마지막 행은 현재 모델의 라이브 값.
+function icMarketHistCard(){
+  if(typeof MARKET !== 'object' || !MARKET || !MARKET.history || !MARKET.history.length)
+    return '';
+  var t = icLastIdx(), rows = '';
+  MARKET.history.forEach(function(e){
+    var up = (e.fair != null && e.mktcap) ? e.fair / e.mktcap - 1 : null;
+    rows += '<tr><td>' + esc(e.asOf) + '</td>' +
+      '<td>' + Number(e.price).toLocaleString('ko-KR') + '원</td>' +
+      '<td>' + esc(fmtSmart(e.fair)) + '</td>' +
+      (up === null ? '<td>—</td>'
+        : '<td class="' + (up >= 0 ? 'pos' : 'neg') + '">' +
+          (up >= 0 ? '+' : '') + (up * 100).toFixed(0) + '%</td>') +
+      '<td style="text-align:left;white-space:normal">' + esc(e.note || '') + '</td></tr>';
+  });
+  var fairNow = val(rootId(), t), upNow = icUpside(t);
+  rows += '<tr class="total"><td>' + esc(MARKET.asOf) + '</td>' +
+    '<td>' + MARKET.price.toLocaleString('ko-KR') + '원</td>' +
+    '<td>' + esc(fmtSmart(fairNow)) + '</td>' +
+    (upNow === null ? '<td>—</td>'
+      : '<td class="' + (upNow >= 0 ? 'pos' : 'neg') + '">' +
+        (upNow >= 0 ? '+' : '') + (upNow * 100).toFixed(0) + '%</td>') +
+    '<td style="text-align:left">현재 모델 (라이브)</td></tr>';
+  return card('가격 대 모델 이력',
+    'MARKET 갱신·가정 개정 때마다 스냅숏 기록 — 모델이 주가를 뒤쫓는지 감시하는 장치',
+    UNITS.money,
+    '<div class="table-wrap"><table class="fm"><tr><th>기준일</th><th>주가</th><th>' +
+    esc(YRS[t]) + ' 적정 시총</th><th>괴리</th><th style="text-align:left">모델 상태</th></tr>' +
+    rows + '</table></div>');
+}
+
+// ── 다음 확인 일정 ────────────────────────────────────────────
+// MEMO.events = [{d:'YYYY-MM-DD', label, check?}] — 법정 공시 기한과 촉매 시점.
+// D-day는 열람 시점 기준으로 그 자리에서 계산한다 (외부 요청 없음).
+function icEventsCard(){
+  var evs = (typeof MEMO === 'object' && MEMO && MEMO.events) ? MEMO.events.slice() : [];
+  if(!evs.length) return '';
+  evs.sort(function(a, b){ return a.d < b.d ? -1 : 1; });
+  var now = new Date(); now.setHours(0, 0, 0, 0);
+  var rows = '';
+  evs.forEach(function(e){
+    var d = new Date(e.d + 'T00:00:00');
+    var dd = Math.round((d - now) / 86400000);
+    if(dd < -31) return;  // 한 달 이상 지난 일정은 접는다
+    var badge = dd < 0 ? 'D+' + (-dd) : (dd === 0 ? 'D-day' : 'D-' + dd);
+    rows += '<tr' + (dd < 0 ? ' style="opacity:.55"' : '') + '><td><b>' + esc(badge) + '</b></td>' +
+      '<td>' + esc(e.d) + '</td>' +
+      '<td style="text-align:left;white-space:normal">' + icRich(e.label || '') +
+      (e.check ? '<div style="font-size:11px;color:#6B7280;margin-top:2px">확인: ' +
+        icRich(e.check) + '</div>' : '') + '</td></tr>';
+  });
+  if(!rows) return '';
+  return card('다음 확인 일정', '법정 공시 기한·촉매 시점 — D-day는 열람 시점 기준', '',
+    '<div class="table-wrap"><table class="fm"><tr><th>D-day</th><th>날짜</th>' +
+    '<th style="text-align:left">일정</th></tr>' + rows + '</table></div>');
+}
+
+// ── 시나리오 기대값·상하방 배율 ───────────────────────────────"""
+
+
+
 def _cut_data_region(text: str) -> str:
     """YRS 선언 앞 주석부터 MODEL 리터럴 끝까지를 마커+예제로 교체한다."""
     from extract_engine import _scan_assignment
@@ -3139,6 +3230,9 @@ def main() -> None:
     p.sub("UI-1 표기 4", OLD_U1_HARD4, NEW_U1_HARD4)
     p.sub("IC-9 시나리오 기대값 카드", OLD_IC9_TABLE, NEW_IC9_TABLE)
     p.sub("IC-9 기대값 구현", OLD_IC9_ANCHOR, NEW_IC9_ANCHOR)
+    p.sub("IC-10 이력 카드 배치", OLD_IC10_OWNER, NEW_IC10_OWNER)
+    p.sub("IC-10 일정 카드 배치", OLD_IC10_MON, NEW_IC10_MON)
+    p.sub("IC-10 이력·일정 구현", OLD_IC10_ANCHOR, NEW_IC10_ANCHOR)
 
     p.text = _cut_data_region(p.text)
     p.applied.append("DATA 데이터 블록 → 주입 마커")

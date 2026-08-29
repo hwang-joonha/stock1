@@ -624,6 +624,10 @@ const _isFc=i=>i>=HIST_N;
 // 시장 관측치. 심사 시점에 반드시 갱신한다.
 const MARKET={
   asOf:'2026-08-27',
+  // 갱신·가정 개정 때마다 (시장, 모델) 쌍을 남긴다 — 투자 개요 이력 카드가 읽는다.
+  history:[
+    { asOf:'2026-08-27', price:174500, mktcap:181149, fair:124303, note:'최초 모델 — DCF WACC 8% · 영구성장 1%' },
+  ],
   source:'WISEreport (comp.wisereport.co.kr) 전일종가 기준',
   price:174500,
   shares:103810456,
@@ -1026,6 +1030,12 @@ const MEMO={
   // 시나리오 확률 — [주관]. 기대값·상하방 배율 카드가 이것을 읽는다 (G11이 합=1 검사).
   probs:{ Base:0.6, Bull:0.2, Bear:0.2 },
   probsNote:'성숙 현금창출 사업 — 분포가 좁아 Base 중심. 규제(NGP·경고그림 강화)가 Bear, 해외 궐련 가속이 Bull.',
+  // 다음 확인 일정 — 법정 공시 기한·촉매 시점. 분기 모니터링 상단 카드가 읽는다.
+  events:[
+    { d:'2026-11-16', label:'3Q26 분기보고서 제출기한(법정 45일)', check:'해외 궐련 물량·NGP 성장 지속' },
+    { d:'2027-02-15', label:'FY2026 결산 배당 공시(통상 2월 이사회)', check:'DPS 증배 지속 여부(4년 연속 증배 이력) · 자사주 소각 규모' },
+    { d:'2027-03-31', label:'FY2026 사업보고서 제출기한' },
+  ],
   // 어투 규약 — 개조식. 종결은 "~함/~임/명사형". 결론은 명사구로 앞세움.
   // **굵게** 는 그 항목의 결론 한 조각에만 씀.
   company:{
@@ -5053,6 +5063,7 @@ function renderICOverview(){
 
   h += icOwnerCard();
   h += icHoldingCard();
+  h += icMarketHistCard();
 
   h += icMemoCard('thesis', '투자 논거');
   return h + '</div>';
@@ -5273,6 +5284,65 @@ function icPeerCard(){
     '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">종목</th><th>구분</th>' +
     '<th>시가총액</th><th>EV/EBITDA (A)</th><th>EV/EBITDA (E)</th>' +
     '<th>PER (E)</th><th>1년 수익률</th></tr>' + rows + '</table></div>');
+}
+
+// ── 가격 대 모델 이력 ─────────────────────────────────────────
+// MARKET.history = [{asOf, price, mktcap, fair, note}] — 갱신·개정 때마다
+// 그때의 (주가, 모델 적정가) 쌍을 남긴다. 마지막 행은 현재 모델의 라이브 값.
+function icMarketHistCard(){
+  if(typeof MARKET !== 'object' || !MARKET || !MARKET.history || !MARKET.history.length)
+    return '';
+  var t = icLastIdx(), rows = '';
+  MARKET.history.forEach(function(e){
+    var up = (e.fair != null && e.mktcap) ? e.fair / e.mktcap - 1 : null;
+    rows += '<tr><td>' + esc(e.asOf) + '</td>' +
+      '<td>' + Number(e.price).toLocaleString('ko-KR') + '원</td>' +
+      '<td>' + esc(fmtSmart(e.fair)) + '</td>' +
+      (up === null ? '<td>—</td>'
+        : '<td class="' + (up >= 0 ? 'pos' : 'neg') + '">' +
+          (up >= 0 ? '+' : '') + (up * 100).toFixed(0) + '%</td>') +
+      '<td style="text-align:left;white-space:normal">' + esc(e.note || '') + '</td></tr>';
+  });
+  var fairNow = val(rootId(), t), upNow = icUpside(t);
+  rows += '<tr class="total"><td>' + esc(MARKET.asOf) + '</td>' +
+    '<td>' + MARKET.price.toLocaleString('ko-KR') + '원</td>' +
+    '<td>' + esc(fmtSmart(fairNow)) + '</td>' +
+    (upNow === null ? '<td>—</td>'
+      : '<td class="' + (upNow >= 0 ? 'pos' : 'neg') + '">' +
+        (upNow >= 0 ? '+' : '') + (upNow * 100).toFixed(0) + '%</td>') +
+    '<td style="text-align:left">현재 모델 (라이브)</td></tr>';
+  return card('가격 대 모델 이력',
+    'MARKET 갱신·가정 개정 때마다 스냅숏 기록 — 모델이 주가를 뒤쫓는지 감시하는 장치',
+    UNITS.money,
+    '<div class="table-wrap"><table class="fm"><tr><th>기준일</th><th>주가</th><th>' +
+    esc(YRS[t]) + ' 적정 시총</th><th>괴리</th><th style="text-align:left">모델 상태</th></tr>' +
+    rows + '</table></div>');
+}
+
+// ── 다음 확인 일정 ────────────────────────────────────────────
+// MEMO.events = [{d:'YYYY-MM-DD', label, check?}] — 법정 공시 기한과 촉매 시점.
+// D-day는 열람 시점 기준으로 그 자리에서 계산한다 (외부 요청 없음).
+function icEventsCard(){
+  var evs = (typeof MEMO === 'object' && MEMO && MEMO.events) ? MEMO.events.slice() : [];
+  if(!evs.length) return '';
+  evs.sort(function(a, b){ return a.d < b.d ? -1 : 1; });
+  var now = new Date(); now.setHours(0, 0, 0, 0);
+  var rows = '';
+  evs.forEach(function(e){
+    var d = new Date(e.d + 'T00:00:00');
+    var dd = Math.round((d - now) / 86400000);
+    if(dd < -31) return;  // 한 달 이상 지난 일정은 접는다
+    var badge = dd < 0 ? 'D+' + (-dd) : (dd === 0 ? 'D-day' : 'D-' + dd);
+    rows += '<tr' + (dd < 0 ? ' style="opacity:.55"' : '') + '><td><b>' + esc(badge) + '</b></td>' +
+      '<td>' + esc(e.d) + '</td>' +
+      '<td style="text-align:left;white-space:normal">' + icRich(e.label || '') +
+      (e.check ? '<div style="font-size:11px;color:#6B7280;margin-top:2px">확인: ' +
+        icRich(e.check) + '</div>' : '') + '</td></tr>';
+  });
+  if(!rows) return '';
+  return card('다음 확인 일정', '법정 공시 기한·촉매 시점 — D-day는 열람 시점 기준', '',
+    '<div class="table-wrap"><table class="fm"><tr><th>D-day</th><th>날짜</th>' +
+    '<th style="text-align:left">일정</th></tr>' + rows + '</table></div>');
 }
 
 // ── 시나리오 기대값·상하방 배율 ───────────────────────────────
@@ -5609,6 +5679,8 @@ function renderICMonitor(){
   var h = '<div class="page">';
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('activity', 16) +
     ' Investment case</div><h1>분기 모니터링</h1></div>';
+  // 일정은 분기 데이터가 없어도 뜬다 — 다음 확인 시점이 모니터링의 절반이다.
+  h += icEventsCard();
   if(!qHas()){
     return h + '<div class="notice">분기 확정값(QUARTERLY) 미선언 — ' +
       'tools/build_quarterly.py 로 생성해 data.js 옆에 quarterly.json 으로 두면 화면 활성화.</div></div>';
