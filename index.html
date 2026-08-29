@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>투자심사 워치리스트</title>
+<style>
+  body{margin:0;background:#F8F8FA;color:#0F0F12;
+    font:13px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:36px 24px 60px}
+  h1{font-size:21px;margin:0 0 4px}
+  .lead{color:#6B7280;font-size:12.5px;margin:0 0 22px}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #E5E7EB;
+    border-radius:10px;overflow:hidden}
+  th{font-size:11px;color:#6B7280;text-transform:none;font-weight:600;text-align:right;
+    padding:10px 12px;border-bottom:1px solid #E5E7EB;background:#FBFBFC;white-space:nowrap}
+  th:first-child{text-align:left}
+  td{padding:11px 12px;border-bottom:1px solid #F3F4F6;text-align:right;white-space:nowrap;
+    font-variant-numeric:tabular-nums}
+  td.nm{text-align:left}
+  td.nm a{color:#1E2185;font-weight:700;text-decoration:none;font-size:13.5px}
+  td.nm a:hover{text-decoration:underline}
+  .sub{font-size:10.5px;color:#9CA3AF;margin-top:2px}
+  .pos{color:#22C55E;font-weight:600}
+  .neg{color:#DC2626;font-weight:600}
+  td.prog{font-size:12px}
+  .foot{margin-top:14px;color:#9CA3AF;font-size:11px;line-height:1.7}
+  tr:hover td{background:#FAFAFE}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>투자심사 워치리스트</h1>
+  <p class="lead">숫자는 전부 각 모델(model.html)을 실행해 읽은 값 — 손으로 옮겨 적지 않는다.
+    갱신: <b>python3 tools/build_index.py</b> · 생성 2026-08-29</p>
+  <table>
+    <tr><th>종목</th><th>현재 시총</th><th>적정 시총</th><th>괴리</th>
+      <th>기대 괴리*</th><th>상하방 배율</th><th>함의 PER</th><th>배당수익률</th>
+      <th>컨센서스 목표가</th><th>분기 진행률</th></tr>
+    <tr><td class="nm"><a href="companies/lgd/model.html">LG디스플레이 034220</a><div class="sub">EV/EBITDA 3.5배 · 관측 2026-08-28</div></td><td>4.8조</td><td>7.1조<div class="sub">2030</div></td><td class="pos">+49%</td><td class="pos">+61%</td><td>2.1 : 1</td><td>3.8배</td><td>—</td><td>커버리지 공백</td><td class="prog">—</td></tr><tr><td class="nm"><a href="companies/tlb/model.html">티엘비 356860</a><div class="sub">EV/EBITDA 12배 · 관측 2026-08-28</div></td><td>9,836억</td><td>1.2조<div class="sub">2030</div></td><td class="pos">+21%</td><td class="pos">+30%</td><td>1.9 : 1</td><td>14.6배</td><td>0.9%</td><td>목표가 +42% (8곳)</td><td class="prog">—</td></tr><tr><td class="nm"><a href="companies/sec/model.html">삼성전자 005930</a><div class="sub">EV/EBITDA 6배 · 관측 2026-08-28</div></td><td>1,555.1조</td><td>1,756.4조<div class="sub">2030</div></td><td class="pos">+13%</td><td class="pos">+12%</td><td>2.0 : 1</td><td>9.1배</td><td>4.0%</td><td>커버리지 공백</td><td class="prog">—</td></tr><tr><td class="nm"><a href="companies/samsung-em/model.html">삼성전기 009150</a><div class="sub">EV/EBITDA 18배 · 관측 2026-08-27</div></td><td>103.5조</td><td>75.0조<div class="sub">2030</div></td><td class="neg">-27%</td><td class="neg">-16%</td><td>0.6 : 1</td><td>42.4배</td><td>0.3%</td><td>목표가 +70% (20곳)</td><td class="prog">2026Q2 누적 49% <span class="neg">(-1%p)</span></td></tr><tr><td class="nm"><a href="companies/ktg/model.html">KT&amp;G 033780</a><div class="sub">DCF · WACC 8.0% · 관측 2026-08-27</div></td><td>18.1조</td><td>12.4조<div class="sub">2030</div></td><td class="neg">-31%</td><td class="neg">-29%</td><td>0.2 : 1</td><td>14.3배</td><td>3.5%</td><td>커버리지 공백</td><td class="prog">—</td></tr>
+  </table>
+  <p class="foot">* 기대 괴리 = 시나리오별 괴리의 확률 가중(확률은 각 모델 MEMO.probs의 [주관] 판단) ·
+    상하방 배율 = 최상 시나리오 상방 ÷ 최악 시나리오 하방 ·
+    함의 PER = 현재 시총 ÷ 마지막 추정 연도 지배순이익 ·
+    배당수익률 = 다음 해 추정 DPS ÷ 현재가 ·
+    분기 진행률 = 확정 분기 누적 매출 ÷ 모델 연간 (괄호 안은 선형 대비) ·
+    행 순서 = 기대 괴리 내림차순.<br>
+    본 자료는 공시·시장 데이터 기반의 내부 검토용이며 투자권유가 아님.</p>
+</div>
+</body>
+</html>

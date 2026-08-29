@@ -89,7 +89,25 @@ const report = {
   quarterly: (typeof QUARTERLY === 'object' && QUARTERLY) ? QUARTERLY : null,
   costnature: (typeof COSTNATURE === 'object' && COSTNATURE) ? COSTNATURE : null,
   meta:      (typeof META === 'object' && META) ? META : null,
+  market:    (typeof MARKET === 'object' && MARKET) ? MARKET : null,
+  units:     (typeof UNITS === 'object' && UNITS) ? UNITS : null,
   scenarios: (typeof SCENARIOS === 'object' && SCENARIOS) ? Object.keys(SCENARIOS) : null,
+  // 시나리오별 마지막 연도 루트 값 — 워치리스트(build_index)와 기대값 계산용.
+  // 적용 → 계산 → 복원을 케이스마다 반복한다 (화면의 icSolve와 같은 방식).
+  scenarioRoots: (function () {
+    if (typeof SCENARIOS !== 'object' || !SCENARIOS) return null;
+    const out = {}, backup = {};
+    for (const k in SV) backup[k] = SV[k].slice();
+    for (const nm in SCENARIOS) {
+      const ov = SCENARIOS[nm];
+      for (const k in ov) { if (SV[k] && ov[k].length === YRS.length) SV[k] = ov[k].slice(); }
+      simCalc();
+      out[nm] = val(rootId(), YRS.length - 1);
+      for (const k in backup) SV[k] = backup[k].slice();
+    }
+    simCalc();
+    return out;
+  })(),
 };
 for (const k in MODEL) {
   report.values[k] = MODEL[k].v.slice();
