@@ -138,6 +138,68 @@ const MODEL={
         +'부문 영업이익 합 + 소액 조정 = 연결이 5개년 오차 0으로 대사된다(G1).',
     bg:'#3332D0', fg:'#FFFFFF', sfg:'#C5D5FF',
   },
+  // ═══ 주주 몫 — 순이익·EPS·배당 (참고 체인) ═══════════════════
+  // 밸류에이션은 영업단에서 끝난다. 시장의 언어(PER·배당)로 번역하기 위한
+  // 참고 체인 — 루트 계산에는 들어가지 않는다 (KT&G ebitda 참고 노드 선례).
+  net_income: {
+    label:'지배주주 순이익 (참고)', parent:'op_profit', type:'computed',
+    formula:'IF(hist > 0, ni_actual, (op_profit + nonop) * (1 - tax_rate) * ctrl_ratio)',
+    v:new Array(YRS.length).fill(0), u:'억원', allowNegative:true,
+    desc:'[계산] (영업이익 + 영업외손익) × (1 − 실효세율) × 지배지분비율. '
+        +'실적 연도는 연결 포괄손익계산서의 지배주주 순이익 확정값. '
+        +'실적: 39.2 → 54.7 → 14.5 → 33.6 → 44.3조.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  ni_actual: {
+    label:'순이익 실적', parent:'net_income', type:'input',
+    v:[392437.91,547300.1800000001,144734.01,336213.63,442609.56,0,0,0,0,0], u:'억원', allowNegative:true, c:'#9CA3AF',
+    desc:'[객관] 연결 지배주주 순이익 확정값 (사업보고서 연결포괄손익계산서).',
+  },
+  nonop: {
+    label:'영업외손익', parent:'net_income', type:'input',
+    v:[17179.71,30638.44,44392.89,48037.73,58804.2,45000,45000,45000,45000,45000], u:'억원', allowNegative:true, c:'#5D68F7',
+    desc:'[주관 추정 · 실적은 공시값] 영업외손익 = 세전이익 − 영업이익. 실적 +1.7/+3.1/+4.4/+4.8/+5.9조 — 순현금 이자수익 중심의 안정적 흑자. **+4.5조 고정**.',
+  },
+  tax_rate: {
+    label:'실효세율', parent:'net_income', type:'input',
+    v:[0,0,0,0,0,0.12,0.12,0.12,0.12,0.12], u:'%', pct:1, c:'#5D68F7',
+    desc:'[주관] 실효세율. 실적 25.1/−2.0/−40.7/8.2/8.6% — 세액공제로 최근 8%대. 공제 축소 여지를 둬 12%.',
+  },
+  ctrl_ratio: {
+    label:'지배지분 비율', parent:'net_income', type:'input',
+    v:[0,0,0,0,0,0.98,0.98,0.98,0.98,0.98], u:'%', pct:1, c:'#5D68F7',
+    desc:'[주관] 지배지분 비율. 실적 97~98% — 98% 고정.',
+  },
+  eps: {
+    label:'EPS (참고)', parent:'net_income', type:'computed',
+    formula:'net_income / shares * 100',
+    v:new Array(YRS.length).fill(0), u:'원', allowNegative:true,
+    desc:'[계산] 지배주주 순이익 ÷ 상장주식수. 현재 주식수 단순 기준 — '
+        +'공시 기본EPS(가중평균·우선주 구분)와 계산 기준이 다르다.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  shares: {
+    label:'상장주식수', parent:'eps', type:'input',
+    v:[6669.165308,6669.165308,6669.165308,6669.165308,6669.165308,6669.165308,6669.165308,6669.165308,6669.165308,6669.165308], u:'백만주', c:'#9CA3AF',
+    desc:'[객관] 보통주 5,846.3 + 우선주 822.9 = 6,669.2백만주 고정. 지배순이익이 우선주 몫을 포함하므로 합산 주식수가 공시 기본EPS(2025 6,605원)와 가장 가깝다.',
+  },
+  dps: {
+    label:'DPS (참고)', parent:'eps', type:'computed',
+    formula:'IF(hist > 0, dps_a, eps * payout)',
+    v:new Array(YRS.length).fill(0), u:'원',
+    desc:'[계산] 실적은 공시 주당 현금배당, 추정은 EPS × 배당성향.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  dps_a: {
+    label:'DPS 실적', parent:'dps', type:'input',
+    v:[1444,1444,1444,1446,1668,0,0,0,0,0], u:'원', c:'#9CA3AF',
+    desc:'[객관] 보통주 주당 현금배당. 실적 1,444/1,444/1,444/1,446/1,668원.',
+  },
+  payout: {
+    label:'배당성향', parent:'dps', type:'input',
+    v:[0,0,0,0,0,0.25,0.25,0.25,0.25,0.25], u:'%', pct:1, c:'#5D68F7',
+    desc:'[주관] 배당성향. 실적 25.1~29.2%(정상 연도) — 25% 유지. 주주환원 정책(FCF 50%)상 사이클 정점에는 특별배당 여지가 있으나 미가정.',
+  },
   op_adj: {
     label:'영업이익 조정', parent:'op_profit', type:'computed', allowNegative:1,
     formula:'IF(hist > 0, op_adj_a, 0)',

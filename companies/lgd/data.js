@@ -114,6 +114,74 @@ const MODEL={
         +'이 전환이 지속되는가가 심사의 전부다.',
     bg:'#3332D0', fg:'#FFFFFF', sfg:'#C5D5FF',
   },
+  // ═══ 주주 몫 — 순이익·EPS·배당 (참고 체인) ═══════════════════
+  // 밸류에이션은 영업단에서 끝난다. 시장의 언어(PER·배당)로 번역하기 위한
+  // 참고 체인 — 루트 계산에는 들어가지 않는다 (KT&G ebitda 참고 노드 선례).
+  net_income: {
+    label:'지배주주 순이익 (참고)', parent:'op_profit', type:'computed',
+    formula:'IF(ni_hist > 0, ni_actual, (op_profit + nonop) * (1 - tax_rate) * ctrl_ratio)',
+    v:new Array(YRS.length).fill(0), u:'억원', allowNegative:true,
+    desc:'[계산] (영업이익 + 영업외손익) × (1 − 실효세율) × 지배지분비율. '
+        +'실적 연도는 연결 포괄손익계산서의 지배주주 순이익 확정값. '
+        +'실적: 11,862 → −30,716 → −27,337 → −25,626 → 2,263억. 3년 누적 −8.4조 적자 후 턴어라운드 첫 해. **영업단 상방(+49%)과 주주 몫은 다르다** — 이자·세금·비지배를 거치면 남는 몫이 얇다.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  ni_hist: {
+    label:'순이익 실적 마스크', parent:'net_income', type:'input',
+    v:[1,1,1,1,1,0,0,0,0,0], u:'', c:'#9CA3AF',
+    desc:'[객관] 실적 연도 표시(1). 순이익은 적자 연도가 있어 "실적 > 0" 관용구를 '
+        +'쓸 수 없다 — LGD·삼성전자 DS에서 확립한 hist 마스크 패턴.',
+  },
+  ni_actual: {
+    label:'순이익 실적', parent:'net_income', type:'input',
+    v:[11861.82,-30715.65,-27337.42,-25626.06,2263.12,0,0,0,0,0], u:'억원', allowNegative:true, c:'#9CA3AF',
+    desc:'[객관] 연결 지배주주 순이익 확정값 (사업보고서 연결포괄손익계산서).',
+  },
+  nonop: {
+    label:'영업외손익', parent:'net_income', type:'input',
+    v:[-5117.23,-13483.23,-8292.77,-16309.44,-152.88,-300,-300,-300,-300,-300], u:'억원', allowNegative:true, c:'#5D68F7',
+    desc:'[주관 추정 · 실적은 공시값] 영업외손익 = 세전이익 − 영업이익. 실적 −5,117/−13,483/−8,293/−16,309/−153억 — 손상차손이 지배해 과거는 예측 불가. 2025(−153억)를 바닥으로 이자 부담을 감안해 **−300억 고정**. 손상 재발은 Bear의 영역.',
+  },
+  tax_rate: {
+    label:'실효세율', parent:'net_income', type:'input',
+    v:[0,0,0,0,0,0.25,0.25,0.25,0.25,0.25], u:'%', pct:1, c:'#5D68F7',
+    desc:'[주관] 실효세율. 2025 실효 39.4%는 이연법인세 영향 — 정상화 25% 가정.',
+  },
+  ctrl_ratio: {
+    label:'지배지분 비율', parent:'net_income', type:'input',
+    v:[0,0,0,0,0,0.75,0.75,0.75,0.75,0.75], u:'%', pct:1, c:'#5D68F7',
+    desc:'[주관] 지배지분 비율. 2025 지배 74.5%(광저우 등 비지배 흑자) — **회복 이익의 1/4은 주주 몫이 아니다**. 75% 고정.',
+  },
+  eps: {
+    label:'EPS (참고)', parent:'net_income', type:'computed',
+    formula:'net_income / shares * 100',
+    v:new Array(YRS.length).fill(0), u:'원', allowNegative:true,
+    desc:'[계산] 지배주주 순이익 ÷ 상장주식수. 현재 주식수 단순 기준 — '
+        +'공시 기본EPS(가중평균·우선주 구분)와 계산 기준이 다르다.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  shares: {
+    label:'상장주식수', parent:'eps', type:'input',
+    v:[500,500,500,500,500,500,500,500,500,500], u:'백만주', c:'#9CA3AF',
+    desc:'[객관] 상장주식수 5.0억주(2024 유상증자 반영) 고정.',
+  },
+  dps: {
+    label:'DPS (참고)', parent:'eps', type:'computed',
+    formula:'IF(ni_hist > 0, dps_a, eps * payout)',
+    v:new Array(YRS.length).fill(0), u:'원',
+    desc:'[계산] 실적은 공시 주당 현금배당, 추정은 EPS × 배당성향.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  dps_a: {
+    label:'DPS 실적', parent:'dps', type:'input',
+    v:[650,0,0,0,0,0,0,0,0,0], u:'원', c:'#9CA3AF',
+    desc:'[객관] 주당 현금배당. 2021 650원 이후 무배당.',
+  },
+  payout: {
+    label:'배당성향', parent:'dps', type:'input',
+    v:[0,0,0,0,0,0,0,0,0,0], u:'%', pct:1, c:'#5D68F7',
+    desc:'[주관] 배당성향 0% — 순차입금 상환이 우선이라 **배당 재개를 가정하지 않는다**. 재개 시나리오는 이 슬라이더로 본다.',
+  },
   total_cost: {
     label:'총비용', parent:'op_profit', type:'computed',
     formula:'dep_total + other_cost',

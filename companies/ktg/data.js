@@ -218,6 +218,69 @@ const MODEL={
         +'19.9~21.7%로 좁은 범위에 있다 — 이 안정성이 DCF를 쓸 수 있게 하는 근거다.',
     bg:'#3332D0', fg:'#FFFFFF', sfg:'#C5D5FF',
   },
+  // ═══ 주주 몫 — 순이익·EPS·배당 (참고 체인) ═══════════════════
+  // 밸류에이션은 영업단에서 끝난다. 시장의 언어(PER·배당)로 번역하기 위한
+  // 참고 체인 — 루트 계산에는 들어가지 않는다 (KT&G ebitda 참고 노드 선례).
+  net_income: {
+    label:'지배주주 순이익 (참고)', parent:'op_profit', type:'computed',
+    formula:'IF(ni_hist > 0, ni_actual, (op_profit + nonop) * (1 - tax_rate) * ctrl_ratio)',
+    v:new Array(YRS.length).fill(0), u:'억원', allowNegative:true,
+    desc:'[계산] (영업이익 + 영업외손익) × (1 − 실효세율) × 지배지분비율. '
+        +'실적 연도는 연결 포괄손익계산서의 지배주주 순이익 확정값. '
+        +'실적: 10,158 → 9,027 → 11,657 → 10,901억.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  ni_hist: {
+    label:'순이익 실적 마스크', parent:'net_income', type:'input',
+    v:[1,1,1,1,0,0,0,0,0], u:'', c:'#9CA3AF',
+    desc:'[객관] 실적 연도 표시(1). 순이익은 적자 연도가 있어 "실적 > 0" 관용구를 '
+        +'쓸 수 없다 — LGD·삼성전자 DS에서 확립한 hist 마스크 패턴.',
+  },
+  ni_actual: {
+    label:'순이익 실적', parent:'net_income', type:'input',
+    v:[10157.85,9026.62,11657.27,10900.72,0,0,0,0,0], u:'억원', allowNegative:true, c:'#9CA3AF',
+    desc:'[객관] 연결 지배주주 순이익 확정값 (사업보고서 연결포괄손익계산서).',
+  },
+  nonop: {
+    label:'영업외손익', parent:'net_income', type:'input',
+    v:[1618.19,810.82,3770.25,1115.91,1200,1200,1200,1200,1200], u:'억원', allowNegative:true, c:'#5D68F7',
+    desc:'[주관 추정 · 실적은 공시값] 영업외손익 = 세전이익 − 영업이익(연결). 실적 +1,618/+811/+3,770/+1,116억 — 금융수익·부동산 관련. 2024 급증은 경상 수준이 아니라고 보고 **+1,200억 고정**.',
+  },
+  ctrl_ratio: {
+    label:'지배지분 비율', parent:'net_income', type:'input',
+    v:[0,0,0,0,0.99,0.99,0.99,0.99,0.99], u:'%', pct:1, c:'#5D68F7',
+    desc:'[주관] 지배지분 비율. 실적 98~101%(비지배 손익이 음수인 해 존재) — 99% 고정.',
+  },
+  eps: {
+    label:'EPS (참고)', parent:'net_income', type:'computed',
+    formula:'net_income / shares * 100',
+    v:new Array(YRS.length).fill(0), u:'원', allowNegative:true,
+    desc:'[계산] 지배주주 순이익 ÷ 상장주식수. 현재 주식수 단순 기준 — '
+        +'공시 기본EPS(가중평균·우선주 구분)와 계산 기준이 다르다.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  shares: {
+    label:'상장주식수', parent:'eps', type:'input',
+    v:[103.810456,103.810456,103.810456,103.810456,103.810456,103.810456,103.810456,103.810456,103.810456], u:'백만주', c:'#9CA3AF',
+    desc:'[객관] 상장 보통주 103,810,456주 고정. 자사주 소각으로 매년 줄어온 주식수의 현재값 — **소각 지속 시 EPS에 추가 상방**이 있으나 미모델.',
+  },
+  dps: {
+    label:'DPS (참고)', parent:'eps', type:'computed',
+    formula:'IF(ni_hist > 0, dps_a, eps * payout)',
+    v:new Array(YRS.length).fill(0), u:'원',
+    desc:'[계산] 실적은 공시 주당 현금배당, 추정은 EPS × 배당성향.',
+    bg:'#F3F4F6', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
+  },
+  dps_a: {
+    label:'DPS 실적', parent:'dps', type:'input',
+    v:[5000,5200,5400,6000,0,0,0,0,0], u:'원', c:'#9CA3AF',
+    desc:'[객관] 주당 현금배당. 실적 5,000/5,200/5,400/6,000원 — 4년 연속 증배.',
+  },
+  payout: {
+    label:'배당성향', parent:'dps', type:'input',
+    v:[0,0,0,0,0.57,0.57,0.57,0.57,0.57], u:'%', pct:1, c:'#5D68F7',
+    desc:'[주관] 배당성향. 실적 57.2/65.4/50.5/57.6% — **57% 유지** 가정. 자사주 소각을 더한 총주주환원은 이보다 높다.',
+  },
   total_cost: {
     label:'총비용', parent:'op_profit', type:'computed',
     formula:'dep_total + other_cost',

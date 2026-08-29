@@ -2439,6 +2439,116 @@ const MODEL={
 
 
 # ─────────────────────────────────────────────────────────────
+# IC-8  주주 몫 — 순이익·EPS·배당
+#
+# 밸류에이션이 영업단(EV/EBITDA·DCF)에서 끝나 시장의 언어(PER·배당)로
+# 번역이 안 됐다. 특히 레버리지 종목(LGD)은 영업단 상방과 주주 몫 상방이
+# 크게 다르다 — 이자·세금·비지배를 거치지 않은 괴리는 과신하면 안 된다.
+#
+# data.js가 net_income(지배)·eps·dps 참고 체인을 선언하면
+#   투자 개요: 현재가 함의 PER · 배당수익률 KPI + 주주 몫 표 + 보유 관점 카드
+#   리포트 §3: 순이익·EPS·DPS 행
+# 이 붙는다. 체인이 없으면 조용히 빠진다 (기존 규약).
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC8_STATS = """  if(im !== null) h += icStat('현재가 함의 배수', im.toFixed(1) + '배',
+    YRS[t] + ' EBITDA 기준 EV/EBITDA');
+  else if(MODEL.wacc) h += icStat('할인율 (WACC)', (val('wacc', t) * 100).toFixed(1) + '%',
+    MODEL.tv_growth ? '영구성장 ' + (val('tv_growth', t) * 100).toFixed(1) + '%' : '');
+  h += '</div>';"""
+NEW_IC8_STATS = """  if(im !== null) h += icStat('현재가 함의 배수', im.toFixed(1) + '배',
+    YRS[t] + ' EBITDA 기준 EV/EBITDA');
+  else if(MODEL.wacc) h += icStat('할인율 (WACC)', (val('wacc', t) * 100).toFixed(1) + '%',
+    MODEL.tv_growth ? '영구성장 ' + (val('tv_growth', t) * 100).toFixed(1) + '%' : '');
+  if(MODEL.net_income && val('net_income', t) > 0)
+    h += icStat('현재가 함의 PER', (MARKET.mktcap / val('net_income', t)).toFixed(1) + '배',
+      YRS[t] + ' 지배순이익 기준');
+  if(MODEL.dps && val('dps', HIST_N) > 0)
+    h += icStat('배당수익률', (val('dps', HIST_N) / MARKET.price * 100).toFixed(1) + '%',
+      YRS[HIST_N] + 'E DPS ' + Math.round(val('dps', HIST_N)).toLocaleString('ko-KR') + '원');
+  h += '</div>';"""
+
+OLD_IC8_OWNER = """  h += card('추정 연도별 적정가치', '현재 시가총액 ' + icMoney(MARKET.mktcap) + ' 고정 비교',
+    UNITS.money,
+    '<div class="table-wrap"><table class="fm"><tr><th>연도</th><th>EBITDA</th>' +
+    '<th>적정 시총</th><th>괴리</th><th>현재가 함의 배수</th></tr>' + rows + '</table></div>');"""
+NEW_IC8_OWNER = OLD_IC8_OWNER + """
+
+  h += icOwnerCard();
+  h += icHoldingCard();"""
+
+OLD_IC8_RP3 = """    icNodeRow('dep_total') + icNodeRow('ebitda') +
+    icCalcRow('EBITDA 마진', function(i){
+      var r = val(rev, i);
+      return r ? icPct(val('ebitda', i) / r) : null;
+    });"""
+NEW_IC8_RP3 = OLD_IC8_RP3 + """
+  if(MODEL.net_income){
+    body += icNodeRow('net_income', null, 'total');
+    if(MODEL.eps) body += icNodeRow('eps');
+    if(MODEL.dps) body += icNodeRow('dps');
+  }"""
+
+OLD_IC8_ANCHOR = """// ── 사업 구조 ─"""
+
+NEW_IC8_ANCHOR = """// ── 주주 몫 — 순이익·EPS·배당 ─────────────────────────────────
+// 영업단 밸류에이션을 시장의 언어(PER·배당)로 번역한다. net_income은
+// 지배주주 기준이며 이자·세금·비지배를 거친 값이다 — 레버리지 종목에서
+// 영업단 괴리와 주주 몫 괴리가 갈라지는 것을 이 표가 드러낸다.
+function icOwnerCard(){
+  if(!MODEL.net_income || !MODEL.eps) return '';
+  var rows = '';
+  for(var i = HIST_N; i < YRS.length; i++){
+    var ni = val('net_income', i), eps = val('eps', i);
+    var per = (ni > 0 && MARKET.mktcap) ? MARKET.mktcap / ni : null;
+    var dps = MODEL.dps ? val('dps', i) : null;
+    var yld = (dps != null && MARKET.price) ? dps / MARKET.price : null;
+    var po = (dps != null && eps > 0) ? dps / eps : null;
+    rows += '<tr><td>' + esc(YRS[i]) + '</td>' +
+      '<td>' + esc(fmtSmart(ni)) + '</td>' +
+      '<td>' + (eps ? Math.round(eps).toLocaleString('ko-KR') + '원' : '—') + '</td>' +
+      '<td>' + (per ? per.toFixed(1) + '배' : '—') + '</td>' +
+      '<td>' + (dps != null ? Math.round(dps).toLocaleString('ko-KR') + '원' : '—') + '</td>' +
+      '<td>' + (yld != null ? (yld * 100).toFixed(1) + '%' : '—') + '</td>' +
+      '<td>' + (po != null ? (po * 100).toFixed(0) + '%' : '—') + '</td></tr>';
+  }
+  return card('주주 몫 — 순이익·EPS·배당',
+    '지배주주 기준 · EPS는 현재 상장주식수 단순 계산(공시 가중평균 기준과 다름) · ' +
+    'PER = 현재 시가총액 ÷ 지배순이익', UNITS.money,
+    '<div class="table-wrap"><table class="fm"><tr><th>연도</th><th>지배순이익</th><th>EPS</th>' +
+    '<th>현재가 PER</th><th>DPS</th><th>배당수익률</th><th>배당성향</th></tr>' +
+    rows + '</table></div>');
+}
+
+// 보유 관점 — 적정가 수렴을 가정했을 때의 연율화 수익률. 새 판단이 아니라
+// 이미 화면에 있는 괴리·배당의 산술 번역이다. 수렴 시점·경로가 가정임을 밝힌다.
+function icHoldingCard(){
+  if(typeof MARKET !== 'object' || !MARKET || !MARKET.mktcap) return '';
+  var t = icLastIdx(), nf = YRS.length - HIST_N;
+  var fair = val(rootId(), t);
+  if(!(fair > 0) || nf < 1) return '';
+  var ann = Math.pow(fair / MARKET.mktcap, 1 / nf) - 1;
+  var dy = 0, n = 0;
+  if(MODEL.dps){
+    for(var i = HIST_N; i < YRS.length; i++){ dy += val('dps', i) / MARKET.price; n++; }
+  }
+  var avgY = n ? dy / n : 0, total = ann + avgY;
+  var htm = '<div class="kpi-row" style="margin-bottom:0">' +
+    icStat('가격 수익률 (연율)', (ann >= 0 ? '+' : '') + (ann * 100).toFixed(1) + '%',
+      YRS[t] + ' 적정가 수렴 가정 · ' + nf + '년 연율화', ann >= 0 ? 'pos' : 'neg') +
+    (n ? icStat('배당수익률 (평균)', '+' + (avgY * 100).toFixed(1) + '%',
+      '추정 구간 DPS ÷ 현재가') : '') +
+    icStat('합계 (참고)', (total >= 0 ? '+' : '') + (total * 100).toFixed(1) + '%/년',
+      '적정가 수렴 + 배당 가정의 산술 참고치', total >= 0 ? 'pos' : 'neg') +
+    '</div>';
+  return card('보유 관점 (참고)',
+    '모델 적정가에 ' + nf + '년에 걸쳐 수렴한다고 가정할 때의 연간 수익률 번역', '', htm);
+}
+
+// ── 사업 구조 ─"""
+
+
+# ─────────────────────────────────────────────────────────────
 # IC-7  사업 구조 뷰 — "무엇으로 돈을 버는가"
 #
 # 모델은 "가정을 바꾸면 얼마"에, 리포트는 "왜 사는가"에 답했지만
@@ -2787,6 +2897,10 @@ def main() -> None:
     p.sub("IC-7 스택 라벨 대비", OLD_IC7_STACK_LABEL, NEW_IC7_STACK_LABEL)
     p.sub("IC-7 사업 구조 구현", OLD_IC7_ANCHOR, NEW_IC7_ANCHOR)
     p.sub("IC-7 리포트 §2 정량", OLD_IC7_RP2, NEW_IC7_RP2)
+    p.sub("IC-8 주주 몫 KPI", OLD_IC8_STATS, NEW_IC8_STATS)
+    p.sub("IC-8 주주 몫 카드", OLD_IC8_OWNER, NEW_IC8_OWNER)
+    p.sub("IC-8 리포트 §3 순이익", OLD_IC8_RP3, NEW_IC8_RP3)
+    p.sub("IC-8 주주 몫 구현", OLD_IC8_ANCHOR, NEW_IC8_ANCHOR)
     p.sub("P2 구성비 분모", OLD_MIX, NEW_MIX)
     p.sub("P2 구성비 제목", OLD_MIX_TITLE, NEW_MIX_TITLE)
     p.sub("P1-2 toggleAll", OLD_TOGGLE_ALL, NEW_TOGGLE_ALL)
