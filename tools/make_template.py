@@ -2718,7 +2718,10 @@ function icBizCostBlock(compact){
   var head = '<tr><th style="text-align:left">항목</th>';
   ys.forEach(function(y){ head += '<th>' + esc(y) + '</th>'; });
   head += '<th>' + esc(ys[li]) + ' 대매출</th><th>' + esc(ys[0]) + '→' + esc(ys[li]) + '</th></tr>';
-  var note = (cn.check && cn.check.gapNote) ? '<div class="notice">' + esc(cn.check.gapNote) + '</div>' : '';
+  var srcs2 = [];
+  for(var sk in (cn._출처 || {})){ srcs2.push(cn._출처[sk]); }
+  var note = (srcs2.length ? '<div class="notice">출처: ' + esc(srcs2.join(' · ')) + '</div>' : '') +
+    ((cn.check && cn.check.gapNote) ? '<div class="notice">' + esc(cn.check.gapNote) + '</div>' : '');
   return icChartCard('비용 구성 — 무엇에 쓰는가',
       '사업보고서 \\'비용의 성격별 분류\\' 주석 · 연결 전사 기준 (부문별 분해는 공시가 주지 않음) · ' +
       '양수 항목 구성비 100% 기준', icSvgStack(ys, series, { ramp: ICVN })) +
@@ -2768,10 +2771,9 @@ function renderICBiz(){
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('pie-chart', 16) +
     ' Investment case</div><h1>사업 구조</h1></div>';
   if(cnHas()){
-    var srcs = [];
-    for(var k in COSTNATURE._출처){ srcs.push(COSTNATURE._출처[k]); }
-    h += '<div class="notice">비용 성격별 출처: ' + esc(srcs.join(' · ')) +
-      ' — 화면 표시 전용, 모델에 투입되지 않는 값. 게이트 G12가 매 빌드마다 대사.</div>';
+    // 접수번호 나열은 투자자에게 노이즈다 — 요지만 한 줄, 출처는 비용 표 아래.
+    h += '<div class="notice">비용 성격별 분류는 <b>화면 표시 전용</b>(모델 비투입) · ' +
+      '게이트 G12가 매 빌드마다 공시·모델과 대사 — 출처는 비용 구성 표 아래.</div>';
   }
   h += icBizRevBlock(false);
   h += icBizCostBlock(false);
@@ -2795,6 +2797,154 @@ NEW_IC7_RP2 = """  // 2. 사업 구조 — 정성(MEMO.company) 위에 정량(�
       ((typeof MEMO === 'object' && MEMO && MEMO.company)
         ? '<div class="card pad">' + icMemoBody('company') + '</div>' : '') + bizQ);
   }"""
+
+
+
+# ─────────────────────────────────────────────────────────────
+# UI-1  투자자 동선 정리
+#
+#   1) 첫 화면 — MARKET이 있는 모델은 투자 개요로 연다. 캔버스는 조작
+#      도구지 첫인상이 아니다.
+#   2) 요약 대시보드 — 밸류에이션 루트에서 구성비(EV 99% + 순차입금 1%)는
+#      정보가 없다. "적정가 경로 대 현재 시총" 차트로 바꾼다.
+#   3) 시뮬레이터 — 실적 오버라이드·마스크([객관], 추정 전부 0)를 뺀다.
+#      만지면 실적이 공시 확정값과 어긋난 화면 상태가 된다.
+#   4) 리포트 §10 — 같은 행들을 가정 일람에서 뺀다 (0만 늘어놓는 행).
+#   5) 표기 — "하드코딩"(개발 용어) 제거 · 민감도 막대에 유리 방향 명시.
+# ─────────────────────────────────────────────────────────────
+
+OLD_U1_VIEW = """  resize(); fitAll(); updateSelectedToolbar();
+  go('summary');"""
+NEW_U1_VIEW = """  resize(); fitAll(); updateSelectedToolbar();
+  // 첫 화면 — 심사 자료는 투자 개요에서 연다. MARKET이 없는 모델은 기존대로 요약.
+  go((typeof MARKET === 'object' && MARKET) ? 'ic_overview' : 'summary');"""
+
+OLD_U1_SUMMARY = '  var series = kids.map(function(k){ return { label:MODEL[k].label || k, color:nodeColor(k), values:MODEL[k].v || [] }; });\n  h += \'<div class="grid two">\';\n  h += card(\'구성요소 누적 추이\', kids.length + \'개 계정 · 회색 = 실적\', MODEL[r].u || \'\',\n    legendHTML(series) + chartSVG(series, { stacked:isSumOfChildren(r), height:36 }));\n\n  var mixRows = \'\';\n  // 합계 트리에서만 부모값이 구성비의 분모가 된다. 뺄셈 루트에서는\n  // 자식 절대값 합을 쓴다 — 그러지 않으면 비중이 100%를 넘는다.\n  var mixIsSum = isSumOfChildren(r);\n  var tot = mixIsSum ? val(r, t)\n    : kids.reduce(function(s, k){ return s + Math.abs(val(k, t)); }, 0);\n  kids.forEach(function(k){\n    var v = val(k, t), sh = tot ? v / tot : 0;\n    mixRows += \'<tr><td><span class="cellrow"><i class="legend-dot" style="background:\' + nodeColor(k) + \'"></i>\' +\n      \'<button class="rowlink" data-go="\' + esc(k) + \'">\' + esc(MODEL[k].label || k) + \'</button></span></td>\' +\n      \'<td>\' + esc(fmtV(k, t)) + \'</td>\' +\n      \'<td><span class="contrib"><span class="contrib-bar"><i style="width:\' +\n      Math.min(100, Math.abs(sh) * 100).toFixed(1) + \'%;background:\' + nodeColor(k) + \'"></i></span>\' +\n      (tot ? (sh * 100).toFixed(1) + \'%\' : \'—\') + \'</span></td></tr>\';\n  });\n  h += card(YRS[t] + (mixIsSum ? \' 구성비\' : \' 구성 (절대값 기준)\'), \'\', MODEL[r].u || \'\',\n    \'<div class="table-wrap"><table class="fm"><tr><th>계정</th><th>\' + esc(YRS[t]) + \'</th><th>비중</th></tr>\' +\n    mixRows + \'</table></div>\');\n  h += \'</div>\';'
+NEW_U1_SUMMARY = """  if(typeof MARKET === 'object' && MARKET && MARKET.mktcap){
+    // 밸류에이션 루트에서 구성비는 정보가 없다(EV 99% + 순차입금 1%).
+    // 투자자가 첫 화면에서 물을 것은 "적정가 경로가 현재 가격 대비 어디인가"다.
+    h += icFairCard();
+  } else {
+""" + OLD_U1_SUMMARY + """
+  }"""
+
+OLD_U1_BARMAX = """  var max = _niceMax(Math.max.apply(null, values.concat([0])));"""
+NEW_U1_BARMAX = """  var max = _niceMax(Math.max.apply(null, values.concat([0, opts.hline || 0])));"""
+
+OLD_U1_HLINE = """  for(var k = 0; k <= 4; k++){
+    var y = T + ih - ih * k / 4;
+    g += '<line x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (L + iw) +
+         '" y2="' + y.toFixed(1) + '" stroke="' + ICV.grid + '" stroke-width="1"/>';
+    g += _t(L - 6, y + 3, fmtSmart(max * k / 4), 8.5, '#9CA3AF', 'end');
+  }"""
+NEW_U1_HLINE = """  // 축 라벨 — 조원 스케일(백만 단위 억원)은 자릿수가 축 폭을 넘는다.
+  var afmt = opts.axisFmt || fmtSmart;
+  for(var k = 0; k <= 4; k++){
+    var y = T + ih - ih * k / 4;
+    g += '<line x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (L + iw) +
+         '" y2="' + y.toFixed(1) + '" stroke="' + ICV.grid + '" stroke-width="1"/>';
+    g += _t(L - 6, y + 3, afmt(max * k / 4), 8.5, '#9CA3AF', 'end');
+  }"""
+NEW_U1_HLINE = NEW_U1_HLINE + """
+  // 기준선(현재 시총 등) — 점선. 스케일은 위의 max 계산이 이미 포함한다.
+  if(opts.hline != null && isFinite(opts.hline) && opts.hline > 0 && opts.hline <= max){
+    var hy = T + ih - ih * (opts.hline / max);
+    g += '<line x1="' + L + '" y1="' + hy.toFixed(1) + '" x2="' + (L + iw) +
+         '" y2="' + hy.toFixed(1) + '" stroke="' + ICV.neg + '" stroke-width="1.4" ' +
+         'stroke-dasharray="5,4"/>';
+    if(opts.hlineLabel) g += _t(L + iw - 4, hy - 5, opts.hlineLabel, 8.5, ICV.neg, 'end', 700);
+  }"""
+
+OLD_U1_FAIR = """// ── 주주 몫 — 순이익·EPS·배당 ─"""
+NEW_U1_FAIR = """// ── 적정가 경로 대 현재 시총 — 요약 대시보드 첫 카드 ──────────
+function icFairCard(){
+  var r = rootId(), t = icLastIdx();
+  // 배수법은 실적 연도에도 참고치("그 해 실적 × 같은 배수")가 있지만,
+  // DCF의 실적 연도 루트값은 뜻이 없다(할인 시점 문제) — 추정 구간만 그린다.
+  var isMul = !!MODEL.target_ev_ebitda;
+  var lo = isMul ? 0 : HIST_N;
+  var yrs2 = YRS.slice(lo);
+  var vals = yrs2.map(function(_, i){ return val(r, lo + i); });
+  var up = icUpside(t);
+  // 축 라벨 — 2조 이상 스케일이면 조 단위로 줄인다 (억원 그대로면 축 폭을 넘는다).
+  var mx = Math.max.apply(null, vals.concat([MARKET.mktcap]));
+  var afmt = mx >= 20000 ? function(v){
+    var j = v / 10000; return (j % 1 ? j.toFixed(1) : j.toFixed(0)) + '조';
+  } : null;
+  var chart = icSvgBars(yrs2, vals,
+    { histN: isMul ? HIST_N : 0, hline: MARKET.mktcap, hlineLabel: '현재 시총', axisFmt: afmt });
+  return icChartCard('적정 시가총액 경로 대 현재 시총',
+    (isMul ? '실적 연도 값은 "그 해 실적 × 같은 배수"의 참고치 — 그때의 실제 시총이 아님 · ' : '') +
+    '점선 = 현재 시총 ' + icMoney(MARKET.mktcap) + ' (' + esc(MARKET.asOf || '') + ') · ' +
+    YRS[t] + ' 괴리 ' + (up >= 0 ? '+' : '') + (up * 100).toFixed(0) + '%', chart);
+}
+
+// ── 주주 몫 — 순이익·EPS·배당 ─"""
+
+OLD_U1_SIM = """function buildSimSecs(){
+  let byParent={};
+  for(let k of INPUT_KEYS){
+    let d=MODEL[k]; if(!d) continue;
+    let p=d.parent||'_orphan';
+    (byParent[p]=byParent[p]||[]).push(k);
+  }"""
+NEW_U1_SIM = """function buildSimSecs(){
+  let byParent={};
+  for(let k of INPUT_KEYS){
+    let d=MODEL[k]; if(!d) continue;
+    // 실적 오버라이드·마스크([객관]이고 추정 구간이 전부 0)는 슬라이더에서 뺀다 —
+    // 만지면 실적이 공시 확정값과 어긋난 화면 상태가 된다. 편집은 노드 페이지에서.
+    if(/^\\[객관/.test(d.desc||'')){
+      let fc=(d.v||[]).slice(HIST_N);
+      if(fc.length && fc.every(x=>!x)) continue;
+    }
+    let p=d.parent||'_orphan';
+    (byParent[p]=byParent[p]||[]).push(k);
+  }"""
+
+OLD_U1_SENS = """    icSvgHBars(r.rows.slice(0, 10).map(function(x){
+      var hi2 = Math.max(x.up, x.dn), pc = r.base ? hi2 / r.base : 0;
+      return { label:x.label, value:pc * 100, color:ICV.rev2,
+               text:(pc >= 0 ? '+' : '') + (pc * 100).toFixed(1) + '%' };
+    }), { labelW:150 }));"""
+NEW_U1_SENS = """    icSvgHBars(r.rows.slice(0, 10).map(function(x){
+      // 어느 방향이 유리한지 라벨에 명시 — 비용률은 −10%가 유리라서
+      // 방향 없이 보면 부호 해석이 두 번 꺾인다.
+      var dir = x.up >= x.dn ? ' +10%' : ' −10%';
+      var hi2 = Math.max(x.up, x.dn), pc = r.base ? hi2 / r.base : 0;
+      return { label:x.label + dir, value:pc * 100, color:ICV.rev2,
+               text:(pc >= 0 ? '+' : '') + (pc * 100).toFixed(1) + '%' };
+    }), { labelW:170 }));"""
+
+OLD_U1_RP10A = """  var arows = '';
+  INPUT_KEYS.forEach(function(k){
+    var d = MODEL[k], m = /^\\[([^\\]]+)\\]/.exec(d.desc || '');"""
+NEW_U1_RP10A = """  var arows = '', aSkip = 0;
+  INPUT_KEYS.forEach(function(k){
+    var d = MODEL[k], m = /^\\[([^\\]]+)\\]/.exec(d.desc || '');
+    // 실적 오버라이드·마스크([객관], 추정 구간 전부 0)는 가정이 아니라 확정값 —
+    // 0만 늘어놓는 행이 되므로 가정 일람에서 뺀다.
+    if(m && m[1].indexOf('객관') === 0){
+      var allZ = true;
+      for(var iF = HIST_N; iF < YRS.length; iF++){ if(val(k, iF)){ allZ = false; break; } }
+      if(allZ){ aSkip++; return; }
+    }"""
+
+OLD_U1_RP10B = """  h += icSec('10', '가정 일람', '추정 구간의 입력값 ' + INPUT_KEYS.size + '개. ' +
+    '근거란의 [객관]은 공시·시장 관측, [주관]은 심사자의 판단이다.',"""
+NEW_U1_RP10B = """  h += icSec('10', '가정 일람', '추정 구간의 입력값 ' + (INPUT_KEYS.size - aSkip) + '개' +
+    (aSkip ? ' (실적 오버라이드·마스크 ' + aSkip + '개 제외)' : '') + '. ' +
+    '근거란의 [객관]은 공시·시장 관측, [주관]은 심사자의 판단이다.',"""
+
+OLD_U1_HARD1 = """    txt('가정변수: 하드코딩',x+12,y+28,7,'400','#3332D0');"""
+NEW_U1_HARD1 = """    txt('가정변수 — 직접 입력',x+12,y+28,7,'400','#3332D0');"""
+OLD_U1_HARD2 = """(MODEL[key].type==='input'?' · 가정변수(하드코딩)':'')"""
+NEW_U1_HARD2 = """(MODEL[key].type==='input'?' · 가정변수(직접 입력)':'')"""
+OLD_U1_HARD3 = """시나리오 분석 시 변경하는 핵심 입력값. 연도별 하드코딩.</div>"""
+NEW_U1_HARD3 = """시나리오 분석 시 변경하는 핵심 입력값. 연도별 직접 입력.</div>"""
+OLD_U1_HARD4 = """    ['Assumptions','모든 하드코딩 입력값 집중 시트'],"""
+NEW_U1_HARD4 = """    ['Assumptions','모든 입력값(가정변수) 집중 시트'],"""
+
 
 
 def _cut_data_region(text: str) -> str:
@@ -2912,6 +3062,20 @@ def main() -> None:
     p.sub("P1-3 저장키 META.modelId", OLD_MODEL_ID, NEW_MODEL_ID)
     p.sub("P1-3 브릿지 제목", OLD_BRIDGE_TITLE, NEW_BRIDGE_TITLE)
     p.sub("P1-3 renderIdentity", OLD_INITSHELL, NEW_INITSHELL)
+
+    p.sub("UI-1 첫 화면", OLD_U1_VIEW, NEW_U1_VIEW)
+    p.sub("UI-1 대시보드 카드", OLD_U1_SUMMARY, NEW_U1_SUMMARY)
+    p.sub("UI-1 막대 스케일", OLD_U1_BARMAX, NEW_U1_BARMAX)
+    p.sub("UI-1 기준선", OLD_U1_HLINE, NEW_U1_HLINE)
+    p.sub("UI-1 적정가 카드", OLD_U1_FAIR, NEW_U1_FAIR)
+    p.sub("UI-1 시뮬레이터 오버라이드 제외", OLD_U1_SIM, NEW_U1_SIM)
+    p.sub("UI-1 민감도 방향 라벨", OLD_U1_SENS, NEW_U1_SENS)
+    p.sub("UI-1 §10 오버라이드 제외", OLD_U1_RP10A, NEW_U1_RP10A)
+    p.sub("UI-1 §10 부제", OLD_U1_RP10B, NEW_U1_RP10B)
+    p.sub("UI-1 표기 1", OLD_U1_HARD1, NEW_U1_HARD1)
+    p.sub("UI-1 표기 2", OLD_U1_HARD2, NEW_U1_HARD2)
+    p.sub("UI-1 표기 3", OLD_U1_HARD3, NEW_U1_HARD3)
+    p.sub("UI-1 표기 4", OLD_U1_HARD4, NEW_U1_HARD4)
 
     p.text = _cut_data_region(p.text)
     p.applied.append("DATA 데이터 블록 → 주입 마커")

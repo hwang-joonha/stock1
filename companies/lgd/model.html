@@ -560,7 +560,7 @@ ul.memo ul.sub > li:before{content:'–';position:absolute;left:0;color:#9CA3AF}
   <div class="popup" id="assumPopup" style="min-width:760px;max-width:920px;max-height:90vh;overflow-y:auto;padding:24px 20px 20px">
     <button class="popup-close" onclick="closeAssum()">✕</button>
     <h3 style="margin-bottom:4px">탑라인 가정변수 일람</h3>
-    <div style="font-size:11px;color:#9CA3AF;margin-bottom:16px">시나리오 분석 시 변경하는 핵심 입력값. 연도별 하드코딩.</div>
+    <div style="font-size:11px;color:#9CA3AF;margin-bottom:16px">시나리오 분석 시 변경하는 핵심 입력값. 연도별 직접 입력.</div>
     <div id="assumBody"></div>
   </div>
 </div>
@@ -1295,7 +1295,7 @@ function drawNode(n){let p=getPos(n.id);if(!p)return;let{x,y,w,h}=p;let isH=hove
   if(_isInp){
     ctx.save();ctx.fillStyle='#5D68F7';ctx.beginPath();ctx.arc(x+5,y+13,2.5,0,Math.PI*2);ctx.fill();ctx.restore();
     txt(n.label,x+12,y+13,9,'400','#4B5563');
-    txt('가정변수: 하드코딩',x+12,y+28,7,'400','#3332D0');
+    txt('가정변수 — 직접 입력',x+12,y+28,7,'400','#3332D0');
   }else{txt(n.label,x+8,y+h/2,9,'400','#4B5563')}
   if(hasData){let ic=hoverChart===n.id?'#4B5563':'#D1D5DB';ctx.save();ctx.fillStyle=ic;ctx.fillRect(x+w-18,y+8,3,7);ctx.fillRect(x+w-13,y+5,3,10);ctx.fillRect(x+w-8,y+3,3,12);ctx.restore()}}
   else{let bg=n.bg||'#FFFFFF',bdr=n.bdr||'#D1D5DB',fg=n.fg||'#374151',sfg=n.sfg||'#9CA3AF',dk=fg==='#FFFFFF';rrect(x,y,w,h,dk?8:6,bg,bdr,dk?0:0.7);if(isH)rrect(x,y,w,h,dk?8:6,dk?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.04)');let ly=n.sub?y+h*.36:y+h/2;txt(n.label,x+w/2,ly,11,'600',fg,'center');if(n.sub)txt(n.sub,x+w/2,y+h*.68,8.5,'400',sfg,'center');let hk=n.children&&n.children.length;if(hk){let ar=openSet.has(n.id)?'◀':'▶';txt(ar,x+w-13,y+h/2,7.5,'400',dk?'rgba(255,255,255,0.3)':'#D1D5DB')}if(hasData){if(dk){let ic=hoverChart===n.id?'rgba(255,255,255,0.6)':'rgba(255,255,255,0.25)';ctx.save();ctx.fillStyle=ic;ctx.fillRect(x+w-18,y+10,3,7);ctx.fillRect(x+w-13,y+7,3,10);ctx.fillRect(x+w-8,y+5,3,12);ctx.restore()}else{let ic=hoverChart===n.id?'#4B5563':'#D1D5DB';ctx.save();ctx.fillStyle=ic;ctx.fillRect(x+w-18,y+10,3,7);ctx.fillRect(x+w-13,y+7,3,10);ctx.fillRect(x+w-8,y+5,3,12);ctx.restore()}}}
@@ -1835,7 +1835,7 @@ function showVarDesc(key){
       +'<h3 style="font-size:16px;font-weight:700;color:#1E2185;flex:1;margin:0;font-family:Outfit,Pretendard,sans-serif">'+d.label+'</h3>'
       +'<button onclick="this.closest(\'.varDescOverlay\').remove()" style="border:none;background:none;font-size:19px;color:#D1D5DB;cursor:pointer;line-height:1;padding:0">✕</button>'
     +'</div>'
-    +'<div style="font-size:10px;color:#9CA3AF;margin-bottom:12px">단위: '+(d.u||'-')+(MODEL[key].type==='input'?' · 가정변수(하드코딩)':'')+'</div>'
+    +'<div style="font-size:10px;color:#9CA3AF;margin-bottom:12px">단위: '+(d.u||'-')+(MODEL[key].type==='input'?' · 가정변수(직접 입력)':'')+'</div>'
     +'<ul style="margin:2px 0 0;padding-left:18px;font-size:12.5px">'+lis+'</ul>'
     +'</div>';
   document.body.appendChild(ov);
@@ -3517,7 +3517,7 @@ async function exportToExcel(){
     indexRows.push([s,descMap[s]||'HTML 모델 구조에서 생성한 계산 시트']);
   });
   indexRows.push(
-    ['Assumptions','모든 하드코딩 입력값 집중 시트'],
+    ['Assumptions','모든 입력값(가정변수) 집중 시트'],
     ['Model','HTML MODEL 그래프 전체 계산 엔진'],
     ['Formula Audit','생성된 모든 수식 셀 감사'],
     ['Structure','노드 ID, parent, formula, description'],
@@ -3699,6 +3699,12 @@ function buildSimSecs(){
   let byParent={};
   for(let k of INPUT_KEYS){
     let d=MODEL[k]; if(!d) continue;
+    // 실적 오버라이드·마스크([객관]이고 추정 구간이 전부 0)는 슬라이더에서 뺀다 —
+    // 만지면 실적이 공시 확정값과 어긋난 화면 상태가 된다. 편집은 노드 페이지에서.
+    if(/^\[객관/.test(d.desc||'')){
+      let fc=(d.v||[]).slice(HIST_N);
+      if(fc.length && fc.every(x=>!x)) continue;
+    }
     let p=d.parent||'_orphan';
     (byParent[p]=byParent[p]||[]).push(k);
   }
@@ -4675,6 +4681,11 @@ function renderSummary(){
   // KPI 카드 행은 제거했다 — 같은 숫자를 아래 차트가 막대 위 값 라벨로 직접 보여준다.
   // 검증 이슈 건수는 사이드바 `검증·이슈` 항목에 그대로 표시된다.
 
+  if(typeof MARKET === 'object' && MARKET && MARKET.mktcap){
+    // 밸류에이션 루트에서 구성비는 정보가 없다(EV 99% + 순차입금 1%).
+    // 투자자가 첫 화면에서 물을 것은 "적정가 경로가 현재 가격 대비 어디인가"다.
+    h += icFairCard();
+  } else {
   var series = kids.map(function(k){ return { label:MODEL[k].label || k, color:nodeColor(k), values:MODEL[k].v || [] }; });
   h += '<div class="grid two">';
   h += card('구성요소 누적 추이', kids.length + '개 계정 · 회색 = 실적', MODEL[r].u || '',
@@ -4699,6 +4710,7 @@ function renderSummary(){
     '<div class="table-wrap"><table class="fm"><tr><th>계정</th><th>' + esc(YRS[t]) + '</th><th>비중</th></tr>' +
     mixRows + '</table></div>');
   h += '</div>';
+  }
 
   // 상위 2단계 요약 테이블
   var rows = '';
@@ -5056,6 +5068,29 @@ function icPeerCard(){
     '<th>PER (E)</th><th>1년 수익률</th></tr>' + rows + '</table></div>');
 }
 
+// ── 적정가 경로 대 현재 시총 — 요약 대시보드 첫 카드 ──────────
+function icFairCard(){
+  var r = rootId(), t = icLastIdx();
+  // 배수법은 실적 연도에도 참고치("그 해 실적 × 같은 배수")가 있지만,
+  // DCF의 실적 연도 루트값은 뜻이 없다(할인 시점 문제) — 추정 구간만 그린다.
+  var isMul = !!MODEL.target_ev_ebitda;
+  var lo = isMul ? 0 : HIST_N;
+  var yrs2 = YRS.slice(lo);
+  var vals = yrs2.map(function(_, i){ return val(r, lo + i); });
+  var up = icUpside(t);
+  // 축 라벨 — 2조 이상 스케일이면 조 단위로 줄인다 (억원 그대로면 축 폭을 넘는다).
+  var mx = Math.max.apply(null, vals.concat([MARKET.mktcap]));
+  var afmt = mx >= 20000 ? function(v){
+    var j = v / 10000; return (j % 1 ? j.toFixed(1) : j.toFixed(0)) + '조';
+  } : null;
+  var chart = icSvgBars(yrs2, vals,
+    { histN: isMul ? HIST_N : 0, hline: MARKET.mktcap, hlineLabel: '현재 시총', axisFmt: afmt });
+  return icChartCard('적정 시가총액 경로 대 현재 시총',
+    (isMul ? '실적 연도 값은 "그 해 실적 × 같은 배수"의 참고치 — 그때의 실제 시총이 아님 · ' : '') +
+    '점선 = 현재 시총 ' + icMoney(MARKET.mktcap) + ' (' + esc(MARKET.asOf || '') + ') · ' +
+    YRS[t] + ' 괴리 ' + (up >= 0 ? '+' : '') + (up * 100).toFixed(0) + '%', chart);
+}
+
 // ── 주주 몫 — 순이익·EPS·배당 ─────────────────────────────────
 // 영업단 밸류에이션을 시장의 언어(PER·배당)로 번역한다. net_income은
 // 지배주주 기준이며 이자·세금·비지배를 거친 값이다 — 레버리지 종목에서
@@ -5227,7 +5262,10 @@ function icBizCostBlock(compact){
   var head = '<tr><th style="text-align:left">항목</th>';
   ys.forEach(function(y){ head += '<th>' + esc(y) + '</th>'; });
   head += '<th>' + esc(ys[li]) + ' 대매출</th><th>' + esc(ys[0]) + '→' + esc(ys[li]) + '</th></tr>';
-  var note = (cn.check && cn.check.gapNote) ? '<div class="notice">' + esc(cn.check.gapNote) + '</div>' : '';
+  var srcs2 = [];
+  for(var sk in (cn._출처 || {})){ srcs2.push(cn._출처[sk]); }
+  var note = (srcs2.length ? '<div class="notice">출처: ' + esc(srcs2.join(' · ')) + '</div>' : '') +
+    ((cn.check && cn.check.gapNote) ? '<div class="notice">' + esc(cn.check.gapNote) + '</div>' : '');
   return icChartCard('비용 구성 — 무엇에 쓰는가',
       '사업보고서 \'비용의 성격별 분류\' 주석 · 연결 전사 기준 (부문별 분해는 공시가 주지 않음) · ' +
       '양수 항목 구성비 100% 기준', icSvgStack(ys, series, { ramp: ICVN })) +
@@ -5277,10 +5315,9 @@ function renderICBiz(){
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('pie-chart', 16) +
     ' Investment case</div><h1>사업 구조</h1></div>';
   if(cnHas()){
-    var srcs = [];
-    for(var k in COSTNATURE._출처){ srcs.push(COSTNATURE._출처[k]); }
-    h += '<div class="notice">비용 성격별 출처: ' + esc(srcs.join(' · ')) +
-      ' — 화면 표시 전용, 모델에 투입되지 않는 값. 게이트 G12가 매 빌드마다 대사.</div>';
+    // 접수번호 나열은 투자자에게 노이즈다 — 요지만 한 줄, 출처는 비용 표 아래.
+    h += '<div class="notice">비용 성격별 분류는 <b>화면 표시 전용</b>(모델 비투입) · ' +
+      '게이트 G12가 매 빌드마다 공시·모델과 대사 — 출처는 비용 구성 표 아래.</div>';
   }
   h += icBizRevBlock(false);
   h += icBizCostBlock(false);
@@ -5512,10 +5549,13 @@ function renderICSensitivity(){
   });
   h += icChartCard('영향도 순위', '유리한 쪽 변화폭 기준 · 위쪽이 결과를 지배하는 가정',
     icSvgHBars(r.rows.slice(0, 10).map(function(x){
+      // 어느 방향이 유리한지 라벨에 명시 — 비용률은 −10%가 유리라서
+      // 방향 없이 보면 부호 해석이 두 번 꺾인다.
+      var dir = x.up >= x.dn ? ' +10%' : ' −10%';
       var hi2 = Math.max(x.up, x.dn), pc = r.base ? hi2 / r.base : 0;
-      return { label:x.label, value:pc * 100, color:ICV.rev2,
+      return { label:x.label + dir, value:pc * 100, color:ICV.rev2,
                text:(pc >= 0 ? '+' : '') + (pc * 100).toFixed(1) + '%' };
-    }), { labelW:150 }));
+    }), { labelW:170 }));
   h += card('가정변수 영향도',
     '막대 왼쪽은 불리한 쪽, 오른쪽은 유리한 쪽. 값은 ' +
     (MODEL[rootId()].label || rootId()) + ' 대비 변화율.', '',
@@ -5598,7 +5638,7 @@ function icSvgBars(labels, values, opts){
   opts = opts || {};
   var W = 720, H = opts.height || 200, L = 44, R = opts.line ? 40 : 12, T = 16, B = 26;
   var iw = W - L - R, ih = H - T - B;
-  var max = _niceMax(Math.max.apply(null, values.concat([0])));
+  var max = _niceMax(Math.max.apply(null, values.concat([0, opts.hline || 0])));
   var n = labels.length, step = iw / n, bw = Math.min(38, step * 0.56);
   var g = '';
 
@@ -5608,11 +5648,21 @@ function icSvgBars(labels, values, opts){
          '" height="' + ih + '" fill="' + ICV.band + '"/>';
     g += _t(x0 + 3, T + 10, '추정', 8.5, '#9CA3AF', 'start');
   }
+  // 축 라벨 — 조원 스케일(백만 단위 억원)은 자릿수가 축 폭을 넘는다.
+  var afmt = opts.axisFmt || fmtSmart;
   for(var k = 0; k <= 4; k++){
     var y = T + ih - ih * k / 4;
     g += '<line x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (L + iw) +
          '" y2="' + y.toFixed(1) + '" stroke="' + ICV.grid + '" stroke-width="1"/>';
-    g += _t(L - 6, y + 3, fmtSmart(max * k / 4), 8.5, '#9CA3AF', 'end');
+    g += _t(L - 6, y + 3, afmt(max * k / 4), 8.5, '#9CA3AF', 'end');
+  }
+  // 기준선(현재 시총 등) — 점선. 스케일은 위의 max 계산이 이미 포함한다.
+  if(opts.hline != null && isFinite(opts.hline) && opts.hline > 0 && opts.hline <= max){
+    var hy = T + ih - ih * (opts.hline / max);
+    g += '<line x1="' + L + '" y1="' + hy.toFixed(1) + '" x2="' + (L + iw) +
+         '" y2="' + hy.toFixed(1) + '" stroke="' + ICV.neg + '" stroke-width="1.4" ' +
+         'stroke-dasharray="5,4"/>';
+    if(opts.hlineLabel) g += _t(L + iw - 4, hy - 5, opts.hlineLabel, 8.5, ICV.neg, 'end', 700);
   }
   values.forEach(function(v, i){
     var h = Math.max(1, ih * (v / max)), x = L + step * i + (step - bw) / 2;
@@ -6120,9 +6170,16 @@ function renderICReport(){
       ? card('가정 개정 이력', MEMO.revision.sub || '', '', icPoints(MEMO.revision)) : ''));
 
   // 10. 가정 일람 — 근거 태그와 함께. 무엇이 사실이고 무엇이 판단인지 드러난다.
-  var arows = '';
+  var arows = '', aSkip = 0;
   INPUT_KEYS.forEach(function(k){
     var d = MODEL[k], m = /^\[([^\]]+)\]/.exec(d.desc || '');
+    // 실적 오버라이드·마스크([객관], 추정 구간 전부 0)는 가정이 아니라 확정값 —
+    // 0만 늘어놓는 행이 되므로 가정 일람에서 뺀다.
+    if(m && m[1].indexOf('객관') === 0){
+      var allZ = true;
+      for(var iF = HIST_N; iF < YRS.length; iF++){ if(val(k, iF)){ allZ = false; break; } }
+      if(allZ){ aSkip++; return; }
+    }
     arows += '<tr><td style="white-space:normal">' + esc(d.label || k) + '</td>' +
       '<td>' + esc(m ? m[1] : '—') + '</td>';
     for(var i3 = HIST_N; i3 < YRS.length; i3++){
@@ -6133,7 +6190,8 @@ function renderICReport(){
   var ah = '<tr><th style="text-align:left">가정변수</th><th>근거</th>';
   for(var i4 = HIST_N; i4 < YRS.length; i4++) ah += '<th>' + esc(YRS[i4]) + '</th>';
   ah += '</tr>';
-  h += icSec('10', '가정 일람', '추정 구간의 입력값 ' + INPUT_KEYS.size + '개. ' +
+  h += icSec('10', '가정 일람', '추정 구간의 입력값 ' + (INPUT_KEYS.size - aSkip) + '개' +
+    (aSkip ? ' (실적 오버라이드·마스크 ' + aSkip + '개 제외)' : '') + '. ' +
     '근거란의 [객관]은 공시·시장 관측, [주관]은 심사자의 판단이다.',
     card('', '', '', '<div class="table-wrap"><table class="fm">' + ah + arows + '</table></div>'));
 
@@ -6356,7 +6414,8 @@ function initShell(){
   // 캔버스가 아직 보이는 동안 한 번 맞춰둔다 (숨긴 뒤에는 clientWidth=0이라 계산 불가)
   window._shellReady = true;
   resize(); fitAll(); updateSelectedToolbar();
-  go('summary');
+  // 첫 화면 — 심사 자료는 투자 개요에서 연다. MARKET이 없는 모델은 기존대로 요약.
+  go((typeof MARKET === 'object' && MARKET) ? 'ic_overview' : 'summary');
   window.addEventListener('resize', function(){
     if(UI.view === 'canvas'){ resize(); renderAll(); }
   });
