@@ -3524,6 +3524,89 @@ function icQtrSnapCard(){
 
 
 
+
+# ─────────────────────────────────────────────────────────────
+# IC-13  분기 파생 차트 — TTM 롤링 · 계절성 · 부문 믹스
+#
+# 분기 확정이 전 종목에 깔리면서 만들 수 있게 된 파생 화면 셋.
+#   - TTM 롤링: 연간 막대보다 방향 전환이 2~3분기 빨리 보인다
+#   - 계절성 겹침: 재보정 때 쓰는 계절성법(H2/H1)의 근거가 화면이 된다
+#   - 부문 믹스 분기 스택: 부문 주석이 있는 종목(삼성전기)만
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC13_MON = """  h += icYtdCard(last);
+  h += icQuarterTable(ks);
+  h += icTrackCards(ks);"""
+NEW_IC13_MON = """  h += icYtdCard(last);
+  h += icQuarterTable(ks);
+  h += icTtmCard(ks);
+  h += icSeasonCard(ks);
+  h += icQtrMixCard(ks);
+  h += icTrackCards(ks);"""
+
+OLD_IC13_ANCHOR = """// ── 최신 분기 스냅숏 · TTM ─"""
+
+NEW_IC13_ANCHOR = """// ── 분기 파생 차트 — TTM 롤링 · 계절성 · 부문 믹스 ─────────────
+// 롤링 TTM — 막대 = TTM 매출, 선 = TTM 영업이익률. 연간 막대보다
+// 방향 전환이 빨리 보인다 (마지막 4개 분기의 합이 매 분기 갱신되므로).
+function icTtmCard(ks){
+  if(ks.length < 5) return '';
+  var labels = [], rev = [], opm = [];
+  for(var e = 3; e < ks.length; e++){
+    var r = qTTM('매출', e), o = qTTM('영업이익', e);
+    if(r === null || o === null) continue;
+    labels.push(ks[e]);
+    rev.push(r);
+    opm.push(r ? o / r : 0);
+  }
+  if(labels.length < 2) return '';
+  return icChartCard('롤링 TTM — 최근 4개 분기 합',
+    '막대 = TTM 매출 · 선 = TTM 영업이익률 — 연간 확정보다 2~3분기 빠른 방향 지표',
+    icSvgBars(labels, rev, { line: opm, lineLabel: 'OPM' }));
+}
+
+// 계절성 겹침 — 연도별 분기 매출을 Q1~Q4 축에 겹친다. 오래된 해일수록 흐리다.
+function icSeasonCard(ks){
+  var byYear = {};
+  ks.forEach(function(k){
+    var v = qVal(k, '합계', '매출');
+    if(v === null) return;
+    var y = k.slice(0, 4), qn = parseInt(k.slice(5), 10);
+    (byYear[y] = byYear[y] || [null, null, null, null])[qn - 1] = v;
+  });
+  var years = Object.keys(byYear).sort();
+  if(years.length < 2) return '';
+  var shade = ['#A1B8FF', '#5D68F7', '#1E2185'];  // 옛해 → 최근해
+  var series = years.map(function(y, i){
+    return { name: y, values: byYear[y],
+             color: shade[Math.max(0, shade.length - years.length + i)] };
+  });
+  return icChartCard('계절성 — 연도별 분기 매출 겹침',
+    '같은 분기끼리 세로로 비교 — 상반기 실적을 연간으로 연장할 때 쓰는 계절성(H2/H1)의 근거',
+    icSvgLines(['Q1', 'Q2', 'Q3', 'Q4'], series, { fmt: icJo }));
+}
+
+// 부문 믹스 분기 스택 — 분기 기록에 합계 외 부문이 있는 종목만 (삼성전기).
+function icQtrMixCard(ks){
+  var segs = [];
+  var lastRec = QUARTERLY.quarters[ks[ks.length - 1]] || {};
+  for(var s in lastRec){ if(s !== '합계') segs.push(s); }
+  if(segs.length < 2) return '';
+  var series = segs.map(function(s2){
+    return { name: s2, values: ks.map(function(k){
+      var v = qVal(k, s2, '매출');
+      return v === null ? 0 : v;
+    }) };
+  });
+  return icChartCard('부문 믹스 — 분기 구성비',
+    '사업 구조 뷰의 연간 스택을 분기 해상도로 — 믹스 이동이 분기 단위로 보인다',
+    icSvgStack(ks, series));
+}
+
+// ── 최신 분기 스냅숏 · TTM ─"""
+
+
+
 def _cut_data_region(text: str) -> str:
     """YRS 선언 앞 주석부터 MODEL 리터럴 끝까지를 마커+예제로 교체한다."""
     from extract_engine import _scan_assignment
@@ -3667,6 +3750,8 @@ def main() -> None:
     p.sub("IC-11 렌더러·카드 구현", OLD_IC11_ANCHOR, NEW_IC11_ANCHOR)
     p.sub("IC-12 분기 스냅숏 배치", OLD_IC12_OV, NEW_IC12_OV)
     p.sub("IC-12 TTM 구현", OLD_IC12_ANCHOR, NEW_IC12_ANCHOR)
+    p.sub("IC-13 모니터링 배치", OLD_IC13_MON, NEW_IC13_MON)
+    p.sub("IC-13 분기 차트 구현", OLD_IC13_ANCHOR, NEW_IC13_ANCHOR)
 
     p.text = _cut_data_region(p.text)
     p.applied.append("DATA 데이터 블록 → 주입 마커")
