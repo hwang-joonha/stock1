@@ -372,6 +372,22 @@ ul.memo li{font-size:13px;color:#4B5563;line-height:1.75;margin-bottom:6px}
 .icv{width:100%;height:auto;display:block}
 .chart-box{padding:2px 0}
 
+/* 카드 세로 간격 — 그리드 안은 gap이 맡고, 페이지 직속만 벌린다 */
+.page > .card{margin-bottom:12px}
+
+/* 개요 차트 다이제스트 — 카드 + 함의 한 몸 */
+.digest-head{font-size:17px;letter-spacing:-.03em;color:#0F0F12;margin:30px 0 3px}
+.digest-sub{color:#6B7280;font-size:11.5px;margin:0 0 14px}
+.digest-item{margin-bottom:14px}
+.digest-item > .card{margin-bottom:0;border-radius:8px 8px 0 0}
+.ic-take{padding:10px 14px;background:#F6F7FB;border:1px solid #E5E5E8;border-top:0;
+  border-radius:0 0 8px 8px;font-size:12px;color:#4B5563;line-height:1.6}
+.ic-take:before{content:'함의';display:inline-block;margin-right:8px;font-size:9px;
+  font-weight:700;color:#3332D0;letter-spacing:.08em;vertical-align:1px}
+td.qg,table.fm td.qg{font-size:10px;color:#9CA3AF;padding-top:3px;padding-bottom:6px}
+table.fm td.qg.pos{color:#1E7A48}
+table.fm td.qg.neg{color:#DC2626}
+
 /* 강조 — 본문에서 결론에 해당하는 조각 하나만 굵게 */
 .hl-b{color:#0F0F12;font-weight:700}
 ul.memo ul.sub > li .hl-b{color:#374151}
@@ -4968,6 +4984,7 @@ function renderICOverview(){
   h += icMarketHistCard();
 
   h += icMemoCard('thesis', '투자 논거');
+  h += icOverviewDigest();
   return h + '</div>';
 }
 
@@ -5193,6 +5210,124 @@ function icPeerCard(){
     '<th>PER (E)</th><th>1년 수익률</th></tr>' + rows + '</table></div>');
 }
 
+// ── 개요 차트 다이제스트 — 스냅숏 + 함의 ──────────────────────
+// 함의의 숫자는 전부 그 자리에서 모델·시장 블록을 읽어 만든다.
+function icDigestItem(cardHtml, take){
+  if(!cardHtml || !take) return '';
+  return '<div class="digest-item">' + cardHtml +
+    '<div class="ic-take">' + icRich(take) + '</div></div>';
+}
+function icPctS(v, d){
+  return (v >= 0 ? '+' : '') + (v * 100).toFixed(d == null ? 0 : d) + '%';
+}
+
+function icOverviewDigest(){
+  var t = icLastIdx(), h = '';
+
+  // ① 적정가 경로 — 결론 한 줄.
+  var up = icUpside(t), im = icImpliedMultiple(t);
+  var tk1 = YRS[t] + ' 적정 ' + icMoney(val(rootId(), t)) + ' 대 현재 ' + icMoney(MARKET.mktcap) +
+    ' — 괴리 **' + icPctS(up) + '**';
+  if(im !== null && MODEL.target_ev_ebitda)
+    tk1 += '. 현재가는 ' + YRS[t] + ' EBITDA의 ' + im.toFixed(1) + '배를 지불하는 가격 — 목표배수 ' +
+      val('target_ev_ebitda', t).toFixed(0) + '배와의 간극이 괴리의 정체임';
+  h += icDigestItem(icFairCard(), tk1);
+
+  // ② 괴리 분해 — 어느 항이 결론을 지배하는가.
+  if(MODEL.target_ev_ebitda && MODEL.ebitda){
+    var e0 = val('ebitda', HIST_N - 1), e1 = val('ebitda', t);
+    if(e0 > 0 && e1 > 0){
+      var nd0 = MODEL.net_debt ? val('net_debt', HIST_N - 1) : 0;
+      var mImpl = (MARKET.mktcap + nd0) / e0, mTgt = val('target_ev_ebitda', t);
+      var gTerm = (e1 - e0) * mImpl, mTerm = e1 * (mTgt - mImpl);
+      h += icDigestItem(icBridgeCard(),
+        '이익 성장 ' + icJo(gTerm) + ' 대 배수 정상화 ' + icJo(mTerm) +
+        ' — **' + (Math.abs(mTerm) >= Math.abs(gTerm) ? '배수' : '이익') +
+        ' 가정이 결론을 지배**함. 민감도 검증의 우선순위가 여기서 정해짐');
+    }
+  } else if(MODEL.cum_pv && MODEL.tv_pv){
+    var tvw = val('tv_pv', t) / (val('tv_pv', t) + val('cum_pv', t));
+    h += icDigestItem(icBridgeCard(),
+      '적정가의 **' + (tvw * 100).toFixed(0) + '%가 잔존가치** — 결론이 추정기간 실적보다 ' +
+      '영구성장률·WACC 가정에 달려 있음');
+  }
+
+  // ③ 시나리오 팬 — 현재 가격이 어느 경로 위인가.
+  if(typeof SCENARIOS === 'object' && SCENARIOS && MARKET.mktcap){
+    var ups = { Base: up };
+    for(var nm in SCENARIOS)
+      ups[nm] = icSolvePath(SCENARIOS[nm], rootId())[t] / MARKET.mktcap - 1;
+    var names = Object.keys(ups), hiN = names[0], loN = names[0];
+    names.forEach(function(n2){ if(ups[n2] > ups[hiN]) hiN = n2; if(ups[n2] < ups[loN]) loN = n2; });
+    var tk3 = names.map(function(n3){ return n3 + ' ' + icPctS(ups[n3]); }).join(' · ');
+    if(ups[hiN] > 0 && ups[loN] < 0)
+      tk3 += ' — 상하방 **' + (ups[hiN] / -ups[loN]).toFixed(1) + ' : 1**';
+    var probs = (typeof MEMO === 'object' && MEMO) ? MEMO.probs : null;
+    if(probs){
+      var ev3 = 0, okp = true;
+      for(var pn in probs){ if(!(pn in ups)){ okp = false; break; } ev3 += probs[pn] * ups[pn]; }
+      if(okp) tk3 += ' · 확률 가중 기대 괴리 ' + icPctS(ev3);
+    }
+    h += icDigestItem(icFanCard(), tk3);
+  }
+
+  // ④ TTM 롤링 — 연간 확정을 기다리지 않는 방향.
+  if(qHas()){
+    var ks4 = qKeys();
+    if(ks4.length >= 8){
+      var r1 = qTTM('매출'), r0 = qTTM('매출', ks4.length - 5);
+      var o1 = qTTM('영업이익'), o0 = qTTM('영업이익', ks4.length - 5);
+      if(r1 !== null && r0 !== null && r0 > 0 && o1 !== null && o0 !== null && r1 > 0){
+        var m1 = o1 / r1, m0 = r0 > 0 ? o0 / r0 : null;
+        var tk4 = 'TTM 매출 ' + icJo(r1) + ' (전년 TTM 대비 ' + icPctS(r1 / r0 - 1) + ')' +
+          ' · TTM 영업이익률 ' + (m1 * 100).toFixed(1) + '%';
+        if(m0 !== null) tk4 += ' (' + (m1 >= m0 ? '+' : '') + ((m1 - m0) * 100).toFixed(1) + '%p)';
+        tk4 += ' — 최근 4개 분기가 말하는 방향';
+        h += icDigestItem(icTtmCard(ks4), tk4);
+      }
+    }
+  }
+
+  // ⑤ 배수 밴드 — 목표배수가 자기 역사 어디에 있는가.
+  if(pHas() && MODEL.ebitda && MODEL.target_ev_ebitda){
+    var mult5 = [];
+    for(var i5 = 0; i5 < HIST_N; i5++){
+      var m5 = pYearEnd(YRS[i5]), e5 = val('ebitda', i5);
+      if(m5 === null || !(e5 > 0)) continue;
+      mult5.push((m5 + (MODEL.net_debt ? val('net_debt', i5) : 0)) / e5);
+    }
+    if(mult5.length >= 3){
+      var lo5 = Math.min.apply(null, mult5), hi5 = Math.max.apply(null, mult5);
+      var tgt5 = val('target_ev_ebitda', t);
+      var pos5 = tgt5 <= lo5 ? '아래' : tgt5 >= hi5 ? '위' : '안';
+      h += icDigestItem(icMultBandCard(),
+        '자기 역사 ' + lo5.toFixed(1) + '~' + hi5.toFixed(1) + '배 — 목표배수 ' + tgt5.toFixed(0) +
+        '배는 **역사 범위 ' + pos5 + '**' + (pos5 === '안'
+          ? ' (' + (((tgt5 - lo5) / (hi5 - lo5)) * 100).toFixed(0) + '% 지점)' : '') +
+        '. 목표가 역사 밖이면 그만큼의 서사가 필요함');
+    }
+  }
+
+  // ⑥ 장기 사이클 — 지금이 사이클 어디인가.
+  if(typeof LONGHIST === 'object' && LONGHIST && (LONGHIST.years || []).length){
+    var lr6 = LONGHIST.rev, lop6 = LONGHIST.op, ly6 = LONGHIST.years;
+    var opm6 = lr6.map(function(r6, i6){ return r6 > 0 ? lop6[i6] / r6 : 0; });
+    var hi6 = 0, lo6 = 0;
+    opm6.forEach(function(m6, i6){ if(m6 > opm6[hi6]) hi6 = i6; if(m6 < opm6[lo6]) lo6 = i6; });
+    var cur6 = opm6[opm6.length - 1], span6 = opm6[hi6] - opm6[lo6];
+    var pos6 = span6 > 0 ? (cur6 - opm6[lo6]) / span6 : 0;
+    var zone6 = pos6 >= 0.75 ? '**정점권**' : pos6 <= 0.25 ? '**저점권**' : '중간 지대';
+    h += icDigestItem(icCycleCard(),
+      ly6[ly6.length - 1] + ' 이익률 ' + (cur6 * 100).toFixed(1) + '%는 역사 저점 ' +
+      (opm6[lo6] * 100).toFixed(1) + '%(' + ly6[lo6] + ')~정점 ' + (opm6[hi6] * 100).toFixed(1) +
+      '%(' + ly6[hi6] + ')의 ' + zone6 + ' — 추정 마진과 목표배수를 이 위치와 함께 읽어야 함');
+  }
+
+  if(!h) return '';
+  return '<h2 class="digest-head">차트 다이제스트</h2>' +
+    '<p class="digest-sub">결론을 만드는 그림들 — 함의의 숫자는 화면을 그릴 때 모델에서 다시 읽음 · 상세는 각 뷰</p>' + h;
+}
+
 // ── 장기 사이클 — 사업보고서 3개년 블록 연결(LONGHIST 주입) ────
 function icCycleCard(){
   if(typeof LONGHIST !== 'object' || !LONGHIST || !(LONGHIST.years || []).length) return '';
@@ -5395,23 +5530,43 @@ function icQtrSnapCard(){
   var rev = qVal(last, '합계', '매출'), op = qVal(last, '합계', '영업이익');
   if(rev === null || op === null) return '';
   // YoY — 기저가 0 이하이면 성장률이 거짓말을 하므로 접는다 (LGD 관용구).
-  var yoy = function(metric){
-    var prev = (qYear(last) - 1) + last.slice(4);
-    var a = qVal(prev, '합계', metric), b = qVal(last, '합계', metric);
-    return (a !== null && a > 0 && b !== null) ? b / a - 1 : null;
+  // 성장률 — 기저 ≤ 0이면 접고, 부호가 뒤집히면 %가 아니라 전환으로 말한다.
+  var qGrow = function(prevKey, metric){
+    var a = qVal(prevKey, '합계', metric), b = qVal(last, '합계', metric);
+    if(a === null || b === null) return null;
+    if(a > 0 && b < 0) return '적자 전환';
+    if(a <= 0 && b > 0) return '흑자 전환';
+    if(!(a > 0)) return null;
+    return b / a - 1;
   };
-  var pf = function(v){
-    return v === null ? '' : 'YoY ' + (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  var yoy = function(metric){ return qGrow((qYear(last) - 1) + last.slice(4), metric); };
+  var qoq = function(metric){
+    var qn = parseInt(last.slice(5), 10);
+    return qGrow(qn > 1 ? last.slice(0, 4) + 'Q' + (qn - 1) : (qYear(last) - 1) + 'Q4', metric);
+  };
+  var gf = function(v){
+    return typeof v === 'string' ? v : (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  };
+  var gc = function(v){
+    if(v === null) return '';
+    if(typeof v === 'string') return v === '흑자 전환' ? 'pos' : 'neg';
+    return v >= 0 ? 'pos' : 'neg';
+  };
+  var pf = function(v, q){
+    var parts = [];
+    if(v !== null) parts.push('YoY ' + gf(v));
+    if(q !== null) parts.push('QoQ ' + gf(q));
+    return parts.join(' · ');
   };
   var ry = yoy('매출'), oy = yoy('영업이익');
+  var rq = qoq('매출'), oq = qoq('영업이익');
   var ttmOp = qTTM('영업이익');
   var ttmPrev = ks.length >= 8 ? qTTM('영업이익', ks.length - 5) : null;
   var ttmG = (ttmOp !== null && ttmPrev !== null && ttmPrev > 0) ? ttmOp / ttmPrev - 1 : null;
 
   var h2 = '<div class="kpi-row" style="margin-bottom:0">';
-  h2 += icStat(last + ' 매출', fmtSmart(rev), pf(ry), ry === null ? '' : (ry >= 0 ? 'pos' : 'neg'));
-  h2 += icStat(last + ' 영업이익', fmtSmart(op), pf(oy),
-    op < 0 ? 'neg' : (oy === null ? '' : (oy >= 0 ? 'pos' : 'neg')));
+  h2 += icStat(last + ' 매출', fmtSmart(rev), pf(ry, rq), gc(ry));
+  h2 += icStat(last + ' 영업이익', fmtSmart(op), pf(oy, oq), op < 0 ? 'neg' : gc(oy));
   if(ttmOp !== null)
     h2 += icStat('TTM 영업이익', fmtSmart(ttmOp),
       ttmG === null ? '최근 4개 분기 합' : '전년 TTM 대비 ' + (ttmG >= 0 ? '+' : '') + (ttmG * 100).toFixed(0) + '%',
@@ -6196,8 +6351,36 @@ function icQuarterTable(ks){
     ks.forEach(function(k){ r += '<td>' + esc(qFmt(metric, qVal(k, seg, metric))) + '</td>'; });
     return r + '</tr>';
   };
+  // 성장률 행 — YoY는 전년 동분기, QoQ는 직전 분기. 기저 ≤ 0이면 —,
+  // 부호가 뒤집히면 %가 아니라 전환으로 말한다 (−173% 같은 오독 방지).
+  var gline = function(label, seg, metric, kind){
+    var r = '<tr><td class="qg">' + esc(label) + '</td>';
+    ks.forEach(function(k, i){
+      var b = qVal(k, seg, metric), a = null;
+      if(kind === 'yoy'){
+        a = qVal((qYear(k) - 1) + k.slice(4), seg, metric);
+      } else {
+        var qn = parseInt(k.slice(5), 10);
+        a = qVal(qn > 1 ? k.slice(0, 4) + 'Q' + (qn - 1) : (qYear(k) - 1) + 'Q4', seg, metric);
+      }
+      if(a === null || b === null) r += '<td class="qg">—</td>';
+      else if(a > 0 && b < 0) r += '<td class="qg neg">적자 전환</td>';
+      else if(a <= 0 && b > 0) r += '<td class="qg pos">흑자 전환</td>';
+      else if(!(a > 0)) r += '<td class="qg">—</td>';
+      else {
+        var g = b / a - 1;
+        r += '<td class="qg ' + (g >= 0 ? 'pos' : 'neg') + '">' +
+          (g >= 0 ? '+' : '') + (g * 100).toFixed(1) + '%</td>';
+      }
+    });
+    return r + '</tr>';
+  };
   body += line('매출', '합계', '매출', 'total');
+  body += gline('· YoY', '합계', '매출', 'yoy');
+  body += gline('· QoQ', '합계', '매출', 'qoq');
   body += line('영업이익', '합계', '영업이익');
+  body += gline('· YoY', '합계', '영업이익', 'yoy');
+  body += gline('· QoQ', '합계', '영업이익', 'qoq');
   body += line('영업이익률', '합계', '영업이익률');
   ['컴포넌트', '패키지솔루션', '광학솔루션'].forEach(function(seg){
     var rec = QUARTERLY.quarters[ks[ks.length - 1]];
