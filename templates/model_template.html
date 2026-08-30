@@ -4629,6 +4629,23 @@ function icPeerCard(){
     '<th>PER (E)</th><th>1년 수익률</th></tr>' + rows + '</table></div>');
 }
 
+// ── 장기 사이클 — 사업보고서 3개년 블록 연결(LONGHIST 주입) ────
+function icCycleCard(){
+  if(typeof LONGHIST !== 'object' || !LONGHIST || !(LONGHIST.years || []).length) return '';
+  var yrs = LONGHIST.years, rev = LONGHIST.rev, op = LONGHIST.op, n = yrs.length;
+  var opm = rev.map(function(r, i){ return r > 0 ? op[i] / r : 0; });
+  var hi = 0, lo = 0;
+  opm.forEach(function(m, i){ if(m > opm[hi]) hi = i; if(m < opm[lo]) lo = i; });
+  var cagr = n > 1 ? Math.pow(rev[n - 1] / rev[0], 1 / (n - 1)) - 1 : 0;
+  var mx = Math.max.apply(null, rev);
+  var afmt = mx >= 20000 ? icJo : null;
+  return icChartCard('장기 사이클 — 매출과 이익률 ' + n + '년',
+    '막대 = 매출(연평균 ' + (cagr >= 0 ? '+' : '') + (cagr * 100).toFixed(1) + '%) · 선 = 영업이익률' +
+    ' — 정점 ' + yrs[hi] + ' ' + (opm[hi] * 100).toFixed(1) + '%, 저점 ' + yrs[lo] + ' ' +
+    (opm[lo] * 100).toFixed(1) + '% · 사업보고서 3개년 블록 연결, 각 블록 공시 기준 그대로 (모델 비투입)',
+    icSvgBars(yrs, rev, { line: opm, lineLabel: 'OPM', axisFmt: afmt }));
+}
+
 // ── 가격 스냅숏 헬퍼 ──────────────────────────────────────────
 function pHas(){
   return typeof PRICES === 'object' && PRICES && PRICES.monthly && PRICES.monthly.length;
@@ -5494,6 +5511,7 @@ function renderICBiz(){
   h += icBizCostBlock(false);
   h += icBizProfitBlock(false);
   h += icDepCrossCard();
+  h += icCycleCard();
   return h + '</div>';
 }
 
@@ -5847,7 +5865,7 @@ function icSvgBars(labels, values, opts){
     var fc = (opts.histN != null && i >= opts.histN) ? ICV.rev2 : ICV.rev;
     g += '<rect x="' + x.toFixed(1) + '" y="' + (T + ih - h).toFixed(1) + '" width="' +
          bw.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + fc + '" rx="2"/>';
-    if(n <= 12) g += _t(x + bw / 2, T + ih - h - 4, fmtSmart(v), 8.5, ICV.ink, 'middle', 600);
+    if(n <= 12) g += _t(x + bw / 2, T + ih - h - 4, afmt(v), 8.5, ICV.ink, 'middle', 600);
     g += _t(x + bw / 2, H - 8, labels[i], 8.5);
   });
 

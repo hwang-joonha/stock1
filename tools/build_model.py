@@ -31,6 +31,7 @@ def build(data_path: str, template_path: str = TEMPLATE) -> str:
     data += _quarterly_block(data_path)
     data += _costnature_block(data_path)
     data += _prices_block(data_path)
+    data += _longhist_block(data_path)
 
     try:
         head = html.index(DATA_START)
@@ -104,6 +105,22 @@ def _prices_block(data_path: str) -> str:
     return ("\n\n// ── PRICES — 월간 종가 스냅숏 (자동 주입) ───────────────────\n"
             "// 갱신: python3 tools/price_fetch.py (" + path + ")\n"
             "const PRICES = " + json.dumps(doc, ensure_ascii=False) + ";\n")
+
+
+def _longhist_block(data_path: str) -> str:
+    """옆에 longhist.json이 있으면 LONGHIST 선언으로 붙인다.
+
+    사업보고서 3개년 블록을 이어 붙인 장기(10년+) 매출·영업이익 —
+    사이클 차트 전용, 모델 비투입. 최근 블록은 historicals와 대사된다.
+    """
+    path = os.path.join(os.path.dirname(data_path) or ".", "longhist.json")
+    if not os.path.exists(path):
+        return ""
+    with open(path, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    return ("\n\n// ── LONGHIST — 장기 실적 (자동 주입) ───────────────────────\n"
+            "// 갱신: python3 tools/build_longhist.py (" + path + ")\n"
+            "const LONGHIST = " + json.dumps(doc, ensure_ascii=False) + ";\n")
 
 
 def main(argv: list[str]) -> int:

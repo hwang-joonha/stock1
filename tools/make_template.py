@@ -3745,6 +3745,48 @@ function icPriceOpYoyCard(ks){
 
 
 
+# ─────────────────────────────────────────────────────────────
+# IC-15  장기 사이클 차트 — LONGHIST 스냅숏 소비
+#
+# 모델의 실적 구간(5년)은 사이클을 반 바퀴도 못 담는다 — LGD의 적자 3년이
+# "사이클의 골"인지 "구조적 쇠퇴"인지는 10년을 놓고 봐야 갈린다.
+# 사업보고서 3개년 블록을 이어 붙인 LONGHIST(빌드 주입, 모델 비투입)를
+# 사업 구조 뷰 맨 뒤에 한 장으로 그린다. 새 가정이 없다 — 전부 공시 확정값.
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC15_BIZ = """  h += icDepCrossCard();
+  return h + '</div>';"""
+NEW_IC15_BIZ = """  h += icDepCrossCard();
+  h += icCycleCard();
+  return h + '</div>';"""
+
+# 막대 값 라벨도 축 포매터를 따른다 — 조원 스케일 12개 막대에 7자리
+# 숫자를 얹으면 서로 겹친다. axisFmt가 없으면 기존 fmtSmart 그대로다.
+OLD_IC15_BARVAL = """    if(n <= 12) g += _t(x + bw / 2, T + ih - h - 4, fmtSmart(v), 8.5, ICV.ink, 'middle', 600);"""
+NEW_IC15_BARVAL = """    if(n <= 12) g += _t(x + bw / 2, T + ih - h - 4, afmt(v), 8.5, ICV.ink, 'middle', 600);"""
+
+OLD_IC15_ANCHOR = """// ── 가격 스냅숏 헬퍼 ─"""
+
+NEW_IC15_ANCHOR = """// ── 장기 사이클 — 사업보고서 3개년 블록 연결(LONGHIST 주입) ────
+function icCycleCard(){
+  if(typeof LONGHIST !== 'object' || !LONGHIST || !(LONGHIST.years || []).length) return '';
+  var yrs = LONGHIST.years, rev = LONGHIST.rev, op = LONGHIST.op, n = yrs.length;
+  var opm = rev.map(function(r, i){ return r > 0 ? op[i] / r : 0; });
+  var hi = 0, lo = 0;
+  opm.forEach(function(m, i){ if(m > opm[hi]) hi = i; if(m < opm[lo]) lo = i; });
+  var cagr = n > 1 ? Math.pow(rev[n - 1] / rev[0], 1 / (n - 1)) - 1 : 0;
+  var mx = Math.max.apply(null, rev);
+  var afmt = mx >= 20000 ? icJo : null;
+  return icChartCard('장기 사이클 — 매출과 이익률 ' + n + '년',
+    '막대 = 매출(연평균 ' + (cagr >= 0 ? '+' : '') + (cagr * 100).toFixed(1) + '%) · 선 = 영업이익률' +
+    ' — 정점 ' + yrs[hi] + ' ' + (opm[hi] * 100).toFixed(1) + '%, 저점 ' + yrs[lo] + ' ' +
+    (opm[lo] * 100).toFixed(1) + '% · 사업보고서 3개년 블록 연결, 각 블록 공시 기준 그대로 (모델 비투입)',
+    icSvgBars(yrs, rev, { line: opm, lineLabel: 'OPM', axisFmt: afmt }));
+}
+
+// ── 가격 스냅숏 헬퍼 ─"""
+
+
 def _cut_data_region(text: str) -> str:
     """YRS 선언 앞 주석부터 MODEL 리터럴 끝까지를 마커+예제로 교체한다."""
     from extract_engine import _scan_assignment
@@ -3893,6 +3935,9 @@ def main() -> None:
     p.sub("IC-14 밸류에이션 배치", OLD_IC14_VAL, NEW_IC14_VAL)
     p.sub("IC-14 모니터링 배치", OLD_IC14_MON, NEW_IC14_MON)
     p.sub("IC-14 가격 차트 구현", OLD_IC14_ANCHOR, NEW_IC14_ANCHOR)
+    p.sub("IC-15 사이클 카드 배치", OLD_IC15_BIZ, NEW_IC15_BIZ)
+    p.sub("IC-15 막대 라벨 포매터", OLD_IC15_BARVAL, NEW_IC15_BARVAL)
+    p.sub("IC-15 사이클 카드 구현", OLD_IC15_ANCHOR, NEW_IC15_ANCHOR)
 
     p.text = _cut_data_region(p.text)
     p.applied.append("DATA 데이터 블록 → 주입 마커")

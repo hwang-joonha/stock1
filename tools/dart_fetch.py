@@ -386,7 +386,7 @@ def costnature(rcp_no: str) -> dict:
 # 1분기 보고서는 3개월=누적이라 열이 하나뿐인 경우가 있다.
 
 _IS_REV_LABELS = ("매출액", "매출", "수익(매출액)", "영업수익")
-_IS_OP_LABELS = ("영업이익(손실)", "영업이익", "영업손실")
+_IS_OP_LABELS = ("영업이익(손실)", "영업이익", "영업손실", "영업손익", "영업이익(손실) 합계")
 _IS_NUM_RE = re.compile(r"^\(?-?[\d,]+\)?$")
 
 
@@ -449,6 +449,66 @@ def iscum(rcp_no: str) -> dict:
     if rev is None or op is None:
         raise SystemExit(f"{rcp_no}: 매출/영업이익 행을 읽지 못했다 (cols={cols})")
     return {"rev": rev, "op": op, "unit": unit, "ncols": ncols, "cum_idx": cum_idx}
+
+
+def islong(rcp_no: str) -> dict:
+    """사업보고서 연결 손익계산서의 3개년(당기/전기/전전기) 매출·영업이익.
+
+    장기(10년+) 실적 시계열은 사업보고서 4개(3개년 블록)면 12년이 나온다.
+    각 블록은 그 보고서가 공시한 기준 그대로다 — 소급 재작성이 있으면
+    블록 경계에서 기준이 갈릴 수 있고, 호출하는 쪽이 문서화한다.
+    """
+    items = toc(rcp_no)
+    nodes = [n for n in items if n["text"].rstrip().endswith("연결재무제표")
+             and "주석" not in n["text"]]
+    if not nodes:
+        raise SystemExit(f"{rcp_no}: 연결재무제표 항목을 찾지 못했다")
+    text = document(nodes[0])
+    starts = [m.start() for m in re.finditer(r"연결\s*(포괄)?\s*손익계산서", text)]
+    body = None
+    for s in starts:
+        chunk = text[s:s + 15000]
+        if re.search(r"영업이익|영업손실", chunk):
+            body = chunk
+            break
+    if body is None:
+        raise SystemExit(f"{rcp_no}: 손익계산서 섹션을 찾지 못했다")
+    unit_m = re.search(r"\(단위\s*:\s*([^)]+)\)", body)
+    unit = unit_m.group(1).strip() if unit_m else "?"
+    # 헤더의 "제 N 기 YYYY.MM.DD 부터"에서 연도 열을 읽는다 — 상장 초기
+    # 보고서는 2개년만 줄 수 있다 (티엘비 FY2020).
+    head_end = unit_m.start() if unit_m else 1500
+    years = [int(m.group(1)) for m in re.finditer(
+        r"제\s*\d+\s*기\s*(\d{4})\.\d{2}\.\d{2}\s*부터", body[:head_end])]
+    ncol = len(years) if years else 3
+    lines = [ln.strip().rstrip("|").strip() for ln in body.split("\n")]
+    lines = [ln for ln in lines if ln and ln != "　"]
+
+    def row_values(labels):
+        for i, ln in enumerate(lines):
+            base = ln.split("(주")[0].strip()
+            # 옛 보고서는 "Ⅰ.수익(매출액)"처럼 로마숫자 차례가 붙는다.
+            base = re.sub(r"^[IVXⅠ-Ⅻ]+\s*[.．]\s*", "", base).strip()
+            if base in labels:
+                vals = []
+                for nxt in lines[i + 1:i + 3 + ncol]:
+                    if _IS_NUM_RE.fullmatch(nxt):
+                        vals.append(_to_int(nxt))
+                        if len(vals) == ncol:
+                            break
+                    elif vals:
+                        break
+                if len(vals) == ncol:
+                    if base == "영업손실":
+                        vals = [-v if v > 0 else v for v in vals]
+                    return vals
+        return None
+
+    rev = row_values(_IS_REV_LABELS)
+    op = row_values(_IS_OP_LABELS)
+    if rev is None or op is None:
+        raise SystemExit(f"{rcp_no}: {ncol}개년 매출/영업이익 행을 읽지 못했다")
+    return {"rev": rev, "op": op, "unit": unit, "years": years or None}
 
 
 def main(argv: list[str]) -> int:
