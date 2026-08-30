@@ -20,7 +20,8 @@ description: 상장 종목의 투자심사 모델을 만든다. 공시(DART) 원
 4 빌드·게이트        → build_model → build_excel → validate (G1~G11 전부)
 5 피어               → 국내(peer_fetch) + 해외(--foreign) + 성숙 대조군
 6 컨센서스 상세      → 목표주가·투자의견·기관수·직접 EBITDA (아래 §5b)
-7 분기 추적          → build_quarterly (분기 공시가 있으면)
+7 분기 추적          → build_quarterly (부문 주석) 또는 build_quarterly_is (합계만)
+7b 가격·장기 실적    → price_fetch (PRICES) + build_longhist (LONGHIST)
 8 심사 레이어        → MEMO(개조식) + SCENARIOS + CONSENSUS
 9 브라우저 검증      → 전 뷰 + 전 노드 순회 (아래 §7)
 10 산출·전달         → model.html + 심사 리포트 PDF → 커밋 → main 머지·푸시
@@ -235,10 +236,22 @@ const CONSENSUS={
 **숫자 인용.** 산문의 모델 숫자는 `{{node@연도}}`로 적는다. 손으로 적으면 가정을
 바꿨을 때 본문만 낡는다.
 
-**분기 추적.** `python3 tools/build_quarterly.py companies/<종목>/quarterly.json` 으로
-DART 영업부문 주석에서 분기 확정값을 만든다. `build_model.py`가 자동 주입하고
-분기 모니터링 뷰가 켜진다. `ideas[].track`에 `{label, seg, metric, good}`을 적으면
-확인지표를 화면이 계산한다.
+**분기 추적.** 부문 주석을 주는 종목은 `python3 tools/build_quarterly.py`로
+분기 확정값을 만든다. 부문 주석이 없거나 분기 해상도가 연초 누적뿐인 종목은
+`python3 tools/build_quarterly_is.py <종목>` — 분기보고서 손익계산서의 누적을
+차분하고 Q4 = 연간 − 9M으로 채우며, 4분기 합 = historicals를 대사한다(합계만,
+부문 없음). 어느 쪽이든 `build_model.py`가 자동 주입하고 분기 모니터링 뷰
+(+TTM·계절성·믹스 차트)가 켜진다. `ideas[].track`에 `{label, seg, metric, good}`을
+적으면 확인지표를 화면이 계산한다.
+
+**가격 스냅숏과 장기 실적.**
+- `python3 tools/price_fetch.py <종목>` — 야후 10년 월간 조정 종가 →
+  `prices.json`. 실적 대 시총·배수 밴드·주가 YoY 차트가 켜진다.
+  근사 시총 = 조정 종가 × 현재 주식수 — 증자·소각 오차는 `_기준`에 명시.
+- `tools/build_longhist.py`의 `REPORTS`에 사업보고서 3~4건(3년 간격)의
+  접수번호를 넣고 실행 — 3개년 블록을 이어 붙인 10년+ 매출·영업이익 →
+  `longhist.json`. 사업 구조 뷰의 장기 사이클 카드가 켜진다. 겹치는 연도는
+  historicals와 대사해 어긋나면 죽는다.
 
 **정성 레이어.** `MEMO.ideas`에 투자 아이디어를, `MEMO.debate`에 심사 쟁점을
 적는다. 아이디어마다 `falsify`(반증 조건)가 **필수**다 — 무엇을 보면 틀렸다고

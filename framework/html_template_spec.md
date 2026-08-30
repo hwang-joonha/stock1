@@ -110,6 +110,8 @@ node_id: {
 | `SCENARIOS` | 시나리오 뷰 + 시뮬레이터 케이스 프리셋 | 시나리오 뷰가 빈다 |
 | `QUARTERLY` | 분기 모니터링 뷰 (빌드가 quarterly.json에서 주입) | 안내문이 뜬다 |
 | `COSTNATURE` | 사업 구조 뷰의 비용 블록 (빌드가 cost_nature.json에서 주입) | 안내문이 뜬다. MEMO 선언 모델은 G12가 실패한다 |
+| `PRICES` | 가격 결합 차트 — 실적 대 시총·배수 밴드·주가 YoY (빌드가 prices.json에서 주입) | 해당 카드가 조용히 빠진다 |
+| `LONGHIST` | 사업 구조 뷰의 장기 사이클 차트 (빌드가 longhist.json에서 주입) | 카드가 조용히 빠진다 |
 
 스키마는 `ic_memo_framework.md` §2~§4.
 
@@ -157,6 +159,27 @@ MARKET을 새 값으로 바꾸기 전에 기존 스냅숏 + 당시 적정가를 
 **다음 확인 일정.** `MEMO.events = [{d:'YYYY-MM-DD', label, check?}]` — 법정
 공시 기한(분기 +45일, 사업 +90일)·촉매 시점. 분기 모니터링 상단에 D-day로
 뜬다 (QUARTERLY 없이도 뜬다). G11이 날짜 형식을 검사한다.
+
+**가격 스냅숏 `PRICES`.** `python3 tools/price_fetch.py`가 야후 파이낸스에서
+10년 월간 조정 종가를 받아 `prices.json`으로 두면 빌드가 주입한다. 근사
+시총 = 조정 종가 × 현재 상장주식수 — 유상증자·소각에 따른 주식수 변화분은
+오차로 남고 `_기준`과 카드 부제에 명시한다. 판단 수치가 아니라 맥락 차트다
+(밸류에이션 뷰의 실적 대 시총·배수 밴드, 분기 모니터링의 주가 YoY 대 이익
+YoY). 모델 비투입.
+
+**장기 실적 `LONGHIST`.** `python3 tools/build_longhist.py`가 사업보고서
+3~4개의 3개년(당기/전기/전전기) 블록을 이어 붙여 10년+ 매출·영업이익
+시계열을 `longhist.json`으로 만들고 빌드가 주입한다. 각 블록은 그 보고서
+공시 기준 그대로 — 소급 재작성이 있으면 블록 경계에서 기준이 갈릴 수 있고
+`_기준`에 남긴다. 모델 실적 구간과 겹치는 연도는 historicals와 대사해
+어긋나면 빌더가 죽는다. 사업 구조 뷰 맨 뒤의 사이클 카드(막대 = 매출,
+선 = 영업이익률, 음수 허용)가 소비한다. 모델 비투입.
+
+**분기 확정값 `QUARTERLY`.** 부문 주석을 주는 종목은
+`tools/build_quarterly.py`(부문 포함), 주지 않는 종목은
+`tools/build_quarterly_is.py`(손익계산서 누적 차분, 합계만)로 만든다.
+후자는 분기 누적을 차분하고 Q4 = 연간 − 9M으로 채우며, 4분기 합 =
+historicals 연간을 대사해 어긋나면 죽는다.
 
 **워치리스트.** `python3 tools/build_index.py`가 companies/*/model.html을
 하네스로 실행해 루트의 index.html을 만든다 — 괴리·기대 괴리·상하방 배율·
