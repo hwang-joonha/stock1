@@ -1120,6 +1120,12 @@ const SCENARIOS={
   },
 };
 
+// ── QUARTERLY — 분기 확정값 (자동 주입) ─────────────────────
+// 출처: DART 정기보고서 연결 (포괄)손익계산서 — 누적의 차분
+// 갱신: python3 tools/build_quarterly.py companies/lgd/quarterly.json
+const QUARTERLY = {"_단위": "억원", "_출처": "DART 정기보고서 연결 (포괄)손익계산서 — 누적의 차분", "_방법": "분기값 = 누적 차분, Q4 = 사업보고서 연간 − 3분기 누적. 4분기 합 = historicals 연간 확정값 대사를 통과해야 저장된다. 부문 분해 없음(합계만) — 부문 주석 기반은 build_quarterly.py.", "_보고서": ["2024-03 20240516000527", "2024-06 20240814001595", "2024-09 20241114001936", "2024-12 20250312000906", "2025-03 20250515000488", "2025-06 20250814001668", "2025-09 20251114000927", "2025-12 20260311003822", "2026-03 20260515000570", "2026-06 20260814001005"], "quarters": {"2024Q1": {"합계": {"매출": 52529.75, "영업이익": -4694.32}}, "2024Q2": {"합계": {"매출": 67081.99, "영업이익": -936.73}}, "2024Q3": {"합계": {"매출": 68213.01, "영업이익": -805.99}}, "2024Q4": {"합계": {"매출": 78328.72, "영업이익": 831.08}}, "2025Q1": {"합계": {"매출": 60652.98, "영업이익": -334.64}}, "2025Q2": {"합계": {"매출": 55869.56, "영업이익": -491.05}}, "2025Q3": {"합계": {"매출": 69569.78, "영업이익": 4310.37}}, "2025Q4": {"합계": {"매출": 72008.5, "영업이익": 1685.09}}, "2026Q1": {"합계": {"매출": 55340.02, "영업이익": 1467.19}}, "2026Q2": {"합계": {"매출": 56120.63, "영업이익": -1077.28}}}};
+
+
 // ── COSTNATURE — 비용 성격별 분류 (자동 주입) ───────────────
 // 출처: 사업보고서 '비용의 성격별 분류' 주석 (companies/lgd/cost_nature.json)
 const COSTNATURE = {"_설명": "비용의 성격별 분류 주석 — 사업 구조 뷰의 비용 블록. 화면 표시 전용(모델 노드 아님).", "_단위": "억원", "_기준": "연결 전사 기준. 공시가 부문별 성격 분해를 주지 않으므로 부문 단위 비용 성격은 존재하지 않는 데이터다.", "_출처": {"2025·2024": "20260311003822 사업보고서(2025.12)", "2023": "20240314000487 사업보고서(2023.12)", "2022·2021": "20230313000751 사업보고서(2022.12)"}, "_추출": "tools/dart_fetch.py costnature — 원문 표를 기계 추출·연쇄 대사", "years": ["2021", "2022", "2023", "2024", "2025"], "items": [{"label": "재고자산의 변동", "values": [-11792.32, 4774.57, 3451.9, -1435.13, 1255.76]}, {"label": "원재료·상품 매입", "values": [152076.59, 135211.32, 108109.85, 129739.89, 118664.05]}, {"label": "감가상각·무형상각", "values": [45007.01, 45574.57, 42137.42, 51256.37, 43541.45]}, {"label": "외주가공비", "values": [7767.55, 10966.81, 9225.65, 11595.2, 13125.58]}, {"label": "인건비", "values": [37959.43, 36692.75, 34396.08, 37140.01, 35958.35]}, {"label": "소모품비", "values": [12354.73, 12121.42, 9385.68, 9872.65, 9545.64]}, {"label": "수도광열비", "values": [10299.53, 11891.05, 11930.25, 13976.69, 12867.92]}, {"label": "지급수수료", "values": [7898.85, 8344.49, 7047.63, 7408.63, 6893.09]}, {"label": "운송료", "values": [3452.04, 2762.53, 1247.7, 1720.81, 1141.44]}, {"label": "광고선전비", "values": [1263.35, 1083.15, 764.04, 670.92, 617.25]}, {"label": "A/S비용", "values": [2168.73, 2513.95, 1018.46, 1136.89, 712.55]}, {"label": "여비교통비", "values": [595.19, 664.28, 662.01, 532.44, 416.77]}, {"label": "세금과공과", "values": [1411.31, 1440.38, 1297.84, 1359.82, 1169.54]}, {"label": "기타 비용", "values": [7204.67, 23220.67, 7735.32, 6784.24, 7021.66]}], "total": {"label": "성격별 비용 합계", "values": [277666.66, 297261.94, 238409.83, 271759.43, 252931.05]}, "check": {"basis": "rev_minus_op_gap", "revNode": "revenue", "opNode": "op_profit", "tol": 0.011, "gap": [1192.31, 14893.66, -0.0, 0.0, -0.0], "gapNote": "2021~2022년 공시는 손익계산서에서 영업이익 아래(영업외)로 분류된 손상차손 등을 주석 합계에 포함하던 옛 범위라 (매출−영업이익)과 gap만큼 다르다. 2023년치는 FY2024 사업보고서가 영업비용 범위로 재공시한 전기 값을 채택했고, 2023년 이후는 정확히 일치한다."}};
@@ -4818,6 +4824,7 @@ function renderICOverview(){
     return h + '<div class="notice">MARKET 미선언 — 시장 대비 비교 불가.</div></div>';
   }
   h += icMarketNote();
+  h += icQtrSnapCard();
 
   var fair = val(rootId(), t), up = icUpside(t), im = icImpliedMultiple(t);
   var fairPS = MARKET.shares ? fair * 1e8 / MARKET.shares : 0;
@@ -5084,6 +5091,65 @@ function icPeerCard(){
     '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">종목</th><th>구분</th>' +
     '<th>시가총액</th><th>EV/EBITDA (A)</th><th>EV/EBITDA (E)</th>' +
     '<th>PER (E)</th><th>1년 수익률</th></tr>' + rows + '</table></div>');
+}
+
+// ── 최신 분기 스냅숏 · TTM ────────────────────────────────────
+// TTM = 최근 4개 분기 합. endIdx로 끝 분기를 지정하면 롤링 시계열도 만든다.
+function qTTM(metric, endIdx){
+  var ks = qKeys();
+  var e = (endIdx == null) ? ks.length - 1 : endIdx;
+  if(e < 3) return null;
+  var s = 0;
+  for(var i = e - 3; i <= e; i++){
+    var v = qVal(ks[i], '합계', metric);
+    if(v === null) return null;
+    s += v;
+  }
+  return s;
+}
+
+function icQtrSnapCard(){
+  if(!qHas()) return '';
+  var ks = qKeys(), last = ks[ks.length - 1];
+  var rev = qVal(last, '합계', '매출'), op = qVal(last, '합계', '영업이익');
+  if(rev === null || op === null) return '';
+  // YoY — 기저가 0 이하이면 성장률이 거짓말을 하므로 접는다 (LGD 관용구).
+  var yoy = function(metric){
+    var prev = (qYear(last) - 1) + last.slice(4);
+    var a = qVal(prev, '합계', metric), b = qVal(last, '합계', metric);
+    return (a !== null && a > 0 && b !== null) ? b / a - 1 : null;
+  };
+  var pf = function(v){
+    return v === null ? '' : 'YoY ' + (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  };
+  var ry = yoy('매출'), oy = yoy('영업이익');
+  var ttmOp = qTTM('영업이익');
+  var ttmPrev = ks.length >= 8 ? qTTM('영업이익', ks.length - 5) : null;
+  var ttmG = (ttmOp !== null && ttmPrev !== null && ttmPrev > 0) ? ttmOp / ttmPrev - 1 : null;
+
+  var h2 = '<div class="kpi-row" style="margin-bottom:0">';
+  h2 += icStat(last + ' 매출', fmtSmart(rev), pf(ry), ry === null ? '' : (ry >= 0 ? 'pos' : 'neg'));
+  h2 += icStat(last + ' 영업이익', fmtSmart(op), pf(oy),
+    op < 0 ? 'neg' : (oy === null ? '' : (oy >= 0 ? 'pos' : 'neg')));
+  if(ttmOp !== null)
+    h2 += icStat('TTM 영업이익', fmtSmart(ttmOp),
+      ttmG === null ? '최근 4개 분기 합' : '전년 TTM 대비 ' + (ttmG >= 0 ? '+' : '') + (ttmG * 100).toFixed(0) + '%',
+      ttmG === null ? '' : (ttmG >= 0 ? 'pos' : 'neg'));
+  // TTM 배수 — 분기 감가가 있으면 EBITDA, 없으면 영업이익 기준으로 라벨 명시.
+  if(ttmOp !== null && typeof MARKET === 'object' && MARKET && MARKET.mktcap){
+    var nd = MODEL.net_debt ? val('net_debt', HIST_N - 1) : 0;
+    var ev = MARKET.mktcap + nd;
+    var ttmDep = qTTM('감가상각비');
+    if(ttmDep !== null && ttmOp + ttmDep > 0)
+      h2 += icStat('EV ÷ TTM EBITDA', (ev / (ttmOp + ttmDep)).toFixed(1) + '배',
+        '목표배수와 같은 정의 · 최신 4개 분기 기준');
+    else if(ttmOp > 0)
+      h2 += icStat('EV ÷ TTM 영업이익', (ev / ttmOp).toFixed(1) + '배',
+        '분기 감가 미공시 — EBITDA 아님에 유의');
+  }
+  h2 += '</div>';
+  return card('최신 분기 스냅숏 — ' + last,
+    '연간 확정을 기다리지 않는 적시성 지표 · 분기 상세는 분기 모니터링 뷰', UNITS.money, h2);
 }
 
 // ── 워터폴·다중 선 렌더러 ─────────────────────────────────────

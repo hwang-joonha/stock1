@@ -379,6 +379,78 @@ def costnature(rcp_no: str) -> dict:
     raise SystemExit(f"{rcp_no}: 성격별 비용 표를 파싱하지 못했다")
 
 
+# ── 연결 손익계산서 누적값 추출 ────────────────────────────────
+# 분기·반기보고서의 연결 (포괄)손익계산서에서 당기 누적 매출·영업이익을
+# 뽑는다. 부문 주석이 없는(단일 부문) 회사의 분기 시계열은 이 경로로 만든다.
+# 표 헤더의 '3개월'/'누적' 열 배치를 읽어 누적 열의 위치를 정한다 —
+# 1분기 보고서는 3개월=누적이라 열이 하나뿐인 경우가 있다.
+
+_IS_REV_LABELS = ("매출액", "매출", "수익(매출액)", "영업수익")
+_IS_OP_LABELS = ("영업이익(손실)", "영업이익", "영업손실")
+_IS_NUM_RE = re.compile(r"^\(?-?[\d,]+\)?$")
+
+
+def iscum(rcp_no: str) -> dict:
+    """{'rev': 누적 매출, 'op': 누적 영업이익, 'unit': 단위} — 당기 기준."""
+    items = toc(rcp_no)
+    nodes = [n for n in items if n["text"].rstrip().endswith("연결재무제표")
+             and "주석" not in n["text"]]
+    if not nodes:
+        raise SystemExit(f"{rcp_no}: 연결재무제표 항목을 찾지 못했다")
+    text = document(nodes[0])
+
+    # 손익계산서 섹션 — 회사에 따라 '연결 손익계산서'와 '연결 포괄손익계산서'가
+    # 나뉘거나 하나로 합쳐져 있다. 영업이익 행이 들어 있는 첫 섹션을 쓴다.
+    starts = [m.start() for m in re.finditer(r"연결\s*(포괄)?\s*손익계산서", text)]
+    body = None
+    for s in starts:
+        chunk = text[s:s + 12000]
+        if re.search(r"영업이익|영업손실", chunk):
+            body = chunk
+            break
+    if body is None:
+        raise SystemExit(f"{rcp_no}: 손익계산서 섹션을 찾지 못했다")
+
+    unit_m = re.search(r"\(단위\s*:\s*([^)]+)\)", body)
+    unit = unit_m.group(1).strip() if unit_m else "?"
+
+    lines = [ln.strip().rstrip("|").strip() for ln in body.split("\n")]
+    lines = [ln for ln in lines if ln and ln != "　"]
+
+    # 헤더의 3개월/누적 토큰 — 첫 계정 행이 나오기 전까지만 읽는다.
+    cols, seen_acct = [], False
+    for ln in lines:
+        if ln in ("3개월", "누적"):
+            cols.append(ln)
+        elif any(ln.startswith(lb) for lb in _IS_REV_LABELS) and not _IS_NUM_RE.fullmatch(ln):
+            break
+    ncols = len(cols) if cols else 2          # 헤더 없으면 당기|전기 2열로 가정
+    cum_idx = cols.index("누적") if "누적" in cols else 0
+
+    def row_value(labels):
+        for i, ln in enumerate(lines):
+            base = ln.split("(주")[0].strip()
+            if base in labels:
+                vals = []
+                for nxt in lines[i + 1:i + 1 + ncols + 2]:
+                    if _IS_NUM_RE.fullmatch(nxt):
+                        vals.append(_to_int(nxt))
+                        if len(vals) == ncols:
+                            break
+                    elif vals:
+                        break
+                if len(vals) >= cum_idx + 1:
+                    v = vals[cum_idx]
+                    return -v if base == "영업손실" and v > 0 else v
+        return None
+
+    rev = row_value(_IS_REV_LABELS)
+    op = row_value(_IS_OP_LABELS)
+    if rev is None or op is None:
+        raise SystemExit(f"{rcp_no}: 매출/영업이익 행을 읽지 못했다 (cols={cols})")
+    return {"rev": rev, "op": op, "unit": unit, "ncols": ncols, "cum_idx": cum_idx}
+
+
 def main(argv: list[str]) -> int:
     if not argv:
         print(__doc__)
@@ -399,6 +471,9 @@ def main(argv: list[str]) -> int:
     elif cmd == "costnature":
         import json
         print(json.dumps(costnature(argv[1]), ensure_ascii=False, indent=2))
+    elif cmd == "iscum":
+        import json
+        print(json.dumps(iscum(argv[1]), ensure_ascii=False))
     else:
         print(__doc__)
         return 1

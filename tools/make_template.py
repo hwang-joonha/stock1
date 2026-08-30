@@ -3440,6 +3440,90 @@ function icDepCrossCard(){
 
 // ── 가격 대 모델 이력 ─"""
 
+
+# ─────────────────────────────────────────────────────────────
+# IC-12  최신 분기 스냅숏 · TTM — 적시성
+#
+# 연간 축의 첫 화면은 확정이 1년에 한 번만 갱신된다. 분기 확정(QUARTERLY)이
+# 전 종목에 깔리면서, 투자 개요 상단에 최신 분기와 TTM(최근 4개 분기 합)을
+# 올린다 — "지금 비싼가(TTM 배수)"와 "2030까지 가면 싼가(목표 배수)"가
+# 나란히 선다. 분기 감가가 없는 종목은 EV ÷ TTM 영업이익으로 라벨을
+# 명시해 구분한다 — 다른 지표를 같은 이름으로 부르지 않는다.
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC12_OV = """  h += icMarketNote();
+
+  var fair = val(rootId(), t), up = icUpside(t), im = icImpliedMultiple(t);"""
+NEW_IC12_OV = """  h += icMarketNote();
+  h += icQtrSnapCard();
+
+  var fair = val(rootId(), t), up = icUpside(t), im = icImpliedMultiple(t);"""
+
+OLD_IC12_ANCHOR = """// ── 워터폴·다중 선 렌더러 ─"""
+
+NEW_IC12_ANCHOR = """// ── 최신 분기 스냅숏 · TTM ────────────────────────────────────
+// TTM = 최근 4개 분기 합. endIdx로 끝 분기를 지정하면 롤링 시계열도 만든다.
+function qTTM(metric, endIdx){
+  var ks = qKeys();
+  var e = (endIdx == null) ? ks.length - 1 : endIdx;
+  if(e < 3) return null;
+  var s = 0;
+  for(var i = e - 3; i <= e; i++){
+    var v = qVal(ks[i], '합계', metric);
+    if(v === null) return null;
+    s += v;
+  }
+  return s;
+}
+
+function icQtrSnapCard(){
+  if(!qHas()) return '';
+  var ks = qKeys(), last = ks[ks.length - 1];
+  var rev = qVal(last, '합계', '매출'), op = qVal(last, '합계', '영업이익');
+  if(rev === null || op === null) return '';
+  // YoY — 기저가 0 이하이면 성장률이 거짓말을 하므로 접는다 (LGD 관용구).
+  var yoy = function(metric){
+    var prev = (qYear(last) - 1) + last.slice(4);
+    var a = qVal(prev, '합계', metric), b = qVal(last, '합계', metric);
+    return (a !== null && a > 0 && b !== null) ? b / a - 1 : null;
+  };
+  var pf = function(v){
+    return v === null ? '' : 'YoY ' + (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  };
+  var ry = yoy('매출'), oy = yoy('영업이익');
+  var ttmOp = qTTM('영업이익');
+  var ttmPrev = ks.length >= 8 ? qTTM('영업이익', ks.length - 5) : null;
+  var ttmG = (ttmOp !== null && ttmPrev !== null && ttmPrev > 0) ? ttmOp / ttmPrev - 1 : null;
+
+  var h2 = '<div class="kpi-row" style="margin-bottom:0">';
+  h2 += icStat(last + ' 매출', fmtSmart(rev), pf(ry), ry === null ? '' : (ry >= 0 ? 'pos' : 'neg'));
+  h2 += icStat(last + ' 영업이익', fmtSmart(op), pf(oy),
+    op < 0 ? 'neg' : (oy === null ? '' : (oy >= 0 ? 'pos' : 'neg')));
+  if(ttmOp !== null)
+    h2 += icStat('TTM 영업이익', fmtSmart(ttmOp),
+      ttmG === null ? '최근 4개 분기 합' : '전년 TTM 대비 ' + (ttmG >= 0 ? '+' : '') + (ttmG * 100).toFixed(0) + '%',
+      ttmG === null ? '' : (ttmG >= 0 ? 'pos' : 'neg'));
+  // TTM 배수 — 분기 감가가 있으면 EBITDA, 없으면 영업이익 기준으로 라벨 명시.
+  if(ttmOp !== null && typeof MARKET === 'object' && MARKET && MARKET.mktcap){
+    var nd = MODEL.net_debt ? val('net_debt', HIST_N - 1) : 0;
+    var ev = MARKET.mktcap + nd;
+    var ttmDep = qTTM('감가상각비');
+    if(ttmDep !== null && ttmOp + ttmDep > 0)
+      h2 += icStat('EV ÷ TTM EBITDA', (ev / (ttmOp + ttmDep)).toFixed(1) + '배',
+        '목표배수와 같은 정의 · 최신 4개 분기 기준');
+    else if(ttmOp > 0)
+      h2 += icStat('EV ÷ TTM 영업이익', (ev / ttmOp).toFixed(1) + '배',
+        '분기 감가 미공시 — EBITDA 아님에 유의');
+  }
+  h2 += '</div>';
+  return card('최신 분기 스냅숏 — ' + last,
+    '연간 확정을 기다리지 않는 적시성 지표 · 분기 상세는 분기 모니터링 뷰', UNITS.money, h2);
+}
+
+// ── 워터폴·다중 선 렌더러 ─"""
+
+
+
 def _cut_data_region(text: str) -> str:
     """YRS 선언 앞 주석부터 MODEL 리터럴 끝까지를 마커+예제로 교체한다."""
     from extract_engine import _scan_assignment
@@ -3581,6 +3665,8 @@ def main() -> None:
     p.sub("IC-11 팬 차트 배치", OLD_IC11_SCEN, NEW_IC11_SCEN)
     p.sub("IC-11 상각 교차 배치", OLD_IC11_BIZ, NEW_IC11_BIZ)
     p.sub("IC-11 렌더러·카드 구현", OLD_IC11_ANCHOR, NEW_IC11_ANCHOR)
+    p.sub("IC-12 분기 스냅숏 배치", OLD_IC12_OV, NEW_IC12_OV)
+    p.sub("IC-12 TTM 구현", OLD_IC12_ANCHOR, NEW_IC12_ANCHOR)
 
     p.text = _cut_data_region(p.text)
     p.applied.append("DATA 데이터 블록 → 주입 마커")

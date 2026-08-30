@@ -111,12 +111,24 @@ def row_for(path: str) -> dict:
         consensus = f"목표가 {pct(cu)}" + (f" ({n}곳)" if n else "")
 
     # 분기 진행률 — 최신 확정 분기가 속한 해의 누적 매출 대 모델 연간.
+    # 최근 분기 YoY — 기저가 0 이하이면 접는다.
     prog = None
+    q_yoy = None
+    q_last = None
     q = rep.get("quarterly") or {}
     quarters = q.get("quarters") or {}
     if quarters:
         keys = sorted(quarters)
         last = keys[-1]
+        q_last = last
+        prev_q = str(int(last[:4]) - 1) + last[4:]
+        try:
+            a = quarters[prev_q]["합계"]["매출"]
+            b = quarters[last]["합계"]["매출"]
+            if a and a > 0:
+                q_yoy = b / a - 1
+        except KeyError:
+            pass
         year, nq = last[:4], int(last[5:])
         acc = 0.0
         ok = True
@@ -152,6 +164,8 @@ def row_for(path: str) -> dict:
         "dy": dy,
         "consensus": consensus,
         "prog": prog,
+        "q_yoy": q_yoy,
+        "q_last": q_last,
     }
 
 
@@ -191,6 +205,12 @@ def build() -> str:
         trs += f'<td>{r["per"]:.1f}배</td>' if r["per"] is not None else '<td>—</td>'
         trs += f'<td>{r["dy"] * 100:.1f}%</td>' if r["dy"] is not None else '<td>—</td>'
         trs += f'<td>{esc(r["consensus"])}</td>'
+        if r["q_yoy"] is not None:
+            cls = "pos" if r["q_yoy"] >= 0 else "neg"
+            trs += (f'<td>{esc(r["q_last"])}<div class="sub {cls}">'
+                    f'{pct(r["q_yoy"], 1)} YoY</div></td>')
+        else:
+            trs += '<td>—</td>'
         trs += f'<td class="prog">{prog}</td>'
         trs += '</tr>'
 
@@ -233,13 +253,14 @@ def build() -> str:
   <table>
     <tr><th>종목</th><th>현재 시총</th><th>적정 시총</th><th>괴리</th>
       <th>기대 괴리*</th><th>상하방 배율</th><th>함의 PER</th><th>배당수익률</th>
-      <th>컨센서스 목표가</th><th>분기 진행률</th></tr>
+      <th>컨센서스 목표가</th><th>최근 분기</th><th>분기 진행률</th></tr>
     {trs}
   </table>
   <p class="foot">* 기대 괴리 = 시나리오별 괴리의 확률 가중(확률은 각 모델 MEMO.probs의 [주관] 판단) ·
     상하방 배율 = 최상 시나리오 상방 ÷ 최악 시나리오 하방 ·
     함의 PER = 현재 시총 ÷ 마지막 추정 연도 지배순이익 ·
     배당수익률 = 다음 해 추정 DPS ÷ 현재가 ·
+    최근 분기 = 최신 확정 분기 매출 YoY ·
     분기 진행률 = 확정 분기 누적 매출 ÷ 모델 연간 (괄호 안은 선형 대비) ·
     행 순서 = 기대 괴리 내림차순.<br>
     본 자료는 공시·시장 데이터 기반의 내부 검토용이며 투자권유가 아님.</p>
