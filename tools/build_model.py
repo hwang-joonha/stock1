@@ -30,6 +30,7 @@ def build(data_path: str, template_path: str = TEMPLATE) -> str:
         data = fh.read().strip()
     data += _quarterly_block(data_path)
     data += _costnature_block(data_path)
+    data += _prices_block(data_path)
 
     try:
         head = html.index(DATA_START)
@@ -87,6 +88,22 @@ def _costnature_block(data_path: str) -> str:
     return ("\n\n// ── COSTNATURE — 비용 성격별 분류 (자동 주입) ───────────────\n"
             "// 출처: 사업보고서 '비용의 성격별 분류' 주석 (" + path + ")\n"
             "const COSTNATURE = " + json.dumps(doc, ensure_ascii=False) + ";\n")
+
+
+def _prices_block(data_path: str) -> str:
+    """옆에 prices.json이 있으면 PRICES 선언으로 붙인다.
+
+    월간 종가 스냅숏(tools/price_fetch.py) — 실적 대 시총 오버레이·배수 밴드
+    차트가 읽는다. 빌드 타임에 박히므로 model.html은 여전히 외부 요청 0건.
+    """
+    path = os.path.join(os.path.dirname(data_path) or ".", "prices.json")
+    if not os.path.exists(path):
+        return ""
+    with open(path, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    return ("\n\n// ── PRICES — 월간 종가 스냅숏 (자동 주입) ───────────────────\n"
+            "// 갱신: python3 tools/price_fetch.py (" + path + ")\n"
+            "const PRICES = " + json.dumps(doc, ensure_ascii=False) + ";\n")
 
 
 def main(argv: list[str]) -> int:
