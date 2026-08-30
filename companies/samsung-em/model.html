@@ -5352,6 +5352,7 @@ function renderICOverview(){
 
   h += icOwnerCard();
   h += icHoldingCard();
+  h += icNiBridgeCard();
   h += icMarketHistCard();
 
   h += icMemoCard('thesis', '투자 논거');
@@ -5375,6 +5376,7 @@ function renderICValuation(){
     return h + '<div class="notice">MARKET 미선언 — 시장 대비 비교 불가.</div></div>';
   }
   h += icMarketNote();
+  h += icBridgeCard();
 
   // 배수 민감도는 EBITDA 배수법 모델에서만 뜻이 있다. DCF 모델(ebitda 노드가 없는
   // 트리)에서는 이 카드를 건너뛰고 피어·컨센서스·판단만 보여준다.
@@ -5437,6 +5439,7 @@ function renderICValuation(){
   }
 
   h += icConsensusCard();
+  h += icConsPathCard();
   h += icPeerCard();
   h += icMemoCard('valuation', '밸류에이션 판단');
   return h + '</div>';
@@ -5510,6 +5513,7 @@ function renderICScenario(){
     '<th>영업이익</th><th>OPM</th><th>EBITDA</th><th>적정 시총</th>' +
     '<th>현재가 대비</th></tr>' + rows + '</table></div>');
   h += icScenarioEV(cases, solved, mc0);
+  h += icFanCard();
 
   // 무엇을 흔들었는지 — 가정을 감추지 않는다
   var diff = '';
@@ -5573,6 +5577,295 @@ function icPeerCard(){
     '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">종목</th><th>구분</th>' +
     '<th>시가총액</th><th>EV/EBITDA (A)</th><th>EV/EBITDA (E)</th>' +
     '<th>PER (E)</th><th>1년 수익률</th></tr>' + rows + '</table></div>');
+}
+
+// ── 워터폴·다중 선 렌더러 ─────────────────────────────────────
+// 외부 라이브러리 없이 인라인 SVG (외부 요청 0건 규약).
+
+// 조원 스케일 축약 — 축·워터폴 라벨용.
+function icJo(v){
+  if(Math.abs(v) >= 20000){
+    var j = v / 10000;
+    return (Math.abs(j) >= 100 ? j.toFixed(0) : j.toFixed(1)) + '조';
+  }
+  return fmtSmart(v) + '억';
+}
+
+// 워터폴 — steps: [{label, v, total}]. total은 절대값 기둥(0부터),
+// 나머지는 직전 러닝 합에서의 증감 계단. 라벨의 '|'는 줄바꿈.
+function icSvgWaterfall(steps, opts){
+  opts = opts || {};
+  var W = 720, H = opts.height || 224, L = 56, R = 12, T = 20, B = 42;
+  var iw = W - L - R, ih = H - T - B;
+  var run = 0, bars = [];
+  steps.forEach(function(s){
+    if(s.total){ bars.push({ label:s.label, a:0, b:s.v, total:true, v:s.v }); run = s.v; }
+    else { bars.push({ label:s.label, a:run, b:run + s.v, v:s.v }); run += s.v; }
+  });
+  var lo = 0, hi = 0;
+  bars.forEach(function(b){ lo = Math.min(lo, b.a, b.b); hi = Math.max(hi, b.a, b.b); });
+  hi = hi > 0 ? _niceMax(hi) : 0;
+  lo = lo < 0 ? -_niceMax(-lo) : 0;
+  var span = (hi - lo) || 1;
+  var y = function(v){ return T + ih - ih * ((v - lo) / span); };
+  var n = bars.length, step = iw / n, bw = Math.min(70, step * 0.6);
+  var fmt = opts.fmt || fmtSmart, g = '';
+  g += '<line x1="' + L + '" y1="' + y(0).toFixed(1) + '" x2="' + (L + iw) +
+       '" y2="' + y(0).toFixed(1) + '" stroke="' + ICV.grid + '"/>';
+  bars.forEach(function(b, i){
+    var x = L + step * i + (step - bw) / 2;
+    var yTop = y(Math.max(b.a, b.b)), h2 = Math.max(1.5, Math.abs(y(b.a) - y(b.b)));
+    var col = b.total ? ICV.rev : (b.v >= 0 ? ICV.pos : ICV.neg);
+    g += '<rect x="' + x.toFixed(1) + '" y="' + yTop.toFixed(1) + '" width="' + bw.toFixed(1) +
+         '" height="' + h2.toFixed(1) + '" rx="2" fill="' + col + '"/>';
+    if(i < n - 1){
+      var yc = y(b.b);
+      g += '<line x1="' + (x + bw).toFixed(1) + '" y1="' + yc.toFixed(1) +
+           '" x2="' + (L + step * (i + 1) + (step - bw) / 2).toFixed(1) +
+           '" y2="' + yc.toFixed(1) + '" stroke="#C9CDD4" stroke-dasharray="3,3"/>';
+    }
+    var lab = b.total ? fmt(b.v) : (b.v >= 0 ? '+' : '−') + fmt(Math.abs(b.v));
+    g += _t(x + bw / 2, yTop - 5, lab, 8.5, ICV.ink, 'middle', 700);
+    String(b.label).split('|').forEach(function(p, k){
+      g += _t(x + bw / 2, H - B + 14 + k * 11, p, 8.5, ICV.text, 'middle');
+    });
+  });
+  g += _t(L - 6, y(hi) + 3, fmt(hi), 8.5, '#9CA3AF', 'end');
+  g += _t(L - 6, y(0) + 3, '0', 8.5, '#9CA3AF', 'end');
+  if(lo < 0) g += _t(L - 6, y(lo) + 3, fmt(lo), 8.5, '#9CA3AF', 'end');
+  return icSvg(W, H, g);
+}
+
+// 다중 선 — 밴드(팬)·산점(points)·기준선(hline)·추정 음영(histN) 지원.
+function icSvgLines(labels, series, opts){
+  opts = opts || {};
+  var W = 720, H = opts.height || 210, L = 56, R = 96, T = 16, B = 26;
+  var iw = W - L - R, ih = H - T - B, n = labels.length;
+  var all = [];
+  series.forEach(function(s){ (s.values || []).forEach(function(v){
+    if(v != null && isFinite(v)) all.push(v); }); });
+  if(opts.band){ all = all.concat(opts.band.hi, opts.band.lo); }
+  if(opts.hline != null) all.push(opts.hline);
+  if(!all.length) return '';
+  var hi = Math.max.apply(null, all), lo = Math.min.apply(null, all);
+  hi = hi > 0 ? _niceMax(hi) : 0;
+  lo = lo < 0 ? -_niceMax(-lo) : 0;
+  if(hi === lo) hi = lo + 1;
+  var span = hi - lo;
+  var X = function(i){ return L + (n <= 1 ? iw / 2 : iw * i / (n - 1)); };
+  var Y = function(v){ return T + ih - ih * ((v - lo) / span); };
+  var fmt = opts.fmt || fmtSmart, g = '';
+  if(opts.histN != null && opts.histN > 0 && opts.histN < n){
+    var xs = (X(opts.histN - 1) + X(opts.histN)) / 2;
+    g += '<rect x="' + xs.toFixed(1) + '" y="' + T + '" width="' + (L + iw - xs).toFixed(1) +
+         '" height="' + ih + '" fill="' + ICV.band + '"/>';
+    g += _t(xs + 3, T + 10, '추정', 8.5, '#9CA3AF', 'start');
+  }
+  for(var k = 0; k <= 4; k++){
+    var vy = lo + span * k / 4, yy = Y(vy);
+    g += '<line x1="' + L + '" y1="' + yy.toFixed(1) + '" x2="' + (L + iw) +
+         '" y2="' + yy.toFixed(1) + '" stroke="' + ICV.grid + '"/>';
+    g += _t(L - 6, yy + 3, fmt(vy), 8.5, '#9CA3AF', 'end');
+  }
+  if(opts.band){
+    var pts = [];
+    for(var i = 0; i < n; i++) pts.push(X(i).toFixed(1) + ',' + Y(opts.band.hi[i]).toFixed(1));
+    for(var j = n - 1; j >= 0; j--) pts.push(X(j).toFixed(1) + ',' + Y(opts.band.lo[j]).toFixed(1));
+    g += '<polygon points="' + pts.join(' ') + '" fill="' + (opts.band.color || '#5D68F7') +
+         '" opacity="0.12"/>';
+  }
+  if(lo < 0){
+    g += '<line x1="' + L + '" y1="' + Y(0).toFixed(1) + '" x2="' + (L + iw) +
+         '" y2="' + Y(0).toFixed(1) + '" stroke="' + ICV.text +
+         '" stroke-width="0.8" stroke-dasharray="3,3" opacity="0.6"/>';
+  }
+  if(opts.hline != null && opts.hline >= lo && opts.hline <= hi){
+    var hy = Y(opts.hline);
+    g += '<line x1="' + L + '" y1="' + hy.toFixed(1) + '" x2="' + (L + iw) +
+         '" y2="' + hy.toFixed(1) + '" stroke="' + ICV.neg +
+         '" stroke-width="1.4" stroke-dasharray="5,4"/>';
+    if(opts.hlineLabel) g += _t(L + iw - 4, hy - 5, opts.hlineLabel, 8.5, ICV.neg, 'end', 700);
+  }
+  series.forEach(function(s, si){
+    var col = s.color || ICV.ramp[si % ICV.ramp.length];
+    if(!s.points){
+      var pl = [];
+      for(var i2 = 0; i2 < n; i2++){
+        var v2 = s.values[i2];
+        if(v2 == null || !isFinite(v2)) continue;
+        pl.push(X(i2).toFixed(1) + ',' + Y(v2).toFixed(1));
+      }
+      if(pl.length > 1)
+        g += '<polyline points="' + pl.join(' ') + '" fill="none" stroke="' + col +
+             '" stroke-width="1.8"' + (s.dash ? ' stroke-dasharray="4,3"' : '') + '/>';
+    }
+    for(var i3 = 0; i3 < n; i3++){
+      var v3 = s.values[i3];
+      if(v3 == null || !isFinite(v3)) continue;
+      if(s.points || i3 === n - 1)
+        g += '<circle cx="' + X(i3).toFixed(1) + '" cy="' + Y(v3).toFixed(1) + '" r="' +
+             (s.points ? 3.4 : 2.6) + '" fill="' + col + '"/>';
+    }
+    var ly = T + 6 + si * 15;
+    g += '<rect x="' + (W - R + 4) + '" y="' + (ly - 8) + '" width="9" height="9" rx="2" fill="' +
+         col + '"/>';
+    g += _t(W - R + 18, ly, s.name, 9, ICV.text, 'start');
+  });
+  var stepLab = Math.ceil(n / 12);
+  for(var i4 = 0; i4 < n; i4 += stepLab) g += _t(X(i4), H - 8, labels[i4], 8.5);
+  return icSvg(W, H, g);
+}
+
+// 시나리오 오버라이드를 적용한 노드의 전 연도 경로. icSolve의 경로판.
+function icSolvePath(overrides, nodeId){
+  var backup = {};
+  for(var k in SV) backup[k] = SV[k].slice();
+  try{
+    if(overrides){
+      for(var k2 in overrides){
+        if(SV[k2] && overrides[k2].length === YRS.length) SV[k2] = overrides[k2].slice();
+      }
+    }
+    simCalc();
+    return (MODEL[nodeId].v || []).slice();
+  } finally {
+    for(var k3 in backup) SV[k3] = backup[k3];
+    simCalc();
+  }
+}
+
+// ① 괴리 분해 — 현재 시총에서 적정가까지. 배수법은 항등식 분해
+//    (이익 성장 × 현재 함의 배수 + 최종 이익 × 배수 차이 + 순차입금 변화),
+//    DCF는 가치 구성(추정기간 PV + 잔존가치 PV − 순차입금)으로 그린다.
+function icBridgeCard(){
+  if(typeof MARKET !== 'object' || !MARKET || !MARKET.mktcap) return '';
+  var t = icLastIdx(), fair = val(rootId(), t);
+  if(MODEL.target_ev_ebitda && MODEL.ebitda){
+    var e0 = val('ebitda', HIST_N - 1), e1 = val('ebitda', t);
+    if(!(e0 > 0) || !(e1 > 0)) return '';
+    var nd0 = MODEL.net_debt ? val('net_debt', HIST_N - 1) : 0;
+    var nd1 = MODEL.net_debt ? val('net_debt', t) : 0;
+    var mImpl = (MARKET.mktcap + nd0) / e0;
+    var mTgt = val('target_ev_ebitda', t);
+    var steps = [
+      { label:'현재 시총|' + YRS[HIST_N - 1] + ' 함의 ' + mImpl.toFixed(1) + '배',
+        v:MARKET.mktcap, total:true },
+      { label:'이익 성장|EBITDA ' + icJo(e0) + '→' + icJo(e1), v:(e1 - e0) * mImpl },
+      { label:'배수 정상화|' + mImpl.toFixed(1) + '→' + mTgt.toFixed(0) + '배',
+        v:e1 * (mTgt - mImpl) },
+    ];
+    var ndChg = nd0 - nd1;
+    if(Math.abs(ndChg) > Math.abs(fair) * 0.002)
+      steps.push({ label:'순차입금 변화', v:ndChg });
+    steps.push({ label:YRS[t] + ' 적정 시총', v:fair, total:true });
+    return icChartCard('괴리 분해 — 현재 가격에서 적정가까지',
+      '이익이 커지는 효과(+)와 현재의 높은 배수가 목표배수로 수렴하는 효과(−)의 합이 괴리다 · 항등식 분해라 잔차 0',
+      icSvgWaterfall(steps, { fmt: icJo }));
+  }
+  if(MODEL.cum_pv && MODEL.tv_pv){
+    var nd = MODEL.net_debt ? val('net_debt', t) : 0;
+    return icChartCard('가치 구성 — DCF 브리지',
+      '적정 시총이 어디서 오는가 — 잔존가치 비중이 클수록 영구성장률·WACC 민감도가 크다',
+      icSvgWaterfall([
+        { label:'추정기간|FCF 현재가치', v:val('cum_pv', t) },
+        { label:'잔존가치|현재가치', v:val('tv_pv', t) },
+        { label:'순차입금', v:-nd },
+        { label:YRS[t] + ' 적정 시총', v:fair, total:true },
+      ], { fmt: icJo }));
+  }
+  return '';
+}
+
+// ② 주주 몫 브리지 — 영업이익이 주주에게 남기까지.
+function icNiBridgeCard(){
+  if(!MODEL.net_income || !MODEL.nonop || !MODEL.tax_rate) return '';
+  var t = icLastIdx();
+  var op = val('op_profit', t), no = val('nonop', t), tr = val('tax_rate', t);
+  var cr = MODEL.ctrl_ratio ? val('ctrl_ratio', t) : 1;
+  var pretax = op + no;
+  return icChartCard('주주 몫 브리지 — ' + YRS[t],
+    '영업이익이 영업외·법인세·비지배를 거쳐 주주에게 남는 몫 — 위 주주 몫 표와 같은 노드',
+    icSvgWaterfall([
+      { label:'영업이익', v:op, total:true },
+      { label:'영업외손익', v:no },
+      { label:'법인세|' + (tr * 100).toFixed(0) + '%', v:-pretax * tr },
+      { label:'비지배 몫', v:-pretax * (1 - tr) * (1 - cr) },
+      { label:'지배주주 순이익', v:val('net_income', t), total:true },
+    ], { fmt: icJo }));
+}
+
+// ③ 시나리오 팬 — 케이스별 적정가 경로와 현재 시총.
+function icFanCard(){
+  if(typeof SCENARIOS !== 'object' || !SCENARIOS) return '';
+  if(typeof MARKET !== 'object' || !MARKET || !MARKET.mktcap) return '';
+  var r = rootId();
+  var paths = { Base:(MODEL[r].v || []).slice() };
+  for(var nm in SCENARIOS) paths[nm] = icSolvePath(SCENARIOS[nm], r);
+  var names = Object.keys(paths), yrs2 = YRS.slice(HIST_N);
+  var hiA = [], loA = [];
+  for(var i = 0; i < yrs2.length; i++){
+    var vs = names.map(function(n2){ return paths[n2][HIST_N + i]; });
+    hiA.push(Math.max.apply(null, vs));
+    loA.push(Math.min.apply(null, vs));
+  }
+  var series = names.map(function(n3){
+    var lc = n3.toLowerCase();
+    var col = n3 === 'Base' ? ICV.rev
+      : lc.indexOf('bull') >= 0 ? ICV.pos
+      : lc.indexOf('bear') >= 0 ? ICV.neg : ICV.rev2;
+    return { name:n3, values:paths[n3].slice(HIST_N), color:col, dash:n3 !== 'Base' };
+  });
+  var mx = Math.max.apply(null, hiA.concat([MARKET.mktcap]));
+  return icChartCard('시나리오 경로 — 팬 차트',
+    '음영 = 시나리오 범위 · 빨간 점선 = 현재 시총 ' + icMoney(MARKET.mktcap) +
+    ' — 현재 가격이 어느 경로 위에 서 있는지가 심사의 위치다',
+    icSvgLines(yrs2, series, { band:{ hi:hiA, lo:loA }, hline:MARKET.mktcap,
+      hlineLabel:'현재 시총', fmt:(mx >= 20000 ? icJo : fmtSmart) }));
+}
+
+// ④ 컨센서스 대 모델 경로 — 가장 많이 인용된 노드에 컨센 점을 찍는다.
+function icConsPathCard(){
+  if(typeof CONSENSUS !== 'object' || !CONSENSUS || !(CONSENSUS.items || []).length) return '';
+  var byNode = {};
+  CONSENSUS.items.forEach(function(it){
+    if(MODEL[it.node] && it.value != null) (byNode[it.node] = byNode[it.node] || []).push(it);
+  });
+  var best = null;
+  for(var k in byNode){ if(!best || byNode[k].length > byNode[best].length) best = k; }
+  if(!best) return '';
+  var pts = new Array(YRS.length).fill(null);
+  byNode[best].forEach(function(it){
+    var yi = YRS.indexOf(String(it.year));
+    if(yi >= 0) pts[yi] = it.value;
+  });
+  var mvals = MODEL[best].v.slice();
+  var mx = Math.max.apply(null, mvals.filter(isFinite));
+  return icChartCard('컨센서스 대 본 모델 — ' + (MODEL[best].label || best),
+    '선 = 본 모델 경로 · 점 = 컨센서스 전제 (' + (CONSENSUS.asOf || '') +
+    ') — 격차가 벌어지는 해가 판정 시점이다',
+    icSvgLines(YRS, [
+      { name:'본 모델', values:mvals, color:ICV.rev },
+      { name:'컨센서스', values:pts, color:ICV.neg, points:true },
+    ], { histN:HIST_N, fmt:(mx >= 20000 ? icJo : fmtSmart) }));
+}
+
+// ⑤ 상각 증가율 대 매출 증가율 — 증설 부담이 이익으로 돌아서는 교차점.
+function icDepCrossCard(){
+  var dep = MODEL.dep_total ? 'dep_total' : (MODEL.da_total ? 'da_total' : null);
+  if(!dep) return '';
+  var rid = revenueId();
+  var revG = [null], depG = [null];
+  for(var i = 1; i < YRS.length; i++){
+    var r0 = val(rid, i - 1), d0 = val(dep, i - 1);
+    revG.push(r0 > 0 ? val(rid, i) / r0 - 1 : null);
+    depG.push(d0 > 0 ? val(dep, i) / d0 - 1 : null);
+  }
+  return icChartCard('이익 레버리지 — 상각 증가율 대 매출 증가율',
+    '상각 선이 매출 선 아래로 내려오면 증설 부담이 이익으로 돌아서는 구간 — 교차점이 마진 변곡',
+    icSvgLines(YRS, [
+      { name:'매출 YoY', values:revG, color:ICV.rev },
+      { name:'상각 YoY', values:depG, color:ICV.cost },
+    ], { histN:HIST_N, fmt:function(v){ return (v * 100).toFixed(0) + '%'; } }));
 }
 
 // ── 가격 대 모델 이력 ─────────────────────────────────────────
@@ -5927,6 +6220,7 @@ function renderICBiz(){
   h += icBizRevBlock(false);
   h += icBizCostBlock(false);
   h += icBizProfitBlock(false);
+  h += icDepCrossCard();
   return h + '</div>';
 }
 
@@ -6726,6 +7020,7 @@ function renderICReport(){
     vb += card('목표배수 민감도', '칸 값 = 현재 시가총액 대비 괴리. 굵은 행이 현재 가정.', '',
       '<div class="table-wrap"><table class="fm">' + hh + bb + '</table></div>');
   }
+  vb += icBridgeCard();
   vb += icConsensusCard();
   vb += icPeerCard();
   vb += '<div class="card pad">' + icMemoBody('valuation') + '</div>';
