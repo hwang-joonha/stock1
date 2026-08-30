@@ -5383,6 +5383,8 @@ function renderICValuation(){
   }
   h += icMarketNote();
   h += icBridgeCard();
+  h += icMultBandCard();
+  h += icPriceEarnCard();
 
   // 배수 민감도는 EBITDA 배수법 모델에서만 뜻이 있다. DCF 모델(ebitda 노드가 없는
   // 트리)에서는 이 카드를 건너뛰고 피어·컨센서스·판단만 보여준다.
@@ -5583,6 +5585,113 @@ function icPeerCard(){
     '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">종목</th><th>구분</th>' +
     '<th>시가총액</th><th>EV/EBITDA (A)</th><th>EV/EBITDA (E)</th>' +
     '<th>PER (E)</th><th>1년 수익률</th></tr>' + rows + '</table></div>');
+}
+
+// ── 가격 스냅숏 헬퍼 ──────────────────────────────────────────
+function pHas(){
+  return typeof PRICES === 'object' && PRICES && PRICES.monthly && PRICES.monthly.length;
+}
+// 'YYYY-MM'의 종가 → 근사 시총(억원). 없는 달은 null.
+function pMktcapAt(ym){
+  if(!pHas() || typeof MARKET !== 'object' || !MARKET || !MARKET.shares) return null;
+  for(var i = 0; i < PRICES.monthly.length; i++){
+    if(PRICES.monthly[i].d === ym)
+      return PRICES.monthly[i].c * MARKET.shares / 1e8;
+  }
+  return null;
+}
+// 그 해의 마지막 관측 달(보통 12월)의 근사 시총.
+function pYearEnd(year){
+  if(!pHas()) return null;
+  var best = null;
+  PRICES.monthly.forEach(function(m){
+    if(m.d.slice(0, 4) === String(year)) best = m;
+  });
+  return best ? best.c * MARKET.shares / 1e8 : null;
+}
+
+// 실적 대 시총 — 막대 = 영업이익(실적 + 현재 TTM), 선 = 연말 근사 시총.
+function icPriceEarnCard(){
+  if(!pHas() || typeof MARKET !== 'object' || !MARKET || !MARKET.shares) return '';
+  var labels = [], bars = [], mc = [];
+  for(var i = 0; i < HIST_N; i++){
+    var m = pYearEnd(YRS[i]);
+    if(m === null) continue;
+    labels.push(YRS[i]);
+    bars.push(val('op_profit', i));
+    mc.push(m);
+  }
+  if(labels.length < 3) return '';
+  var ttm = qHas() ? qTTM('영업이익') : null;
+  if(ttm !== null){
+    labels.push('현재');
+    bars.push(ttm);
+    mc.push(MARKET.mktcap);
+  }
+  return icChartCard('실적 대 시가총액 — 가격은 이익을 어떻게 따라왔는가',
+    '막대 = 영업이익(현재는 TTM) · 선 = 연말 근사 시총(조정 종가 × 현재 주식수 — 증자·소각 오차 있음)',
+    icSvgBars(labels, bars, { line: mc, linePct: false, lineLabel: '시총', lineFmt: icJo }));
+}
+
+// 배수 밴드 — 연말 EV ÷ 그 해 EBITDA의 역사와 현재·목표의 위치.
+function icMultBandCard(){
+  if(!pHas() || !MODEL.ebitda) return '';
+  if(typeof MARKET !== 'object' || !MARKET || !MARKET.mktcap) return '';
+  var labels = [], mult = [];
+  for(var i = 0; i < HIST_N; i++){
+    var m = pYearEnd(YRS[i]), e = val('ebitda', i);
+    if(m === null || !(e > 0)) continue;
+    var nd = MODEL.net_debt ? val('net_debt', i) : 0;
+    labels.push(YRS[i]);
+    mult.push((m + nd) / e);
+  }
+  if(labels.length < 3) return '';
+  // 현재 — TTM EBITDA가 있으면 그것, 없으면 최근 실적 연도 EBITDA.
+  var ttmOp = qHas() ? qTTM('영업이익') : null;
+  var ttmDep = qHas() ? qTTM('감가상각비') : null;
+  var ndNow = MODEL.net_debt ? val('net_debt', HIST_N - 1) : 0;
+  var eNow = (ttmOp !== null && ttmDep !== null) ? ttmOp + ttmDep : val('ebitda', HIST_N - 1);
+  var curLbl = (ttmOp !== null && ttmDep !== null) ? '현재(TTM)' : '현재(' + YRS[HIST_N - 1] + ')';
+  if(eNow > 0){
+    labels.push(curLbl);
+    mult.push((MARKET.mktcap + ndNow) / eNow);
+  }
+  var tgt = MODEL.target_ev_ebitda ? val('target_ev_ebitda', icLastIdx()) : null;
+  var sorted = mult.slice().sort(function(a, b){ return a - b; });
+  var lo = sorted[0], hi = sorted[sorted.length - 1];
+  return icChartCard('배수 밴드 — EV/EBITDA의 자기 역사',
+    '역사 범위 ' + lo.toFixed(1) + '~' + hi.toFixed(1) + '배' +
+    (tgt !== null ? ' · 빨간 점선 = 목표배수 ' + tgt.toFixed(0) + '배' : '') +
+    ' — 목표가 역사 어디에 서 있는지가 배수 가정의 근거다',
+    icSvgLines(labels, [
+      { name: 'EV/EBITDA', values: mult, color: ICV.rev },
+    ], { hline: tgt, hlineLabel: tgt !== null ? '목표 ' + tgt.toFixed(0) + '배' : null,
+        fmt: function(v){ return v.toFixed(0) + '배'; } }));
+}
+
+// 주가 YoY 대 분기 영업이익 YoY — 가격의 선행성. 기저가 0 이하인 분기는 접는다.
+function icPriceOpYoyCard(ks){
+  if(!pHas() || !qHas()) return '';
+  var qEndMonth = { 1: '03', 2: '06', 3: '09', 4: '12' };
+  var labels = [], pY = [], oY = [];
+  ks.forEach(function(k){
+    var y = qYear(k), qn = parseInt(k.slice(5), 10);
+    var prevK = (y - 1) + k.slice(4);
+    var a = qVal(prevK, '합계', '영업이익'), b = qVal(k, '합계', '영업이익');
+    var m1 = y + '-' + qEndMonth[qn], m0 = (y - 1) + '-' + qEndMonth[qn];
+    var p1 = pMktcapAt(m1), p0 = pMktcapAt(m0);
+    if(a === null || b === null || p1 === null || p0 === null || !(p0 > 0)) return;
+    labels.push(k);
+    pY.push(p1 / p0 - 1);
+    oY.push(a > 0 ? b / a - 1 : null);
+  });
+  if(labels.length < 3) return '';
+  return icChartCard('주가 YoY 대 분기 영업이익 YoY',
+    '가격이 실적을 앞서는가 뒤따르는가 — 이익 기저가 0 이하인 분기의 이익 YoY는 접는다',
+    icSvgLines(labels, [
+      { name: '주가 YoY', values: pY, color: ICV.neg },
+      { name: '영업이익 YoY', values: oY, color: ICV.rev },
+    ], { fmt: function(v){ return (v * 100).toFixed(0) + '%'; } }));
 }
 
 // ── 분기 파생 차트 — TTM 롤링 · 계절성 · 부문 믹스 ─────────────
@@ -6399,6 +6508,7 @@ function renderICMonitor(){
   h += icQuarterTable(ks);
   h += icTtmCard(ks);
   h += icSeasonCard(ks);
+  h += icPriceOpYoyCard(ks);
   h += icQtrMixCard(ks);
   h += icTrackCards(ks);
   return h + '</div>';
@@ -6726,7 +6836,7 @@ function icSvgBars(labels, values, opts){
     g += _t(L + iw + 6, T + 8, opts.lineLabel || '', 8.5, ICV.neg, 'start', 700);
     // 선 축의 최댓값 표기. 비율 계열이면 %, 아니면 그냥 숫자다 —
     // 단가처럼 비율이 아닌 계열에 %를 붙이면 "2000%" 같은 글자가 뜬다.
-    var lfmt = function(v){
+    var lfmt = opts.lineFmt || function(v){
       return opts.linePct === false ? fmtSmart(v) : (v * 100).toFixed(0) + '%';
     };
     g += _t(L + iw + 6, T + 19, lfmt(lmax), 8.5, '#9CA3AF', 'start');
