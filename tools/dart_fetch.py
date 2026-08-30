@@ -387,6 +387,10 @@ def costnature(rcp_no: str) -> dict:
 
 _IS_REV_LABELS = ("매출액", "매출", "수익(매출액)", "영업수익")
 _IS_OP_LABELS = ("영업이익(손실)", "영업이익", "영업손실", "영업손익", "영업이익(손실) 합계")
+_IS_COGS_LABELS = ("매출원가",)
+# 순이익 행 — 보고서 종류에 따라 당기/분기/반기, 연결 접두, (손실) 접미가 붙는다.
+# "…의 귀속"(지배/비지배 배분) 행은 fullmatch가 걸러낸다.
+_IS_NI_RE = re.compile(r"^(연결)?\s*(당|분|반)기\s*순\s*(이익|손실)(\(손실\))?$")
 _IS_NUM_RE = re.compile(r"^\(?-?[\d,]+\)?$")
 
 
@@ -427,10 +431,11 @@ def iscum(rcp_no: str) -> dict:
     ncols = len(cols) if cols else 2          # 헤더 없으면 당기|전기 2열로 가정
     cum_idx = cols.index("누적") if "누적" in cols else 0
 
-    def row_value(labels):
+    def row_value(labels, rx=None):
         for i, ln in enumerate(lines):
             base = ln.split("(주")[0].strip()
-            if base in labels:
+            hit = rx.fullmatch(base) if rx is not None else (base in labels)
+            if hit:
                 vals = []
                 for nxt in lines[i + 1:i + 1 + ncols + 2]:
                     if _IS_NUM_RE.fullmatch(nxt):
@@ -441,14 +446,19 @@ def iscum(rcp_no: str) -> dict:
                         break
                 if len(vals) >= cum_idx + 1:
                     v = vals[cum_idx]
-                    return -v if base == "영업손실" and v > 0 else v
+                    loss = base == "영업손실" or ("순손실" in base.replace(" ", ""))
+                    return -v if loss and v > 0 else v
         return None
 
     rev = row_value(_IS_REV_LABELS)
     op = row_value(_IS_OP_LABELS)
     if rev is None or op is None:
         raise SystemExit(f"{rcp_no}: 매출/영업이익 행을 읽지 못했다 (cols={cols})")
-    return {"rev": rev, "op": op, "unit": unit, "ncols": ncols, "cum_idx": cum_idx}
+    # 매출원가·순이익은 선택 — 없는 공시(예: 성격별 단일 표시)는 None으로 둔다.
+    cogs = row_value(_IS_COGS_LABELS)
+    ni = row_value(None, _IS_NI_RE)
+    return {"rev": rev, "op": op, "cogs": cogs, "ni": ni,
+            "unit": unit, "ncols": ncols, "cum_idx": cum_idx}
 
 
 def islong(rcp_no: str) -> dict:
@@ -509,6 +519,213 @@ def islong(rcp_no: str) -> dict:
     if rev is None or op is None:
         raise SystemExit(f"{rcp_no}: {ncol}개년 매출/영업이익 행을 읽지 못했다")
     return {"rev": rev, "op": op, "unit": unit, "years": years or None}
+
+
+def _fin_text(rcp_no: str) -> str:
+    """연결재무제표 본문 항목의 전체 텍스트 (재무상태표~현금흐름표 포함)."""
+    items = toc(rcp_no)
+    nodes = [n for n in items if n["text"].rstrip().endswith("연결재무제표")
+             and "주석" not in n["text"]]
+    if not nodes:
+        raise SystemExit(f"{rcp_no}: 연결재무제표 항목을 찾지 못했다")
+    return document(nodes[0])
+
+
+def _stmt_rows(rcp_no: str, title_re: str, header_re: str, rows: dict,
+               chunk: int = 40000) -> dict:
+    """재무제표 하나에서 이름 붙은 행들의 다개년 값을 읽는다.
+
+    title_re로 표를 찾고, header_re로 연도 열을 센다(2개년 표도 받는다).
+    rows는 {키: (라벨들…)} — 라벨은 공백 제거·차례(로마숫자 등) 제거 후 비교.
+    값이 없는 키는 None. 반환: {키: [연도별 값], 'years': [...], 'unit': ...}
+    """
+    text = _fin_text(rcp_no)
+    m = re.search(title_re, text)
+    if m is None:
+        raise SystemExit(f"{rcp_no}: {title_re} 표를 찾지 못했다")
+    body = text[m.start():m.start() + chunk]
+    unit_m = re.search(r"\(단위\s*:\s*([^)]+)\)", body)
+    unit = unit_m.group(1).strip() if unit_m else "?"
+    head_end = unit_m.start() if unit_m else 1500
+    years = [int(y) for y in re.findall(header_re, body[:head_end])]
+    ncol = len(years) if years else 3
+    lines = [ln.strip().rstrip("|").strip() for ln in body.split("\n")]
+    lines = [ln for ln in lines if ln and ln != "　"]
+
+    def row(labels):
+        want = {lb.replace(" ", "") for lb in labels}
+        for i, ln in enumerate(lines):
+            base = ln.split("(주")[0].strip()
+            base = re.sub(r"^[IVXⅠ-Ⅻ0-9]+\s*[.．]\s*", "", base).replace(" ", "")
+            if base in want:
+                vals = []
+                for nxt in lines[i + 1:i + 3 + ncol]:
+                    if _IS_NUM_RE.fullmatch(nxt):
+                        vals.append(_to_int(nxt))
+                        if len(vals) == ncol:
+                            break
+                    elif vals:
+                        break
+                if len(vals) == ncol:
+                    return vals
+        return None
+
+    out = {"years": years or None, "unit": unit}
+    for key, labels in rows.items():
+        out[key] = row(labels)
+    return out
+
+
+def cflong(rcp_no: str) -> dict:
+    """연결 현금흐름표의 다개년 영업/투자/재무 현금흐름과 유형자산 취득."""
+    r = _stmt_rows(
+        rcp_no, r"연결\s*현금흐름표",
+        r"제\s*\d+\s*기\s*(\d{4})\.\d{2}\.\d{2}\s*부터",
+        {"cfo": ("영업활동현금흐름", "영업활동으로인한현금흐름",
+                 "영업활동으로인한순현금흐름", "영업활동순현금흐름"),
+         "cfi": ("투자활동현금흐름", "투자활동으로인한현금흐름",
+                 "투자활동으로인한순현금흐름", "투자활동순현금흐름"),
+         "cff": ("재무활동현금흐름", "재무활동으로인한현금흐름",
+                 "재무활동으로인한순현금흐름", "재무활동순현금흐름"),
+         "capex": ("유형자산의취득", "유형자산의증가", "유형자산취득")})
+    if r["cfo"] is None or r["cfi"] is None or r["cff"] is None:
+        raise SystemExit(f"{rcp_no}: 현금흐름표 활동별 행을 읽지 못했다")
+    return r
+
+
+def bslong(rcp_no: str) -> dict:
+    """연결 재무상태표의 부채총계·자본총계 (당기말·전기말 …)."""
+    r = _stmt_rows(
+        rcp_no, r"연결\s*재무상태표",
+        r"제\s*\d+\s*기(?:말|초)?\s*(\d{4})\.\d{2}\.\d{2}\s*현재",
+        {"liab": ("부채총계",), "equity": ("자본총계",)})
+    if r["liab"] is None or r["equity"] is None:
+        raise SystemExit(f"{rcp_no}: 재무상태표 부채·자본총계 행을 읽지 못했다")
+    return r
+
+
+_RG_HEADINGS = ("지역에 대한 공시", "지역별 공시", "지역별 매출", "지역별 수익",
+                "지역별 정보", "지역별 외부고객으로부터의 수익")
+_RG_REVROW = ("수익(매출액)", "매출액", "매출", "순매출액", "영업수익", "외부고객으로부터의 수익")
+_RG_TOTAL = ("합계", "계", "총계", "지역 합계", "기업 전체 총계")
+_RG_SKIP = ("　", "지역", "구분")
+
+
+def region(rcp_no: str) -> dict:
+    """영업부문 주석의 지역별 매출 — 당기/전기 두 해.
+
+    두 형태를 받는다.
+      A) XBRL 행형: 지역 헤더들 … '수익(매출액)' … 숫자 N개(마지막이 합계).
+         중첩 헤더(국내>내수/수출)는 말단이 뒤에 오므로 뒤에서 N-1개가 말단.
+      B) 고전 열형: '지역 | 당기 | 전기' 행 나열, 합계 행으로 끝.
+    반환: {'cur': {지역: 값}, 'prev': {...}, 'cur_total', 'prev_total', 'unit'}
+    실패는 SystemExit — 호출 쪽이 종목 단위로 건너뛴다.
+    """
+    items = toc(rcp_no)
+    nodes = [n for n in items if "연결재무제표 주석" in n["text"]]
+    if not nodes:
+        raise SystemExit(f"{rcp_no}: 연결재무제표 주석을 찾지 못했다")
+    text = document(nodes[0])
+
+    def parse_block(seg: list[str]) -> tuple[dict, float] | None:
+        # 행형 — 수익 라벨 앞의 헤더 토큰, 뒤의 숫자들(마지막이 합계).
+        # 첫 후보 행이 검증에 실패하면 다음 후보 행을 계속 시도한다.
+        for i, ln in enumerate(seg):
+            base = ln.split("(주")[0].strip()
+            if base not in _RG_REVROW:
+                continue
+            vals = []
+            for nxt in seg[i + 1:]:
+                if _IS_NUM_RE.fullmatch(nxt):
+                    vals.append(_to_int(nxt))
+                elif vals:
+                    break
+            if len(vals) < 3:
+                continue
+            # Σ말단 = 합계가 성립해야 유효한 표다 — 아니면 다른 표를 잡은 것.
+            # 빈 셀(소계 열)이 끼는 변형은 이름 매핑이 안전하지 않아 받지 않는다.
+            if abs(sum(vals[:-1]) - vals[-1]) > max(2, abs(vals[-1]) * 1e-6):
+                continue
+            heads = [h for h in seg[:i]
+                     if not _IS_NUM_RE.fullmatch(h) and h not in _RG_SKIP
+                     and not h.startswith("(단위") and "합계" not in h
+                     and not re.search(r"^[당전][분반]?\s*기$", h)]
+            # 중첩 헤더 — 부모(국내/외국)가 먼저 오고 말단이 뒤따른다.
+            # 부모 수 k = 헤더 수 − 말단 수. 외국 쪽 부모부터 걷어낸다
+            # (자식 없는 국내는 그 자체가 말단인 경우가 있다 — LGD).
+            k = len(heads) - (len(vals) - 1)
+            if k < 0:
+                continue
+            for parent in ("외국", "해외", "국외", "국내"):
+                while k > 0 and parent in heads:
+                    heads.remove(parent)
+                    k -= 1
+            if k > 0:
+                heads = heads[k:]
+            # 조정 열(연결조정 등)이 낀 표는 소계 빈 셀 때문에 이름 매핑이
+            # 한 칸씩 밀릴 수 있다 — 통째로 거부한다 (삼성전기 FY2024에서 실제 발생).
+            if any("조정" in h or "소재지" in h for h in heads):
+                continue
+            return dict(zip(heads, vals[:-1])), vals[-1]
+        return None
+
+    # 표 후보 — 제목의 모든 등장 위치를 순서대로 시도한다. 첫 등장이
+    # 산문(참조 문장)이거나 다른 표일 수 있다 (LGD·KT&G에서 실제로 그랬다).
+    spots = []
+    for hd in _RG_HEADINGS:
+        for m in re.finditer(re.escape(hd), text):
+            spots.append(m.start())
+    spots.sort()
+    for at in spots:
+        chunk = text[at:at + 8000]
+        lines = [ln.strip().rstrip("|").strip() for ln in chunk.split("\n")]
+        lines = [ln for ln in lines if ln]
+        unit = "?"
+        for ln in lines:
+            m2 = re.match(r"\(단위\s*:\s*([^)]+)\)", ln)
+            if m2:
+                unit = m2.group(1).strip()
+                break
+
+        # A) 행형 — 당기/전기 블록 각각에서 수익 행을 찾는다.
+        cur_at = prev_at = -1
+        for i, ln in enumerate(lines):
+            if re.fullmatch(r"당\s*기", ln) and cur_at < 0:
+                cur_at = i
+            elif re.fullmatch(r"전\s*기", ln) and cur_at >= 0:
+                prev_at = i
+                break
+        if cur_at >= 0 and prev_at > cur_at:
+            cur = parse_block(lines[cur_at:prev_at])
+            prev = parse_block(lines[prev_at:])
+            if cur and prev:
+                return {"cur": cur[0], "cur_total": cur[1],
+                        "prev": prev[0], "prev_total": prev[1], "unit": unit}
+
+        # B) 열형 — '구분 | 당기 | 전기' 행 나열, 합계 행으로 끝 (티엘비).
+        cur_d, prev_d = {}, {}
+        i = 0
+        while i < len(lines) - 2:
+            nm, a, b = lines[i], lines[i + 1], lines[i + 2]
+            if (not _IS_NUM_RE.fullmatch(nm) and _IS_NUM_RE.fullmatch(a)
+                    and _IS_NUM_RE.fullmatch(b) and not nm.startswith("(단위")):
+                nm2 = nm.split("(주")[0].strip().replace(" ", "")
+                if nm2 in ("합계", "계", "총계", "지역합계"):
+                    ct, pt = _to_int(a), _to_int(b)
+                    ok = (cur_d and abs(sum(cur_d.values()) - ct) <= max(2, abs(ct) * 1e-6)
+                          and abs(sum(prev_d.values()) - pt) <= max(2, abs(pt) * 1e-6)
+                          and not any("조정" in n or "소재지" in n for n in cur_d))
+                    if ok:
+                        return {"cur": cur_d, "cur_total": ct,
+                                "prev": prev_d, "prev_total": pt, "unit": unit}
+                    break
+                if nm2 not in _RG_SKIP and not re.fullmatch(r"[당전][분반]?기", nm2):
+                    cur_d[nm2] = _to_int(a)
+                    prev_d[nm2] = _to_int(b)
+                i += 3
+                continue
+            i += 1
+    raise SystemExit(f"{rcp_no}: 지역별 표 형태를 해석하지 못했다")
 
 
 def main(argv: list[str]) -> int:

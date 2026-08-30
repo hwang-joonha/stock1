@@ -43,6 +43,7 @@ def build(co: str) -> None:
     tol = TOL.get(co, 0.02)
 
     series: dict[int, tuple[float, float]] = {}
+    fin: dict[int, dict] = {}     # 현금흐름·재무상태 — 같은 보고서들에서 온다
     srcs = []
     for fy, rcp in REPORTS[co]:
         print(f"  {co} FY{fy}  {rcp}", file=sys.stderr)
@@ -55,9 +56,44 @@ def build(co: str) -> None:
             series[y] = (r["rev"][k] / div, r["op"][k] / div)
         srcs.append(f"FY{fy} {rcp}")
 
+        # 현금흐름표·재무상태표 — 실패해도 매출·이익 시계열은 산다.
+        try:
+            cf = dart.cflong(rcp)
+            cdiv = DIV[cf["unit"]]
+            cyrs = cf["years"] or yrs
+            for k, y in enumerate(cyrs):
+                rec = fin.setdefault(y, {})
+                for key in ("cfo", "cfi", "cff", "capex"):
+                    if key not in rec and cf[key] is not None:
+                        rec[key] = cf[key][k] / cdiv
+        except SystemExit as e:
+            print(f"    현금흐름표 생략: {e}", file=sys.stderr)
+        try:
+            bs = dart.bslong(rcp)
+            bdiv = DIV[bs["unit"]]
+            byrs = bs["years"] or yrs
+            for k, y in enumerate(byrs):
+                rec = fin.setdefault(y, {})
+                for key in ("liab", "equity"):
+                    if key not in rec and bs[key] is not None:
+                        rec[key] = bs[key][k] / bdiv
+        except SystemExit as e:
+            print(f"    재무상태표 생략: {e}", file=sys.stderr)
+
     years = sorted(series)
     rev = [round(series[y][0], 2) for y in years]
     op = [round(series[y][1], 2) for y in years]
+
+    def fin_col(key):
+        return [round(fin[y][key], 2) if y in fin and key in fin[y] else None
+                for y in years]
+
+    cfo, cfi, cff = fin_col("cfo"), fin_col("cfi"), fin_col("cff")
+    # CAPEX는 유출이라 음수로 공시된다 — 크기로 정규화. FCF = 영업CF − CAPEX.
+    capex = [round(abs(v), 2) if v is not None else None for v in fin_col("capex")]
+    fcf = [round(a - b, 2) if a is not None and b is not None else None
+           for a, b in zip(cfo, capex)]
+    liab, equity = fin_col("liab"), fin_col("equity")
 
     # 모델 실적 구간과 겹치는 연도 대사 — 파싱·기준의 교차검증.
     bad = []
@@ -74,15 +110,20 @@ def build(co: str) -> None:
         raise SystemExit(f"{co} 대사 실패:\n  " + "\n  ".join(bad))
 
     out = {
-        "_설명": "장기 매출·영업이익 — 사이클 차트 전용, 모델 비투입.",
+        "_설명": ("장기 매출·영업이익·현금흐름·재무상태 — 사이클/현금흐름/재무현황 "
+                 "차트 전용, 모델 비투입."),
         "_단위": "억원",
         "_기준": ("각 사업보고서의 3개년 블록을 그 보고서 공시 기준 그대로 이어 붙임. "
                  "소급 재작성이 있으면 블록 경계(예: 2022↔2023)에서 기준이 갈릴 수 있다. "
-                 "모델 실적 구간과 겹치는 연도는 historicals와 대사 통과."),
+                 "모델 실적 구간과 겹치는 연도는 historicals와 대사 통과. "
+                 "capex = 유형자산의 취득(크기), fcf = 영업CF − capex. "
+                 "liab·equity = 부채총계·자본총계(연말)."),
         "_출처": srcs,
         "years": [str(y) for y in years],
         "rev": rev,
         "op": op,
+        "cfo": cfo, "cfi": cfi, "cff": cff, "capex": capex, "fcf": fcf,
+        "liab": liab, "equity": equity,
     }
     path = f"companies/{co}/longhist.json"
     json.dump(out, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)

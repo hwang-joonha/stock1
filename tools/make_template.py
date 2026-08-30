@@ -4032,6 +4032,489 @@ function icOverviewDigest(){
 // ── 장기 사이클 — 사업보고서 3개년 블록 연결(LONGHIST 주입) ────"""
 
 
+# ─────────────────────────────────────────────────────────────
+# IC-21  지역별 매출 — REGIONS 주입 소비
+#
+# 주석 '지역에 대한 공시'를 이어 붙인 100% 스택. 부문 축(무엇을 파는가)과
+# 직교하는 축(어디서 파는가)이다. 공시가 없는 종목은 조용히 빠진다.
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC21_BIZ = """  h += icBizRevBlock(false);
+  h += icBizCostBlock(false);"""
+NEW_IC21_BIZ = """  h += icBizRevBlock(false);
+  h += icRegionCard();
+  h += icBizCostBlock(false);"""
+
+OLD_IC21_ANCHOR = """// ── 연간 현금흐름 — 창출(영업CF)과 배분(투자·재무), FCF ─────────"""
+NEW_IC21_ANCHOR = """// ── 지역별 매출 — 어디서 버는가 (REGIONS 주입) ──────────────────
+function icRegionCard(){
+  if(typeof REGIONS !== 'object' || !REGIONS || !(REGIONS.years || []).length) return '';
+  var yrs = REGIONS.years, t = yrs.length - 1;
+  var series = REGIONS.regions.map(function(rg){
+    return { name: rg, values: REGIONS.rev[rg].map(function(v){
+      return v === null ? 0 : v; }) };
+  });
+  var tot = 0;
+  series.forEach(function(s){ tot += s.values[t]; });
+  if(!(tot > 0)) return '';
+  var top = series.slice().sort(function(a, b){ return b.values[t] - a.values[t]; })
+    .slice(0, 3).map(function(s){
+      return s.name + ' ' + (s.values[t] / tot * 100).toFixed(0) + '%'; }).join(' · ');
+  return icChartCard('지역별 매출 — 어디서 버는가',
+    yrs[t] + ' 상위: ' + top + ' · 주석 공시 라벨 그대로 — 부문 축과 직교하는 관찰 축, 모델 비투입',
+    icSvgStack(yrs, series));
+}
+
+// ── 연간 현금흐름 — 창출(영업CF)과 배분(투자·재무), FCF ─────────"""
+
+OLD_IC21_DIGEST = """  // ⑦ 현금흐름 — 이익의 질."""
+NEW_IC21_DIGEST = """  // ⑥b 지역별 매출 — 집중과 이동.
+  if(typeof REGIONS === 'object' && REGIONS && (REGIONS.years || []).length > 1){
+    var rYrs = REGIONS.years, rT = rYrs.length - 1;
+    var tot0 = 0, totT = 0;
+    REGIONS.regions.forEach(function(rg){
+      tot0 += REGIONS.rev[rg][0] || 0;
+      totT += REGIONS.rev[rg][rT] || 0;
+    });
+    if(totT > 0 && tot0 > 0){
+      var topRg = REGIONS.regions.slice().sort(function(a, b){
+        return (REGIONS.rev[b][rT] || 0) - (REGIONS.rev[a][rT] || 0); })[0];
+      var shT = (REGIONS.rev[topRg][rT] || 0) / totT;
+      var sh0 = (REGIONS.rev[topRg][0] || 0) / tot0;
+      h += icDigestItem(icRegionCard(),
+        rYrs[rT] + ' 최대 지역 **' + topRg + ' ' + (shT * 100).toFixed(0) + '%**' +
+        ' — ' + rYrs[0] + ' ' + (sh0 * 100).toFixed(0) + '%에서 ' +
+        (shT >= sh0 ? '집중 심화' : '분산') +
+        ' · 최대 지역의 수요·규제가 곧 매출 리스크의 지리적 위치');
+    }
+  }
+
+  // ⑦ 현금흐름 — 이익의 질."""
+
+# ─────────────────────────────────────────────────────────────
+# IC-20  연간 현금흐름 · 재무현황 — LONGHIST 확장 소비
+#
+# 같은 사업보고서들의 현금흐름표(3개년 블록)와 재무상태표에서 온다.
+# FCF = 영업CF − 유형자산 취득. "이익의 질"과 레버리지의 방향 —
+# 순차입금 고정 가정(보수성)이 어느 쪽으로 보수적인지 여기서 보인다.
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC20_BIZ = """  h += icDepCrossCard();
+  h += icCycleCard();
+  return h + '</div>';"""
+NEW_IC20_BIZ = """  h += icDepCrossCard();
+  h += icCycleCard();
+  h += icCashflowCard();
+  h += icBalanceCard();
+  return h + '</div>';"""
+
+OLD_IC20_ANCHOR = """// ── 장기 사이클 — 사업보고서 3개년 블록 연결(LONGHIST 주입) ────"""
+NEW_IC20_ANCHOR = """// ── 연간 현금흐름 — 창출(영업CF)과 배분(투자·재무), FCF ─────────
+function icLhHas(key){
+  return typeof LONGHIST === 'object' && LONGHIST && (LONGHIST[key] || []).some(
+    function(v){ return v !== null && isFinite(v); });
+}
+function icCashflowCard(){
+  if(!icLhHas('cfo')) return '';
+  var yrs = LONGHIST.years;
+  var mx = Math.max.apply(null, LONGHIST.cfo.filter(function(v){ return v !== null; }));
+  var series = [
+    { name: '영업CF', values: LONGHIST.cfo, color: ICV.rev },
+    { name: '투자CF', values: LONGHIST.cfi, color: ICV.rev2 },
+    { name: '재무CF', values: LONGHIST.cff, color: ICV.text },
+  ];
+  if(icLhHas('fcf')) series.push({ name: 'FCF', values: LONGHIST.fcf, color: ICV.pos });
+  return icChartCard('현금흐름 — 창출과 배분 ' + yrs.length + '년',
+    'FCF = 영업CF − 유형자산 취득 · 투자CF에는 금융자산 매매도 섞이므로 창출력의 척도는 FCF — '
+    + '이익은 나는데 FCF가 계속 음수면 증설이 이익을 먹고 있는 것',
+    icSvgLines(yrs, series, { fmt: (mx >= 20000 ? icJo : fmtSmart) }));
+}
+
+// ── 재무현황 — 자본총계(막대)와 부채비율(선) ────────────────────
+function icBalanceCard(){
+  if(!icLhHas('equity') || !icLhHas('liab')) return '';
+  var yrs = [], eq = [], dr = [];
+  LONGHIST.years.forEach(function(y, i){
+    var e = LONGHIST.equity[i], l = LONGHIST.liab[i];
+    if(e === null || l === null || !(e > 0)) return;
+    yrs.push(y);
+    eq.push(e);
+    dr.push(l / e);
+  });
+  if(yrs.length < 3) return '';
+  var mx = Math.max.apply(null, eq);
+  var last = yrs.length - 1;
+  return icChartCard('재무현황 — 자본과 부채비율',
+    '막대 = 자본총계 · 선 = 부채비율(부채총계 ÷ 자본총계) — ' + yrs[last] + ' ' +
+    (dr[last] * 100).toFixed(0) + '%' +
+    (yrs.length > 5 ? ' (5년 전 ' + (dr[last - 5] * 100).toFixed(0) + '%)' : ''),
+    icSvgBars(yrs, eq, { line: dr, lineLabel: '부채비율',
+      axisFmt: (mx >= 20000 ? icJo : null) }));
+}
+
+// ── 장기 사이클 — 사업보고서 3개년 블록 연결(LONGHIST 주입) ────"""
+
+OLD_IC20_DIGEST = """  if(!h) return '';
+  return '<h2 class="digest-head">차트 다이제스트</h2>' +"""
+NEW_IC20_DIGEST = """  // ⑦ 현금흐름 — 이익의 질.
+  if(icLhHas('fcf')){
+    var cfoSum = 0, fcfSum = 0, capSum = 0, nf = 0, lastFcf = null, lastFy = null;
+    LONGHIST.years.forEach(function(y, i){
+      var f = LONGHIST.fcf[i];
+      if(f === null) return;
+      cfoSum += LONGHIST.cfo[i]; capSum += LONGHIST.capex[i]; fcfSum += f;
+      nf++; lastFcf = f; lastFy = y;
+    });
+    if(nf >= 3){
+      h += icDigestItem(icCashflowCard(),
+        nf + '년 누적 FCF **' + icJo(fcfSum) + '**' +
+        ' — 영업현금 ' + icJo(cfoSum) + '의 ' + (cfoSum > 0 ? (capSum / cfoSum * 100).toFixed(0) : '—') +
+        '%를 설비에 재투자 · ' + lastFy + ' FCF ' + icJo(lastFcf) +
+        ' — 순차입금 고정 가정이 보수적인지 여기서 판단');
+    }
+  }
+
+  // ⑧ 재무현황 — 레버리지의 방향.
+  if(icLhHas('equity') && icLhHas('liab')){
+    var drs = [], dyrs = [];
+    LONGHIST.years.forEach(function(y, i){
+      var e = LONGHIST.equity[i], l = LONGHIST.liab[i];
+      if(e !== null && l !== null && e > 0){ drs.push(l / e); dyrs.push(y); }
+    });
+    if(drs.length >= 3){
+      var dl = drs.length - 1;
+      var d0 = drs[Math.max(0, dl - 5)], y0 = dyrs[Math.max(0, dl - 5)];
+      h += icDigestItem(icBalanceCard(),
+        dyrs[dl] + ' 부채비율 **' + (drs[dl] * 100).toFixed(0) + '%** — ' + y0 + ' ' +
+        (d0 * 100).toFixed(0) + '%에서 ' + (drs[dl] >= d0 ? '상승' : '하락') +
+        ' · 레버리지가 ' + (drs[dl] >= d0 ? '커지는' : '줄어드는') +
+        ' 구간의 이익 성장은 질이 다르다');
+    }
+  }
+
+  if(!h) return '';
+  return '<h2 class="digest-head">차트 다이제스트</h2>' +"""
+
+# ─────────────────────────────────────────────────────────────
+# IC-19  분기 이익률 3종 — 총이익률·영업이익률·순이익률
+#
+# quarterly.json에 매출원가·순이익(전체 기준)이 병합되면서 가능해진 화면.
+# 세 층의 간격이 정보다 — 총이익률과 영업이익률의 간격은 판관비,
+# 영업이익률과 순이익률의 간격은 영업외·세금·비지배다.
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC19_MON = """  h += icTtmCard(ks);
+  h += icSeasonCard(ks);
+  h += icPriceOpYoyCard(ks);"""
+NEW_IC19_MON = """  h += icTtmCard(ks);
+  h += icQtrMarginCard(ks);
+  h += icSeasonCard(ks);
+  h += icPriceOpYoyCard(ks);"""
+
+OLD_IC19_ANCHOR = """// ── 분기 파생 차트 — TTM 롤링 · 계절성 · 부문 믹스 ─────────────"""
+NEW_IC19_ANCHOR = """// ── 분기 이익률 — 총이익·영업·순이익 세 층 ─────────────────────
+function icQtrMarginCard(ks){
+  if(!qHas()) return '';
+  var labels = [], gm = [], om = [], nm = [], any = false;
+  ks.forEach(function(k){
+    var r = qVal(k, '합계', '매출');
+    if(r === null || !(r > 0)) return;
+    var c = qVal(k, '합계', '매출원가'), ni = qVal(k, '합계', '순이익');
+    var op = qVal(k, '합계', '영업이익');
+    labels.push(k);
+    gm.push(c !== null ? (r - c) / r : null);
+    om.push(op !== null ? op / r : null);
+    nm.push(ni !== null ? ni / r : null);
+    if(c !== null || ni !== null) any = true;
+  });
+  if(labels.length < 3 || !any) return '';
+  var series = [];
+  if(gm.some(function(v){ return v !== null; }))
+    series.push({ name: '매출총이익률', values: gm, color: ICV.rev2 });
+  series.push({ name: '영업이익률', values: om, color: ICV.rev });
+  if(nm.some(function(v){ return v !== null; }))
+    series.push({ name: '순이익률', values: nm, color: ICV.neg });
+  return icChartCard('분기 이익률 — 총이익 · 영업 · 순이익',
+    '총이익률↔영업이익률 간격 = 판관비, 영업이익률↔순이익률 간격 = 영업외·세금 · 순이익률은 전체(지배+비지배) 기준',
+    icSvgLines(labels, series,
+      { fmt: function(v){ return (v * 100).toFixed(0) + '%'; } }));
+}
+
+// ── 분기 파생 차트 — TTM 롤링 · 계절성 · 부문 믹스 ─────────────"""
+
+OLD_IC19_DIGEST = """  // ⑤ 배수 밴드 — 목표배수가 자기 역사 어디에 있는가."""
+NEW_IC19_DIGEST = """  // ④b 분기 이익률 — 세 층의 방향.
+  if(qHas()){
+    var ksM = qKeys(), lastM = ksM[ksM.length - 1];
+    var rM = qVal(lastM, '합계', '매출');
+    var cM = qVal(lastM, '합계', '매출원가'), nM2 = qVal(lastM, '합계', '순이익');
+    if(rM !== null && rM > 0 && (cM !== null || nM2 !== null)){
+      var prevM = (qYear(lastM) - 1) + lastM.slice(4);
+      var rP = qVal(prevM, '합계', '매출');
+      var partsM = [];
+      if(cM !== null){
+        var g1 = (rM - cM) / rM, cP = qVal(prevM, '합계', '매출원가');
+        var gp = (rP !== null && rP > 0 && cP !== null) ? (rP - cP) / rP : null;
+        partsM.push('총이익률 **' + (g1 * 100).toFixed(1) + '%**' +
+          (gp !== null ? ' (YoY ' + ((g1 - gp) >= 0 ? '+' : '') +
+            ((g1 - gp) * 100).toFixed(1) + '%p)' : ''));
+      }
+      var oM2 = qVal(lastM, '합계', '영업이익');
+      if(oM2 !== null) partsM.push('영업이익률 ' + (oM2 / rM * 100).toFixed(1) + '%');
+      if(nM2 !== null) partsM.push('순이익률 ' + (nM2 / rM * 100).toFixed(1) + '%');
+      h += icDigestItem(icQtrMarginCard(ksM), lastM + ' ' + partsM.join(' · ') +
+        ' — 층의 간격이 벌어지는 곳(판관비·영업외)이 이익의 누수 지점');
+    }
+  }
+
+  // ⑤ 배수 밴드 — 목표배수가 자기 역사 어디에 있는가."""
+
+# ─────────────────────────────────────────────────────────────
+# IC-18  매출 YoY 선 · KOSPI 상대 성과
+#
+#   - 주가 YoY 차트에 매출 YoY 추가 — 이익 YoY는 기저 문제로 자주 접히는데
+#     매출 YoY는 살아남아 방향을 말해 준다
+#   - 시장 대비 상대 성과 — 종목과 KOSPI를 같은 달 = 100으로 지수화.
+#     "올랐다"와 "시장보다 올랐다"는 다른 정보다
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC18_OPYOY = """  var labels = [], pY = [], oY = [];
+  ks.forEach(function(k){
+    var y = qYear(k), qn = parseInt(k.slice(5), 10);
+    var prevK = (y - 1) + k.slice(4);
+    var a = qVal(prevK, '합계', '영업이익'), b = qVal(k, '합계', '영업이익');
+    var m1 = y + '-' + qEndMonth[qn], m0 = (y - 1) + '-' + qEndMonth[qn];
+    var p1 = pMktcapAt(m1), p0 = pMktcapAt(m0);
+    if(a === null || b === null || p1 === null || p0 === null || !(p0 > 0)) return;
+    labels.push(k);
+    pY.push(p1 / p0 - 1);
+    oY.push(a > 0 ? b / a - 1 : null);
+  });
+  if(labels.length < 3) return '';
+  return icChartCard('주가 YoY 대 분기 영업이익 YoY',
+    '가격이 실적을 앞서는가 뒤따르는가 — 이익 기저가 0 이하인 분기의 이익 YoY는 접는다',
+    icSvgLines(labels, [
+      { name: '주가 YoY', values: pY, color: ICV.neg },
+      { name: '영업이익 YoY', values: oY, color: ICV.rev },
+    ], { fmt: function(v){ return (v * 100).toFixed(0) + '%'; } }));"""
+NEW_IC18_OPYOY = """  var labels = [], pY = [], oY = [], rY = [];
+  ks.forEach(function(k){
+    var y = qYear(k), qn = parseInt(k.slice(5), 10);
+    var prevK = (y - 1) + k.slice(4);
+    var a = qVal(prevK, '합계', '영업이익'), b = qVal(k, '합계', '영업이익');
+    var ra = qVal(prevK, '합계', '매출'), rb = qVal(k, '합계', '매출');
+    var m1 = y + '-' + qEndMonth[qn], m0 = (y - 1) + '-' + qEndMonth[qn];
+    var p1 = pMktcapAt(m1), p0 = pMktcapAt(m0);
+    if(a === null || b === null || p1 === null || p0 === null || !(p0 > 0)) return;
+    labels.push(k);
+    pY.push(p1 / p0 - 1);
+    oY.push(a > 0 ? b / a - 1 : null);
+    rY.push(ra !== null && ra > 0 && rb !== null ? rb / ra - 1 : null);
+  });
+  if(labels.length < 3) return '';
+  return icChartCard('주가 YoY 대 분기 실적 YoY',
+    '가격이 실적을 앞서는가 뒤따르는가 — 이익 기저가 0 이하인 분기의 이익 YoY는 접는다',
+    icSvgLines(labels, [
+      { name: '주가 YoY', values: pY, color: ICV.neg },
+      { name: '매출 YoY', values: rY, color: ICV.rev2 },
+      { name: '영업이익 YoY', values: oY, color: ICV.rev },
+    ], { fmt: function(v){ return (v * 100).toFixed(0) + '%'; } }));"""
+
+OLD_IC18_VAL = """  h += icMultBandCard();
+  h += icPriceEarnCard();"""
+NEW_IC18_VAL = """  h += icMultBandCard();
+  h += icPriceEarnCard();
+  h += icRelPerfCard();"""
+
+OLD_IC18_ANCHOR = """// 주가 YoY 대 분기 영업이익 YoY — 가격의 선행성. 기저가 0 이하인 분기는 접는다."""
+NEW_IC18_ANCHOR = """// 시장 대비 상대 성과 — 종목과 KOSPI를 같은 달 = 100으로 지수화.
+function icRelSeries(){
+  if(!pHas() || !(PRICES.kospi || []).length) return null;
+  var km = {};
+  PRICES.kospi.forEach(function(m){ km[m.d] = m.c; });
+  var labels = [], sv = [], kv = [];
+  PRICES.monthly.forEach(function(m){
+    if(km[m.d] == null) return;
+    labels.push(m.d.slice(2));
+    sv.push(m.c);
+    kv.push(km[m.d]);
+  });
+  return labels.length >= 13 ? { labels: labels, sv: sv, kv: kv } : null;
+}
+function icRelExcess12(rs){
+  var n = rs.labels.length;
+  if(n < 13 || !(rs.sv[n - 13] > 0) || !(rs.kv[n - 13] > 0)) return null;
+  return rs.sv[n - 1] / rs.sv[n - 13] - rs.kv[n - 1] / rs.kv[n - 13];
+}
+function icRelPerfCard(){
+  var rs = icRelSeries();
+  if(!rs) return '';
+  var n = rs.labels.length;
+  var si = rs.sv.map(function(v){ return v / rs.sv[0] * 100; });
+  var ki = rs.kv.map(function(v){ return v / rs.kv[0] * 100; });
+  var ex = icRelExcess12(rs);
+  return icChartCard('시장 대비 상대 성과 — ' + rs.labels[0] + ' = 100',
+    '기간 수익률: ' + esc(META.brand || '종목') + ' ' +
+    ((si[n - 1] / 100 - 1) >= 0 ? '+' : '') + ((si[n - 1] / 100 - 1) * 100).toFixed(0) +
+    '% · KOSPI ' + ((ki[n - 1] / 100 - 1) >= 0 ? '+' : '') +
+    ((ki[n - 1] / 100 - 1) * 100).toFixed(0) + '%' +
+    (ex !== null ? ' · 최근 12개월 초과수익 ' + (ex >= 0 ? '+' : '') + (ex * 100).toFixed(0) + '%p' : '') +
+    ' — 조정 종가 기준',
+    icSvgLines(rs.labels, [
+      { name: META.brand || '종목', values: si, color: ICV.rev },
+      { name: 'KOSPI', values: ki, color: ICV.text },
+    ], { fmt: function(v){ return v.toFixed(0); } }));
+}
+
+// 주가 YoY 대 분기 영업이익 YoY — 가격의 선행성. 기저가 0 이하인 분기는 접는다."""
+
+OLD_IC18_DIGEST = """  // ⑥ 장기 사이클 — 지금이 사이클 어디인가."""
+NEW_IC18_DIGEST = """  // ⑤b 시장 대비 상대 성과 — 소외인가 과열인가.
+  (function(){
+    var rs = icRelSeries();
+    if(!rs) return;
+    var ex = icRelExcess12(rs);
+    if(ex === null) return;
+    h += icDigestItem(icRelPerfCard(),
+      '최근 12개월 시장(KOSPI) 대비 **' + (ex >= 0 ? '+' : '') + (ex * 100).toFixed(0) +
+      '%p ' + (ex >= 0 ? '초과수익' : '부진') + '** — ' +
+      (ex >= 0 ? '시장이 이미 서사를 가격에 얹고 있는지 배수 밴드와 함께 볼 것'
+               : '소외가 저평가인지 이유 있는 외면인지가 심사 질문'));
+  })();
+
+  // ⑥ 장기 사이클 — 지금이 사이클 어디인가."""
+
+# ─────────────────────────────────────────────────────────────
+# IC-17  차트 디자인 리터치 — 버틀러 벤치마크에서 선별 채택
+#
+#   - 속 빈 원 마커(흰 채움 + 색 테두리): 선이 겹칠 때 판독성
+#   - 하단 중앙 범례: 계열 이름을 오른쪽 여백에 세로로 쌓지 않는다
+#   - 오른쪽 보조축 눈금: 이중 축 차트에서 최대/최소 두 점 대신 눈금 5개
+#   - 추정 구간 막대 페이드: 옅은 색 + 투명도로 "확정 아님"을 한 번 더
+#
+# 가져오지 않은 것: 다색 팔레트 (색은 tokens.js 램프의 의미 체계 유지).
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC17_BARS_R = """  var W = 720, H = opts.height || 200, L = 44, R = opts.line ? 40 : 12, T = 16, B = 26;"""
+NEW_IC17_BARS_R = """  var W = 720, H = opts.height || 200, L = 44, R = opts.line ? 48 : 12, T = 16, B = 26;"""
+
+OLD_IC17_BARS_FADE = """    var fc = (opts.histN != null && i >= opts.histN) ? ICV.rev2 : ICV.rev;
+    g += '<rect x="' + x.toFixed(1) + '" y="' + (T + ih - h).toFixed(1) + '" width="' +
+         bw.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + fc + '" rx="2"/>';"""
+NEW_IC17_BARS_FADE = """    var est = opts.histN != null && i >= opts.histN;
+    g += '<rect x="' + x.toFixed(1) + '" y="' + (T + ih - h).toFixed(1) + '" width="' +
+         bw.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + (est ? ICV.rev2 : ICV.rev) +
+         '"' + (est ? ' opacity="0.6"' : '') + ' rx="2"/>';"""
+
+OLD_IC17_BARS_LINE = """    opts.line.forEach(function(v, i){
+      pts.push((L + step * i + step / 2).toFixed(1) + ',' + ly(v).toFixed(1));
+    });
+    g += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + ICV.neg +
+         '" stroke-width="1.6"/>';
+    pts.forEach(function(p){
+      var xy = p.split(',');
+      g += '<circle cx="' + xy[0] + '" cy="' + xy[1] + '" r="2.4" fill="' + ICV.neg + '"/>';
+    });
+    g += _t(L + iw + 6, T + 8, opts.lineLabel || '', 8.5, ICV.neg, 'start', 700);
+    // 선 축의 최댓값 표기. 비율 계열이면 %, 아니면 그냥 숫자다 —
+    // 단가처럼 비율이 아닌 계열에 %를 붙이면 "2000%" 같은 글자가 뜬다.
+    var lfmt = opts.lineFmt || function(v){
+      return opts.linePct === false ? fmtSmart(v) : (v * 100).toFixed(0) + '%';
+    };
+    g += _t(L + iw + 6, T + 19, lfmt(lmax), 8.5, '#9CA3AF', 'start');
+    if(lmin < 0) g += _t(L + iw + 6, T + ih, lfmt(lmin), 8.5, '#9CA3AF', 'start');"""
+NEW_IC17_BARS_LINE = """    opts.line.forEach(function(v, i){
+      pts.push((L + step * i + step / 2).toFixed(1) + ',' + ly(v).toFixed(1));
+    });
+    g += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + ICV.neg +
+         '" stroke-width="1.6"/>';
+    // 속 빈 원 마커 — 막대 위에서도 선의 점이 또렷하게 남는다.
+    pts.forEach(function(p){
+      var xy = p.split(',');
+      g += '<circle cx="' + xy[0] + '" cy="' + xy[1] + '" r="2.7" fill="#fff" stroke="' +
+           ICV.neg + '" stroke-width="1.5"/>';
+    });
+    g += _t(L + iw + 6, T - 5, opts.lineLabel || '', 8.5, ICV.neg, 'start', 700);
+    // 선 축 서식. 비율 계열이면 %, 아니면 그냥 숫자다 —
+    // 단가처럼 비율이 아닌 계열에 %를 붙이면 "2000%" 같은 글자가 뜬다.
+    var lfmt = opts.lineFmt || function(v){
+      return opts.linePct === false ? fmtSmart(v) : (v * 100).toFixed(0) + '%';
+    };
+    // 오른쪽 보조축 눈금 — 최대/최소 두 점보다 중간값이 읽힌다.
+    for(var rk = 0; rk <= 4; rk++){
+      var rv = lmin + lspan * rk / 4;
+      g += _t(L + iw + 6, ly(rv) + 3, lfmt(rv), 8, '#9CA3AF', 'start');
+    }"""
+
+OLD_IC17_LINES_HEAD = """  var W = 720, H = opts.height || 210, L = 56, R = 96, T = 16, B = 26;"""
+NEW_IC17_LINES_HEAD = """  var W = 720, H = opts.height || 210, L = 56, R = 24, T = 16, B = 44;"""
+
+OLD_IC17_LINES_SERIES = """  series.forEach(function(s, si){
+    var col = s.color || ICV.ramp[si % ICV.ramp.length];
+    if(!s.points){
+      var pl = [];
+      for(var i2 = 0; i2 < n; i2++){
+        var v2 = s.values[i2];
+        if(v2 == null || !isFinite(v2)) continue;
+        pl.push(X(i2).toFixed(1) + ',' + Y(v2).toFixed(1));
+      }
+      if(pl.length > 1)
+        g += '<polyline points="' + pl.join(' ') + '" fill="none" stroke="' + col +
+             '" stroke-width="1.8"' + (s.dash ? ' stroke-dasharray="4,3"' : '') + '/>';
+    }
+    for(var i3 = 0; i3 < n; i3++){
+      var v3 = s.values[i3];
+      if(v3 == null || !isFinite(v3)) continue;
+      if(s.points || i3 === n - 1)
+        g += '<circle cx="' + X(i3).toFixed(1) + '" cy="' + Y(v3).toFixed(1) + '" r="' +
+             (s.points ? 3.4 : 2.6) + '" fill="' + col + '"/>';
+    }
+    var ly = T + 6 + si * 15;
+    g += '<rect x="' + (W - R + 4) + '" y="' + (ly - 8) + '" width="9" height="9" rx="2" fill="' +
+         col + '"/>';
+    g += _t(W - R + 18, ly, s.name, 9, ICV.text, 'start');
+  });
+  var stepLab = Math.ceil(n / 12);
+  for(var i4 = 0; i4 < n; i4 += stepLab) g += _t(X(i4), H - 8, labels[i4], 8.5);"""
+NEW_IC17_LINES_SERIES = """  var leg = [];
+  series.forEach(function(s, si){
+    var col = s.color || ICV.ramp[si % ICV.ramp.length];
+    if(!s.points){
+      var pl = [];
+      for(var i2 = 0; i2 < n; i2++){
+        var v2 = s.values[i2];
+        if(v2 == null || !isFinite(v2)) continue;
+        pl.push(X(i2).toFixed(1) + ',' + Y(v2).toFixed(1));
+      }
+      if(pl.length > 1)
+        g += '<polyline points="' + pl.join(' ') + '" fill="none" stroke="' + col +
+             '" stroke-width="1.8"' + (s.dash ? ' stroke-dasharray="4,3"' : '') + '/>';
+    }
+    // 마커 — 속 빈 원(흰 채움). 월간처럼 점이 많은 시계열은 마지막 점만.
+    var mk = s.points || n <= 30;
+    for(var i3 = 0; i3 < n; i3++){
+      var v3 = s.values[i3];
+      if(v3 == null || !isFinite(v3)) continue;
+      if(mk || i3 === n - 1)
+        g += '<circle cx="' + X(i3).toFixed(1) + '" cy="' + Y(v3).toFixed(1) + '" r="' +
+             (s.points ? 3.4 : 2.8) + '" fill="#fff" stroke="' + col + '" stroke-width="1.6"/>';
+    }
+    leg.push({ name: s.name, color: col });
+  });
+  var stepLab = Math.ceil(n / 12);
+  for(var i4 = 0; i4 < n; i4 += stepLab) g += _t(X(i4), T + ih + 13, labels[i4], 8.5);
+  // 하단 중앙 범례 — 오른쪽 여백의 세로 쌓기보다 계열 대응이 빠르다.
+  var lw = leg.map(function(e){ return 16 + e.name.length * 9; });
+  var ltot = lw.reduce(function(a, b){ return a + b + 16; }, -16);
+  var lx = L + (iw - ltot) / 2, lyy = H - 8;
+  leg.forEach(function(e, ei){
+    g += '<circle cx="' + (lx + 4).toFixed(1) + '" cy="' + (lyy - 3.5) + '" r="3.2" fill="#fff" stroke="' +
+         e.color + '" stroke-width="1.8"/>';
+    g += _t(lx + 12, lyy, e.name, 9, ICV.text, 'start');
+    lx += lw[ei] + 16;
+  });"""
+
+
 def _cut_data_region(text: str) -> str:
     """YRS 선언 앞 주석부터 MODEL 리터럴 끝까지를 마커+예제로 교체한다."""
     from extract_engine import _scan_assignment
@@ -4189,6 +4672,24 @@ def main() -> None:
     p.sub("IC-16 다이제스트 배치", OLD_IC16_OV, NEW_IC16_OV)
     p.sub("IC-16 다이제스트 스타일", OLD_IC16_STYLE, NEW_IC16_STYLE)
     p.sub("IC-16 다이제스트 구현", OLD_IC16_ANCHOR, NEW_IC16_ANCHOR)
+    p.sub("IC-17 막대 우측 여백", OLD_IC17_BARS_R, NEW_IC17_BARS_R)
+    p.sub("IC-17 추정 막대 페이드", OLD_IC17_BARS_FADE, NEW_IC17_BARS_FADE)
+    p.sub("IC-17 선 마커·보조축", OLD_IC17_BARS_LINE, NEW_IC17_BARS_LINE)
+    p.sub("IC-17 다중선 여백", OLD_IC17_LINES_HEAD, NEW_IC17_LINES_HEAD)
+    p.sub("IC-17 다중선 마커·하단 범례", OLD_IC17_LINES_SERIES, NEW_IC17_LINES_SERIES)
+    p.sub("IC-18 실적 YoY 확장", OLD_IC18_OPYOY, NEW_IC18_OPYOY)
+    p.sub("IC-18 상대 성과 배치", OLD_IC18_VAL, NEW_IC18_VAL)
+    p.sub("IC-18 상대 성과 구현", OLD_IC18_ANCHOR, NEW_IC18_ANCHOR)
+    p.sub("IC-18 다이제스트 항목", OLD_IC18_DIGEST, NEW_IC18_DIGEST)
+    p.sub("IC-19 이익률 카드 배치", OLD_IC19_MON, NEW_IC19_MON)
+    p.sub("IC-19 이익률 카드 구현", OLD_IC19_ANCHOR, NEW_IC19_ANCHOR)
+    p.sub("IC-19 다이제스트 항목", OLD_IC19_DIGEST, NEW_IC19_DIGEST)
+    p.sub("IC-20 카드 배치", OLD_IC20_BIZ, NEW_IC20_BIZ)
+    p.sub("IC-20 현금흐름·재무 구현", OLD_IC20_ANCHOR, NEW_IC20_ANCHOR)
+    p.sub("IC-20 다이제스트 항목", OLD_IC20_DIGEST, NEW_IC20_DIGEST)
+    p.sub("IC-21 지역 카드 배치", OLD_IC21_BIZ, NEW_IC21_BIZ)
+    p.sub("IC-21 지역 카드 구현", OLD_IC21_ANCHOR, NEW_IC21_ANCHOR)
+    p.sub("IC-21 다이제스트 항목", OLD_IC21_DIGEST, NEW_IC21_DIGEST)
 
     p.text = _cut_data_region(p.text)
     p.applied.append("DATA 데이터 블록 → 주입 마커")

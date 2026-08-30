@@ -27,51 +27,55 @@ TICKERS = {
     "lgd": "034220.KS",
     "sec": "005930.KS",
 }
+INDEX = "^KS11"          # KOSPI — 시장 대비 상대 성과 차트용
 URL = ("https://query1.finance.yahoo.com/v8/finance/chart/{t}"
        "?range=10y&interval=1mo&events=div%2Csplit")
 
 
-def fetch(co: str) -> None:
-    t = TICKERS[co]
+def _monthly(ticker: str) -> list[dict]:
     out = subprocess.run(
         ["curl", "-sS", "--max-time", "60", "--cacert", CA,
-         "-H", "User-Agent: Mozilla/5.0", URL.format(t=t)],
+         "-H", "User-Agent: Mozilla/5.0", URL.format(t=ticker)],
         capture_output=True, check=True)
     doc = json.loads(out.stdout)
     res = doc["chart"]["result"][0]
     stamps = res["timestamp"]
     closes = res["indicators"]["quote"][0]["close"]
 
-    monthly = []
+    # 같은 달이 중복되면(마지막 미완성 달) 뒤의 것을 쓴다.
+    dedup = {}
     for ts, c in zip(stamps, closes):
         if c is None:
             continue
         d = datetime.datetime.utcfromtimestamp(ts)
-        monthly.append({"d": f"{d.year}-{d.month:02d}", "c": round(c, 2)})
-    # 같은 달이 중복되면(마지막 미완성 달) 뒤의 것을 쓴다.
-    dedup = {}
-    for row in monthly:
-        dedup[row["d"]] = row["c"]
-    monthly = [{"d": k, "c": v} for k, v in sorted(dedup.items())]
+        dedup[f"{d.year}-{d.month:02d}"] = round(c, 2)
+    return [{"d": k, "c": v} for k, v in sorted(dedup.items())]
+
+
+def fetch(co: str, kospi: list[dict]) -> None:
+    t = TICKERS[co]
+    monthly = _monthly(t)
 
     payload = {
-        "_출처": f"Yahoo Finance chart API · {t} · 월간 종가(월말) · 수집 "
+        "_출처": f"Yahoo Finance chart API · {t} + {INDEX}(KOSPI) · 월간 종가(월말) · 수집 "
                 + datetime.date.today().isoformat(),
         "_기준": ("액면분할·무상증자 소급 조정 종가. 근사 시가총액 = 종가 × 현재 "
                  "상장주식수 — 유상증자·소각에 따른 주식수 변화분은 오차로 남는다. "
-                 "차트 전용, 모델 비투입."),
+                 "kospi는 시장 대비 상대 성과 차트용 지수 종가. 차트 전용, 모델 비투입."),
         "ticker": t,
         "monthly": monthly,
+        "kospi": kospi,
     }
     path = f"companies/{co}/prices.json"
     json.dump(payload, open(path, "w", encoding="utf-8"),
               ensure_ascii=False, indent=1)
-    print(f"{path} — {len(monthly)}개월 ({monthly[0]['d']} ~ {monthly[-1]['d']})")
+    print(f"{path} — {len(monthly)}개월 ({monthly[0]['d']} ~ {monthly[-1]['d']}) + KOSPI {len(kospi)}개월")
 
 
 def main(argv: list[str]) -> int:
+    kospi = _monthly(INDEX)
     for co in (argv or list(TICKERS)):
-        fetch(co)
+        fetch(co, kospi)
     return 0
 
 

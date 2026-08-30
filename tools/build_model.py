@@ -32,6 +32,7 @@ def build(data_path: str, template_path: str = TEMPLATE) -> str:
     data += _costnature_block(data_path)
     data += _prices_block(data_path)
     data += _longhist_block(data_path)
+    data += _regions_block(data_path)
 
     try:
         head = html.index(DATA_START)
@@ -121,6 +122,21 @@ def _longhist_block(data_path: str) -> str:
     return ("\n\n// ── LONGHIST — 장기 실적 (자동 주입) ───────────────────────\n"
             "// 갱신: python3 tools/build_longhist.py (" + path + ")\n"
             "const LONGHIST = " + json.dumps(doc, ensure_ascii=False) + ";\n")
+
+
+def _regions_block(data_path: str) -> str:
+    """옆에 regions.json이 있으면 REGIONS 선언으로 붙인다.
+
+    지역별 매출(주석 공시) — 사업 구조 뷰의 지역 카드 전용, 모델 비투입.
+    """
+    path = os.path.join(os.path.dirname(data_path) or ".", "regions.json")
+    if not os.path.exists(path):
+        return ""
+    with open(path, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    return ("\n\n// ── REGIONS — 지역별 매출 (자동 주입) ───────────────────────\n"
+            "// 갱신: python3 tools/build_region.py (" + path + ")\n"
+            "const REGIONS = " + json.dumps(doc, ensure_ascii=False) + ";\n")
 
 
 def main(argv: list[str]) -> int:
