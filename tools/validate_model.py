@@ -464,6 +464,20 @@ def g11_memo(rep: dict) -> Result:
             if e.get(f) in (None, ""):
                 bad.append(f"MARKET.history[{i}].{f} 없음 — (시장, 모델) 쌍이 완전해야 이력이 된다")
 
+    # 3a-3) 수주 공시·수주잔고 — 확정 사실의 표이므로 형식이 완전해야 한다.
+    for i, o in enumerate(memo.get("orders") or []):
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(o.get("d") or "")):
+            bad.append(f"MEMO.orders[{i}].d: YYYY-MM-DD 형식이어야 한다")
+        if not (o.get("what") or "").strip():
+            bad.append(f"MEMO.orders[{i}].what 없음")
+        if not isinstance(o.get("amt"), (int, float)):
+            bad.append(f"MEMO.orders[{i}].amt: 억원 숫자여야 한다")
+    for i, b in enumerate(memo.get("backlog") or []):
+        if not re.fullmatch(r"\d{4}Q[1-4]", str(b.get("q") or "")):
+            bad.append(f"MEMO.backlog[{i}].q: YYYYQn 형식이어야 한다")
+        if not isinstance(b.get("amt"), (int, float)):
+            bad.append(f"MEMO.backlog[{i}].amt: 억원 숫자여야 한다")
+
     # 3b) 목표배수·할인율의 근거인 피어가 있는가
     #     한 번 편집 중에 PEERS 블록이 통째로 사라졌는데 전 게이트가 통과했다.
     #     선택 블록이라도 "있다가 없어진 것"은 잡아야 한다.

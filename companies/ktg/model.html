@@ -5544,6 +5544,51 @@ function icOverviewDigest(){
     '<p class="digest-sub">결론을 만드는 그림들 — 함의의 숫자는 화면을 그릴 때 모델에서 다시 읽음 · 상세는 각 뷰</p>' + h;
 }
 
+// ── 수주 공시 · 수주잔고 — 확보된 미래 매출 ─────────────────────
+function icOrdersCard(){
+  var m = (typeof MEMO === 'object' && MEMO) ? MEMO : null;
+  if(!m || ((!m.orders || !m.orders.length) && (!m.backlog || !m.backlog.length))) return '';
+  var h2 = '', revLast = null;
+  var rid = revenueId();
+  if(rid && MODEL[rid]) revLast = val(rid, HIST_N - 1);
+
+  if(m.orders && m.orders.length){
+    var rows = '', tot = 0;
+    m.orders.slice().sort(function(a, b){ return a.d < b.d ? -1 : 1; }).forEach(function(o){
+      tot += o.amt || 0;
+      rows += '<tr><td>' + esc(o.d) + '</td>' +
+        '<td style="text-align:left;white-space:normal">' + icRich(o.what || '') + '</td>' +
+        '<td>' + esc(fmtSmart(o.amt)) + '</td>' +
+        '<td>' + esc(o.span || '—') + '</td>' +
+        '<td style="text-align:left;white-space:normal">' + esc(o.buyer || '—') +
+        (o.note ? '<div style="font-size:10.5px;color:#9CA3AF;margin-top:2px">' +
+          icRich(o.note) + '</div>' : '') + '</td></tr>';
+    });
+    rows += '<tr class="total"><td colspan="2">합계</td><td>' + esc(fmtSmart(tot)) + '</td>' +
+      '<td colspan="2" style="text-align:left">' +
+      (revLast ? YRS[HIST_N - 1] + ' 매출의 ' + (tot / revLast * 100).toFixed(0) + '%' : '') +
+      '</td></tr>';
+    h2 += '<div class="table-wrap"><table class="fm"><tr><th>공시일</th>' +
+      '<th style="text-align:left">품목</th><th>금액</th><th>기간</th>' +
+      '<th style="text-align:left">상대·비고</th></tr>' + rows + '</table></div>';
+  }
+
+  if(m.backlog && m.backlog.length){
+    var bl = m.backlog.slice().sort(function(a, b){ return a.q < b.q ? -1 : 1; });
+    h2 += (h2 ? '<div style="height:12px"></div>' : '') +
+      icSvgBars(bl.map(function(b){ return b.q; }), bl.map(function(b){ return b.amt; }),
+        { height: 150 });
+    var lb = bl[bl.length - 1];
+    h2 += '<p style="font-size:11px;color:#6B7280;margin:6px 0 0">수주잔고 ' + esc(lb.q) +
+      ' ' + esc(fmtSmart(lb.amt)) +
+      (revLast ? ' — ' + YRS[HIST_N - 1] + ' 매출의 ' + (lb.amt / revLast * 100).toFixed(0) + '%' : '') +
+      ' · 출처: 분기보고서</p>';
+  }
+
+  return card('수주 공시 · 수주잔고 — 확보된 미래 매출',
+    '판매공급계약 공시(확정 사실)와 수주잔고 추이 — 추정 매출의 근거가 되는 하한선', UNITS.money, h2);
+}
+
 // ── 지역별 매출 — 어디서 버는가 (REGIONS 주입) ──────────────────
 function icRegionCard(){
   if(typeof REGIONS !== 'object' || !REGIONS || !(REGIONS.years || []).length) return '';
@@ -6635,6 +6680,7 @@ function renderICMonitor(){
     ' Investment case</div><h1>분기 모니터링</h1></div>';
   // 일정은 분기 데이터가 없어도 뜬다 — 다음 확인 시점이 모니터링의 절반이다.
   h += icEventsCard();
+  h += icOrdersCard();
   if(!qHas()){
     return h + '<div class="notice">분기 확정값(QUARTERLY) 미선언 — ' +
       'tools/build_quarterly.py 로 생성해 data.js 옆에 quarterly.json 으로 두면 화면 활성화.</div></div>';

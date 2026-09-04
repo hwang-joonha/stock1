@@ -1120,8 +1120,21 @@ const MEMO={
   probsNote:'2026 상반기 실적이 모델 경로를 앞서(진행률 54~65%) Bull에 소폭 가중. 현재 가격은 Base와 Bull 사이.',
   // 다음 확인 일정 — 법정 공시 기한·촉매 시점. 분기 모니터링 상단 카드가 읽는다.
   events:[
-    { d:'2026-11-16', label:'3Q26 분기보고서 제출기한(법정 45일)', check:'패키지 영업이익률 지속(2Q26 13.6%) · 컴포넌트 기타비용률 — 아이디어 반증 조건 대조' },
+    { d:'2026-11-16', label:'3Q26 분기보고서 제출기한(법정 45일)', check:'패키지 영업이익률 지속(2Q26 13.6%) · 컴포넌트 기타비용률 · 증권가는 3Q OP 분기 최고(컨센 ~5,960억)를 전제 — 본 모델 경로와 대조' },
+    { d:'2026-12-31', label:'4Q26 중 — MLCC OEM 직납 판가 인상 협의 결과 (iM증권 파악, 이르면 연내 일부 반영)', check:'성사 시 이후 LTA 협상의 새 기준가 — 컴포넌트 단가 가정의 상방 트리거' },
     { d:'2027-03-31', label:'FY2026 사업보고서 제출기한', check:'연간 확정 대 모델 추정(매출 136,241억) 대사 · 가정 재보정 여부 결정' },
+  ],
+  // 수주 공시 — DART 단일판매·공급계약 (접수번호로 확인). 모니터링 수주 카드가 읽는다.
+  // 계약 상대는 공시 비공개 — 리포트 3곳(IBK·iM·대신)의 추정을 그대로 표기.
+  orders:[
+    { d:'2026-05-20', what:'실리콘 커패시터', amt:15570, span:"'27.1~'28.12",
+      buyer:'비공개 (글로벌 반도체 추정)', note:'2년 계약 — DART 20260520800239' },
+    { d:'2026-06-30', what:'MLCC — 고용량 단일 기종', amt:4540, span:"'27.1~'27.12",
+      buyer:'비공개 (하이퍼스케일러 추정)', note:'DART 20260630800114' },
+    { d:'2026-07-23', what:'MLCC — 동일 품목, 판가 상향', amt:2951, span:"'27.1~'27.12",
+      buyer:'비공개 (글로벌 서버 EMS 추정)', note:'6월 계약과 같은 품목을 더 높은 판가로 — DART 20260723800073' },
+    { d:'2026-09-01', what:'MLCC — AI용 다품종 (초소형·고용량 포괄)', amt:10722, span:"'27.1~'27.12",
+      buyer:'비공개 (반도체 플랫폼사 추정)', note:'앞선 두 건 합산의 1.4배, **판가 조건 3건 연속 개선**(iM 파악) — DART 20260901800106' },
   ],
   // 어투 규약 — 서술형이 아니라 개조식. 종결은 "~함/~임/명사형".
   // 결론은 명사구 한 줄로 앞세우고, 근거는 아래 층에 숫자로 붙임.
@@ -1407,7 +1420,10 @@ const MEMO={
       horizon:'6~18개월', conviction:'중하', tag:'마진 정상화',
       update:'2026Q2 확정 — 기타비용률 79.3%(2025Q2) → **76.5%**, 매출 12,807억 → '
             +'16,494억(+29%). 부문 영업이익률 12.2% → 16.6%. 가동률 가설이 현재까지 유효. '
-            +'단, 2021년 수준(66%)까지는 거리 있음.',
+            +'단, 2021년 수준(66%)까지는 거리 있음. 2026-09 추가 — MLCC 판매공급계약 3건 '
+            +'누적 **1조 8,213억**(전부 \'27년 인도) 공시. 조달 주체가 ODM → 서버 EMS → '
+            +'반도체 플랫폼사로 올라가고 판가 조건이 3건 연속 개선(iM 파악) — 수요·믹스 '
+            +'가설을 수주가 확인해 줌.',
       thesis:[
         {t:'쟁점 — **가동률인가 구조인가**', d:[
           '5년간 기타비용률 66.4% → 79.8% (13%p 악화)',
@@ -1427,6 +1443,8 @@ const MEMO={
       catalysts:[
         '전장·AI 서버용 고용량 MLCC 비중 상승 → 믹스 개선',
         '스마트폰 출하 회복 → 가동률 상승',
+        'MLCC LTA 추가 공시 — 회사는 \'27년 캐파의 60%까지 LTA 확보 계획(iM 파악)',
+        '4Q26 OEM 직납 판가 인상 협의 성사 — 이후 LTA 협상의 새 기준가',
       ],
       kpis:[
         '컴포넌트 기타비용률 — 79.8% 초과 시 해석 전환',
@@ -1516,6 +1534,17 @@ const MEMO={
       yes:'기타비용률 92~94% 5년 고착, 2025년 성장률 +0.4%. 자본이 묶인 자리.',
       no:'감가상각비 절반 감소 → 유지보수 수준 자본으로 현금 창출. '
         +'**패키지 증설 자체 조달의 재원**.',
+    },
+    {
+      q:'증권가 \'27년 영업이익 3.3조(대신, 9/3) 대 본 모델 2.03조 — 격차 39%의 정체는?',
+      yes:'격차의 대부분은 MLCC 판가 가정. 증권가는 LTA 3건(1.82조, 판가 조건 연속 개선)과 '
+         +'4Q26 직납 인상 협의를 근거로 \'27 판가 +27%(iM)를 반영. 공시로 확인된 수주가 '
+         +'방향을 뒷받침하며, 본 모델의 완만한 단가 경로(+2%)가 **이번에는 보수가 아니라 '
+         +'오차일 수 있음**.',
+      no:'LTA 1.82조는 본 모델 \'27 매출 15.3조의 12% — 나머지 88%는 여전히 추정. '
+        +'수주 공시는 매출의 가시성이지 판가 지속성의 증거가 아니며, 27년 캐파 증설(필리핀 '
+        +'1H27 완공)이 겹치면 \'28 이후 수급 반전 리스크. 8/28 재보정 직후 재차 상향은 '
+        +'모델이 주가를 뒤쫓는 전형 — **분기 두 번은 지켜보고 움직임**.',
     },
     {
       q:'목표배수 18배는 적정한 위치인가?',
@@ -5827,6 +5856,51 @@ function icOverviewDigest(){
     '<p class="digest-sub">결론을 만드는 그림들 — 함의의 숫자는 화면을 그릴 때 모델에서 다시 읽음 · 상세는 각 뷰</p>' + h;
 }
 
+// ── 수주 공시 · 수주잔고 — 확보된 미래 매출 ─────────────────────
+function icOrdersCard(){
+  var m = (typeof MEMO === 'object' && MEMO) ? MEMO : null;
+  if(!m || ((!m.orders || !m.orders.length) && (!m.backlog || !m.backlog.length))) return '';
+  var h2 = '', revLast = null;
+  var rid = revenueId();
+  if(rid && MODEL[rid]) revLast = val(rid, HIST_N - 1);
+
+  if(m.orders && m.orders.length){
+    var rows = '', tot = 0;
+    m.orders.slice().sort(function(a, b){ return a.d < b.d ? -1 : 1; }).forEach(function(o){
+      tot += o.amt || 0;
+      rows += '<tr><td>' + esc(o.d) + '</td>' +
+        '<td style="text-align:left;white-space:normal">' + icRich(o.what || '') + '</td>' +
+        '<td>' + esc(fmtSmart(o.amt)) + '</td>' +
+        '<td>' + esc(o.span || '—') + '</td>' +
+        '<td style="text-align:left;white-space:normal">' + esc(o.buyer || '—') +
+        (o.note ? '<div style="font-size:10.5px;color:#9CA3AF;margin-top:2px">' +
+          icRich(o.note) + '</div>' : '') + '</td></tr>';
+    });
+    rows += '<tr class="total"><td colspan="2">합계</td><td>' + esc(fmtSmart(tot)) + '</td>' +
+      '<td colspan="2" style="text-align:left">' +
+      (revLast ? YRS[HIST_N - 1] + ' 매출의 ' + (tot / revLast * 100).toFixed(0) + '%' : '') +
+      '</td></tr>';
+    h2 += '<div class="table-wrap"><table class="fm"><tr><th>공시일</th>' +
+      '<th style="text-align:left">품목</th><th>금액</th><th>기간</th>' +
+      '<th style="text-align:left">상대·비고</th></tr>' + rows + '</table></div>';
+  }
+
+  if(m.backlog && m.backlog.length){
+    var bl = m.backlog.slice().sort(function(a, b){ return a.q < b.q ? -1 : 1; });
+    h2 += (h2 ? '<div style="height:12px"></div>' : '') +
+      icSvgBars(bl.map(function(b){ return b.q; }), bl.map(function(b){ return b.amt; }),
+        { height: 150 });
+    var lb = bl[bl.length - 1];
+    h2 += '<p style="font-size:11px;color:#6B7280;margin:6px 0 0">수주잔고 ' + esc(lb.q) +
+      ' ' + esc(fmtSmart(lb.amt)) +
+      (revLast ? ' — ' + YRS[HIST_N - 1] + ' 매출의 ' + (lb.amt / revLast * 100).toFixed(0) + '%' : '') +
+      ' · 출처: 분기보고서</p>';
+  }
+
+  return card('수주 공시 · 수주잔고 — 확보된 미래 매출',
+    '판매공급계약 공시(확정 사실)와 수주잔고 추이 — 추정 매출의 근거가 되는 하한선', UNITS.money, h2);
+}
+
 // ── 지역별 매출 — 어디서 버는가 (REGIONS 주입) ──────────────────
 function icRegionCard(){
   if(typeof REGIONS !== 'object' || !REGIONS || !(REGIONS.years || []).length) return '';
@@ -6918,6 +6992,7 @@ function renderICMonitor(){
     ' Investment case</div><h1>분기 모니터링</h1></div>';
   // 일정은 분기 데이터가 없어도 뜬다 — 다음 확인 시점이 모니터링의 절반이다.
   h += icEventsCard();
+  h += icOrdersCard();
   if(!qHas()){
     return h + '<div class="notice">분기 확정값(QUARTERLY) 미선언 — ' +
       'tools/build_quarterly.py 로 생성해 data.js 옆에 quarterly.json 으로 두면 화면 활성화.</div></div>';

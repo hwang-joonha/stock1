@@ -4033,6 +4033,70 @@ function icOverviewDigest(){
 
 
 # ─────────────────────────────────────────────────────────────
+# IC-22  수주 공시 · 수주잔고 — MEMO.orders / MEMO.backlog
+#
+# 애널리스트 리포트 벤치마크에서 채택한 양식. 수주가 중요한 제조업에서
+# "확보된 미래 매출"은 추정과 확정 사이의 중간 지대다 — 공시 확정 사실이므로
+# 표로 쌓고, 마지막 실적 연도 매출 대비 배율로 크기를 읽는다.
+#   MEMO.orders  = [{d:'YYYY-MM-DD', what, amt(억원), span?, buyer?, note?}]
+#   MEMO.backlog = [{q:'YYYYQn', amt(억원)}]  — 분기보고서의 수주잔고 추이
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC22_MON = """  // 일정은 분기 데이터가 없어도 뜬다 — 다음 확인 시점이 모니터링의 절반이다.
+  h += icEventsCard();"""
+NEW_IC22_MON = """  // 일정은 분기 데이터가 없어도 뜬다 — 다음 확인 시점이 모니터링의 절반이다.
+  h += icEventsCard();
+  h += icOrdersCard();"""
+
+OLD_IC22_ANCHOR = """// ── 지역별 매출 — 어디서 버는가 (REGIONS 주입) ──────────────────"""
+NEW_IC22_ANCHOR = """// ── 수주 공시 · 수주잔고 — 확보된 미래 매출 ─────────────────────
+function icOrdersCard(){
+  var m = (typeof MEMO === 'object' && MEMO) ? MEMO : null;
+  if(!m || ((!m.orders || !m.orders.length) && (!m.backlog || !m.backlog.length))) return '';
+  var h2 = '', revLast = null;
+  var rid = revenueId();
+  if(rid && MODEL[rid]) revLast = val(rid, HIST_N - 1);
+
+  if(m.orders && m.orders.length){
+    var rows = '', tot = 0;
+    m.orders.slice().sort(function(a, b){ return a.d < b.d ? -1 : 1; }).forEach(function(o){
+      tot += o.amt || 0;
+      rows += '<tr><td>' + esc(o.d) + '</td>' +
+        '<td style="text-align:left;white-space:normal">' + icRich(o.what || '') + '</td>' +
+        '<td>' + esc(fmtSmart(o.amt)) + '</td>' +
+        '<td>' + esc(o.span || '—') + '</td>' +
+        '<td style="text-align:left;white-space:normal">' + esc(o.buyer || '—') +
+        (o.note ? '<div style="font-size:10.5px;color:#9CA3AF;margin-top:2px">' +
+          icRich(o.note) + '</div>' : '') + '</td></tr>';
+    });
+    rows += '<tr class="total"><td colspan="2">합계</td><td>' + esc(fmtSmart(tot)) + '</td>' +
+      '<td colspan="2" style="text-align:left">' +
+      (revLast ? YRS[HIST_N - 1] + ' 매출의 ' + (tot / revLast * 100).toFixed(0) + '%' : '') +
+      '</td></tr>';
+    h2 += '<div class="table-wrap"><table class="fm"><tr><th>공시일</th>' +
+      '<th style="text-align:left">품목</th><th>금액</th><th>기간</th>' +
+      '<th style="text-align:left">상대·비고</th></tr>' + rows + '</table></div>';
+  }
+
+  if(m.backlog && m.backlog.length){
+    var bl = m.backlog.slice().sort(function(a, b){ return a.q < b.q ? -1 : 1; });
+    h2 += (h2 ? '<div style="height:12px"></div>' : '') +
+      icSvgBars(bl.map(function(b){ return b.q; }), bl.map(function(b){ return b.amt; }),
+        { height: 150 });
+    var lb = bl[bl.length - 1];
+    h2 += '<p style="font-size:11px;color:#6B7280;margin:6px 0 0">수주잔고 ' + esc(lb.q) +
+      ' ' + esc(fmtSmart(lb.amt)) +
+      (revLast ? ' — ' + YRS[HIST_N - 1] + ' 매출의 ' + (lb.amt / revLast * 100).toFixed(0) + '%' : '') +
+      ' · 출처: 분기보고서</p>';
+  }
+
+  return card('수주 공시 · 수주잔고 — 확보된 미래 매출',
+    '판매공급계약 공시(확정 사실)와 수주잔고 추이 — 추정 매출의 근거가 되는 하한선', UNITS.money, h2);
+}
+
+// ── 지역별 매출 — 어디서 버는가 (REGIONS 주입) ──────────────────"""
+
+# ─────────────────────────────────────────────────────────────
 # IC-21  지역별 매출 — REGIONS 주입 소비
 #
 # 주석 '지역에 대한 공시'를 이어 붙인 100% 스택. 부문 축(무엇을 파는가)과
@@ -4690,6 +4754,8 @@ def main() -> None:
     p.sub("IC-21 지역 카드 배치", OLD_IC21_BIZ, NEW_IC21_BIZ)
     p.sub("IC-21 지역 카드 구현", OLD_IC21_ANCHOR, NEW_IC21_ANCHOR)
     p.sub("IC-21 다이제스트 항목", OLD_IC21_DIGEST, NEW_IC21_DIGEST)
+    p.sub("IC-22 수주 카드 배치", OLD_IC22_MON, NEW_IC22_MON)
+    p.sub("IC-22 수주 카드 구현", OLD_IC22_ANCHOR, NEW_IC22_ANCHOR)
 
     p.text = _cut_data_region(p.text)
     p.applied.append("DATA 데이터 블록 → 주입 마커")
