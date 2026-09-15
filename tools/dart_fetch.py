@@ -434,6 +434,8 @@ def iscum(rcp_no: str) -> dict:
     def row_value(labels, rx=None):
         for i, ln in enumerate(lines):
             base = ln.split("(주")[0].strip()
+            # 로마숫자 차례("Ⅰ.매출액") — 케이엠더블유 분기보고서가 쓴다 (islong과 동일 처리)
+            base = re.sub(r"^[IVXⅠ-Ⅻ]+\s*[.．]\s*", "", base).strip()
             hit = rx.fullmatch(base) if rx is not None else (base in labels)
             if hit:
                 vals = []

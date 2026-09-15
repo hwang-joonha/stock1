@@ -4578,6 +4578,57 @@ NEW_IC17_LINES_SERIES = """  var leg = [];
     lx += lw[ei] + 16;
   });"""
 
+# ─────────────────────────────────────────────────────────────
+# IC-23  막대 계열의 음수 지원 — min~max 스케일 + 0선
+# 여섯 번째 종목(KMW, 5년 연속 적자)에서 영업이익 막대가 전 연도 음수인
+# 채로 처음 지나갔다. 0~max 스케일을 전제하면 max가 0으로 붕괴해 축이
+# 0~1로 퇴화하고 막대가 1px로 사라진다 — LGD 때 선 계열만 고치고 막대는
+# 안 고쳤던 경로다. 전 연도 양수면 vmin=0이라 기존 렌더링과 동일하다.
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC23_SCALE = """  var max = _niceMax(Math.max.apply(null, values.concat([0, opts.hline || 0])));
+  var n = labels.length, step = iw / n, bw = Math.min(38, step * 0.56);"""
+NEW_IC23_SCALE = """  var max = _niceMax(Math.max.apply(null, values.concat([0, opts.hline || 0])));
+  // 음수 막대(적자 기업의 영업이익) — min~max 스케일. 전 연도 양수면 vmin=0.
+  var vmin = Math.min.apply(null, values.concat([0]));
+  if(vmin < 0) vmin = -_niceMax(-vmin);
+  var vspan = (max - vmin) || 1;
+  var by = function(v){ return T + ih - ih * ((v - vmin) / vspan); };
+  var n = labels.length, step = iw / n, bw = Math.min(38, step * 0.56);"""
+
+OLD_IC23_AXIS = """    g += _t(L - 6, y + 3, afmt(max * k / 4), 8.5, '#9CA3AF', 'end');
+  }
+  // 기준선(현재 시총 등) — 점선. 스케일은 위의 max 계산이 이미 포함한다.
+  if(opts.hline != null && isFinite(opts.hline) && opts.hline > 0 && opts.hline <= max){
+    var hy = T + ih - ih * (opts.hline / max);"""
+NEW_IC23_AXIS = """    g += _t(L - 6, y + 3, afmt(vmin + vspan * k / 4), 8.5, '#9CA3AF', 'end');
+  }
+  if(vmin < 0){
+    var bz0 = by(0);
+    g += '<line x1="' + L + '" y1="' + bz0.toFixed(1) + '" x2="' + (L + iw) +
+         '" y2="' + bz0.toFixed(1) + '" stroke="#9CA3AF" stroke-width="0.8" ' +
+         'stroke-dasharray="3,3" opacity="0.6"/>';
+  }
+  // 기준선(현재 시총 등) — 점선. 스케일은 위의 max 계산이 이미 포함한다.
+  if(opts.hline != null && isFinite(opts.hline) && opts.hline > 0 && opts.hline <= max){
+    var hy = by(opts.hline);"""
+
+OLD_IC23_BARS = """  values.forEach(function(v, i){
+    var h = Math.max(1, ih * (v / max)), x = L + step * i + (step - bw) / 2;
+    var est = opts.histN != null && i >= opts.histN;
+    g += '<rect x="' + x.toFixed(1) + '" y="' + (T + ih - h).toFixed(1) + '" width="' +
+         bw.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + (est ? ICV.rev2 : ICV.rev) +
+         '"' + (est ? ' opacity="0.6"' : '') + ' rx="2"/>';
+    if(n <= 12) g += _t(x + bw / 2, T + ih - h - 4, afmt(v), 8.5, ICV.ink, 'middle', 600);"""
+NEW_IC23_BARS = """  values.forEach(function(v, i){
+    var y0 = by(Math.max(v, 0)), x = L + step * i + (step - bw) / 2;
+    var h = Math.max(1, by(Math.min(v, 0)) - y0);
+    var est = opts.histN != null && i >= opts.histN;
+    g += '<rect x="' + x.toFixed(1) + '" y="' + y0.toFixed(1) + '" width="' +
+         bw.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + (est ? ICV.rev2 : ICV.rev) +
+         '"' + (est ? ' opacity="0.6"' : '') + ' rx="2"/>';
+    if(n <= 12) g += _t(x + bw / 2, v < 0 ? y0 + h + 10 : y0 - 4, afmt(v), 8.5, ICV.ink, 'middle', 600);"""
+
 
 def _cut_data_region(text: str) -> str:
     """YRS 선언 앞 주석부터 MODEL 리터럴 끝까지를 마커+예제로 교체한다."""
@@ -4756,6 +4807,9 @@ def main() -> None:
     p.sub("IC-21 다이제스트 항목", OLD_IC21_DIGEST, NEW_IC21_DIGEST)
     p.sub("IC-22 수주 카드 배치", OLD_IC22_MON, NEW_IC22_MON)
     p.sub("IC-22 수주 카드 구현", OLD_IC22_ANCHOR, NEW_IC22_ANCHOR)
+    p.sub("IC-23 막대 음수 스케일", OLD_IC23_SCALE, NEW_IC23_SCALE)
+    p.sub("IC-23 막대 축 라벨·기준선", OLD_IC23_AXIS, NEW_IC23_AXIS)
+    p.sub("IC-23 막대 음수 렌더", OLD_IC23_BARS, NEW_IC23_BARS)
 
     p.text = _cut_data_region(p.text)
     p.applied.append("DATA 데이터 블록 → 주입 마커")

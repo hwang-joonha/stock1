@@ -26,6 +26,7 @@ TICKERS = {
     "tlb": "356860.KQ",
     "lgd": "034220.KS",
     "sec": "005930.KS",
+    "kmw": "032500.KQ",
 }
 INDEX = "^KS11"          # KOSPI — 시장 대비 상대 성과 차트용
 URL = ("https://query1.finance.yahoo.com/v8/finance/chart/{t}"

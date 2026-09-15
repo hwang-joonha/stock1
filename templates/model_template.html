@@ -6305,6 +6305,11 @@ function icSvgBars(labels, values, opts){
   var W = 720, H = opts.height || 200, L = 44, R = opts.line ? 48 : 12, T = 16, B = 26;
   var iw = W - L - R, ih = H - T - B;
   var max = _niceMax(Math.max.apply(null, values.concat([0, opts.hline || 0])));
+  // 음수 막대(적자 기업의 영업이익) — min~max 스케일. 전 연도 양수면 vmin=0.
+  var vmin = Math.min.apply(null, values.concat([0]));
+  if(vmin < 0) vmin = -_niceMax(-vmin);
+  var vspan = (max - vmin) || 1;
+  var by = function(v){ return T + ih - ih * ((v - vmin) / vspan); };
   var n = labels.length, step = iw / n, bw = Math.min(38, step * 0.56);
   var g = '';
 
@@ -6320,23 +6325,30 @@ function icSvgBars(labels, values, opts){
     var y = T + ih - ih * k / 4;
     g += '<line x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (L + iw) +
          '" y2="' + y.toFixed(1) + '" stroke="' + ICV.grid + '" stroke-width="1"/>';
-    g += _t(L - 6, y + 3, afmt(max * k / 4), 8.5, '#9CA3AF', 'end');
+    g += _t(L - 6, y + 3, afmt(vmin + vspan * k / 4), 8.5, '#9CA3AF', 'end');
+  }
+  if(vmin < 0){
+    var bz0 = by(0);
+    g += '<line x1="' + L + '" y1="' + bz0.toFixed(1) + '" x2="' + (L + iw) +
+         '" y2="' + bz0.toFixed(1) + '" stroke="#9CA3AF" stroke-width="0.8" ' +
+         'stroke-dasharray="3,3" opacity="0.6"/>';
   }
   // 기준선(현재 시총 등) — 점선. 스케일은 위의 max 계산이 이미 포함한다.
   if(opts.hline != null && isFinite(opts.hline) && opts.hline > 0 && opts.hline <= max){
-    var hy = T + ih - ih * (opts.hline / max);
+    var hy = by(opts.hline);
     g += '<line x1="' + L + '" y1="' + hy.toFixed(1) + '" x2="' + (L + iw) +
          '" y2="' + hy.toFixed(1) + '" stroke="' + ICV.neg + '" stroke-width="1.4" ' +
          'stroke-dasharray="5,4"/>';
     if(opts.hlineLabel) g += _t(L + iw - 4, hy - 5, opts.hlineLabel, 8.5, ICV.neg, 'end', 700);
   }
   values.forEach(function(v, i){
-    var h = Math.max(1, ih * (v / max)), x = L + step * i + (step - bw) / 2;
+    var y0 = by(Math.max(v, 0)), x = L + step * i + (step - bw) / 2;
+    var h = Math.max(1, by(Math.min(v, 0)) - y0);
     var est = opts.histN != null && i >= opts.histN;
-    g += '<rect x="' + x.toFixed(1) + '" y="' + (T + ih - h).toFixed(1) + '" width="' +
+    g += '<rect x="' + x.toFixed(1) + '" y="' + y0.toFixed(1) + '" width="' +
          bw.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + (est ? ICV.rev2 : ICV.rev) +
          '"' + (est ? ' opacity="0.6"' : '') + ' rx="2"/>';
-    if(n <= 12) g += _t(x + bw / 2, T + ih - h - 4, afmt(v), 8.5, ICV.ink, 'middle', 600);
+    if(n <= 12) g += _t(x + bw / 2, v < 0 ? y0 + h + 10 : y0 - 4, afmt(v), 8.5, ICV.ink, 'middle', 600);
     g += _t(x + bw / 2, H - 8, labels[i], 8.5);
   });
 
