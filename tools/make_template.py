@@ -4629,6 +4629,191 @@ NEW_IC23_BARS = """  values.forEach(function(v, i){
          '"' + (est ? ' opacity="0.6"' : '') + ' rx="2"/>';
     if(n <= 12) g += _t(x + bw / 2, v < 0 ? y0 + h + 10 : y0 - 4, afmt(v), 8.5, ICV.ink, 'middle', 600);"""
 
+# ─────────────────────────────────────────────────────────────
+# IC-24  분기 모니터링 15개 분기 · 주요 변동 분기와 사유 · 연도별 확정 실적
+# "직전 분기 대비 무엇이 크게 움직였고 왜인가"를 화면이 답한다.
+#   판정 규칙(qMoves)은 엔진 한 곳에만 있다 — G11이 하네스로 같은 함수를
+#   불러 "판정된 분기마다 MEMO.qnotes에 사유가 있는가"를 검사한다.
+#   자동 분해(매출 효과·이익률 효과·영업외)는 숫자에서 계산하고, 사유 문장은
+#   공시 출처를 단 MEMO.qnotes = [{q:'YYYYQn', t, src}]에서 읽는다.
+#   연도별 표는 LONGHIST(사업보고서 3개년 블록)의 매출·영업이익·당기순이익·
+#   지배순이익 — 지배순이익은 historicals net_income과 대사된 값이다.
+# ─────────────────────────────────────────────────────────────
+
+OLD_IC24_KS = """      'tools/build_quarterly.py 로 생성해 data.js 옆에 quarterly.json 으로 두면 화면 활성화.</div></div>';
+  }
+  var ks = qKeys(), last = ks[ks.length - 1];"""
+NEW_IC24_KS = """      'tools/build_quarterly.py 로 생성해 data.js 옆에 quarterly.json 으로 두면 화면 활성화.</div></div>';
+  }
+  var ks = qKeys().slice(-Q_WINDOW), last = ks[ks.length - 1];"""
+
+OLD_IC24_MON = """  h += icQuarterTable(ks);
+  h += icTtmCard(ks);"""
+NEW_IC24_MON = """  h += icQuarterTable(ks);
+  h += icQtrMovesCard(ks);
+  h += icAnnualTable();
+  h += icTtmCard(ks);"""
+
+OLD_IC24_ROWS = """  body += line('매출', '합계', '매출', 'total');
+  body += gline('· YoY', '합계', '매출', 'yoy');
+  body += gline('· QoQ', '합계', '매출', 'qoq');
+  body += line('영업이익', '합계', '영업이익');
+  body += gline('· YoY', '합계', '영업이익', 'yoy');
+  body += gline('· QoQ', '합계', '영업이익', 'qoq');
+  body += line('영업이익률', '합계', '영업이익률');"""
+NEW_IC24_ROWS = """  body += line('매출액', '합계', '매출', 'total');
+  body += gline('· YoY', '합계', '매출', 'yoy');
+  body += gline('· QoQ', '합계', '매출', 'qoq');
+  body += line('영업이익', '합계', '영업이익');
+  body += gline('· YoY', '합계', '영업이익', 'yoy');
+  body += gline('· QoQ', '합계', '영업이익', 'qoq');
+  body += line('영업이익률', '합계', '영업이익률');
+  var lastRec = QUARTERLY.quarters[ks[ks.length - 1]] || {};
+  if(lastRec['합계'] && lastRec['합계']['순이익'] != null) body += line('당기순이익', '합계', '순이익');
+  if(lastRec['합계'] && lastRec['합계']['지배순이익'] != null){
+    body += line('당기순이익(지배)', '합계', '지배순이익');
+    body += gline('· QoQ', '합계', '지배순이익', 'qoq');
+  }
+  // 주요 변동 표지 — 아래 "주요 변동 분기" 카드의 번호와 같다.
+  var mv = qMoves(ks), mvIdx = {};
+  mv.forEach(function(m, i){ mvIdx[m.q] = i + 1; });
+  if(mv.length){
+    body += '<tr><td class="qg">주요 변동</td>';
+    ks.forEach(function(k){
+      body += '<td class="qg">' + (mvIdx[k] ? '<b class="hl-b">' + icCircled(mvIdx[k]) + '</b>' : '') + '</td>';
+    });
+    body += '</tr>';
+  }"""
+
+OLD_IC24_ANCHOR = """// 아이디어별 확인지표. ideas[].track 이 있으면 화면이 계산한다."""
+NEW_IC24_ANCHOR = """// ── 주요 변동 분기 — 직전 분기 대비 무엇이 크게 움직였고 왜인가 ──────
+// 판정 규칙은 여기 한 곳뿐이다. G11이 하네스로 qMoves를 불러 사유 누락을 잡는다.
+var Q_WINDOW = 15;
+var Q_MOVE = { rev: 0.20, op: 0.50, opMin: 0.03, ni: 0.50, niMin: 0.05, nonop: 0.50 };
+function qPrevKey(k){
+  var n = parseInt(k.slice(5), 10);
+  return n > 1 ? k.slice(0, 4) + 'Q' + (n - 1) : (qYear(k) - 1) + 'Q4';
+}
+// 순이익은 지배기업 소유주 귀속을 우선 — 주주 몫이 심사의 기준이다.
+function qNi(k){
+  var v = qVal(k, '합계', '지배순이익');
+  return v !== null ? v : qVal(k, '합계', '순이익');
+}
+function qMoves(ks){
+  var out = [];
+  ks.forEach(function(k){
+    var p = qPrevKey(k);
+    var r0 = qVal(p, '합계', '매출'), r1 = qVal(k, '합계', '매출');
+    var o0 = qVal(p, '합계', '영업이익'), o1 = qVal(k, '합계', '영업이익');
+    if(r0 === null || r1 === null || o0 === null || o1 === null || !(r0 > 0) || !(r1 > 0)) return;
+    var n0 = qNi(p), n1 = qNi(k), tags = [];
+    var g = r1 / r0 - 1;
+    // ① 매출 ±20% 이상
+    if(Math.abs(g) >= Q_MOVE.rev) tags.push({ k: 'rev', t: '매출 ' + (g >= 0 ? '+' : '') + (g * 100).toFixed(0) + '%' });
+    // ② 영업이익 부호 전환, 또는 ±50% 이상이면서 그 폭이 매출의 3% 이상
+    if((o0 > 0) !== (o1 > 0)) tags.push({ k: 'op', t: o1 > 0 ? '영업 흑자 전환' : '영업 적자 전환' });
+    else if(Math.abs(o1 - o0) >= Q_MOVE.op * Math.abs(o0) && Math.abs(o1 - o0) >= Q_MOVE.opMin * r1)
+      tags.push({ k: 'op', t: o0 > 0 ? '영업이익 ' + (o1 >= o0 ? '+' : '') + ((o1 / o0 - 1) * 100).toFixed(0) + '%'
+                                     : '영업적자 ' + (o1 > o0 ? '축소' : '확대') });
+    // ③ 순이익이 ±50% 이상(매출의 5% 이상) 움직였고 그 절반 이상이 영업외·세금에서 옴
+    if(n0 !== null && n1 !== null){
+      var dni = n1 - n0, dnon = (n1 - o1) - (n0 - o0);
+      if(Math.abs(dni) >= Q_MOVE.ni * Math.abs(n0) && Math.abs(dni) >= Q_MOVE.niMin * r1 &&
+         Math.abs(dnon) >= Q_MOVE.nonop * Math.abs(dni) && Math.abs(dnon) >= Q_MOVE.niMin * r1)
+        tags.push({ k: 'ni', t: '순이익 ' + (dni >= 0 ? '급증' : '급감') + '(영업외)' });
+    }
+    if(tags.length) out.push({ q: k, p: p, tags: tags, r0: r0, r1: r1, o0: o0, o1: o1, n0: n0, n1: n1 });
+  });
+  return out;
+}
+function icCircled(n){
+  return n >= 1 && n <= 20 ? String.fromCharCode(0x2460 + n - 1) : '(' + n + ')';
+}
+function qNote(k){
+  var m = (typeof MEMO === 'object' && MEMO) ? MEMO.qnotes : null;
+  if(!m) return null;
+  for(var i = 0; i < m.length; i++) if(m[i].q === k) return m[i];
+  return null;
+}
+function icQtrMovesCard(ks){
+  var mv = qMoves(ks);
+  if(!mv.length) return '';
+  var sgn = function(v){ return (v >= 0 ? '+' : '') + fmtSmart(v); };
+  var rows = '';
+  mv.forEach(function(m, i){
+    var tags = m.tags.map(function(t){
+      return '<span class="badge ' + (t.k === 'ni' ? 'hist' : 'calc') + '">' + esc(t.t) + '</span>';
+    }).join(' ');
+    // 자동 분해 — 영업이익 변화 = 매출 효과(Δ매출 × 직전 이익률) + 이익률 효과(매출 × Δ이익률).
+    var m0 = m.o0 / m.r0, m1 = m.o1 / m.r1;
+    var revEff = (m.r1 - m.r0) * m0, mgnEff = m.r1 * (m1 - m0);
+    var parts = ['매출 ' + sgn(m.r1 - m.r0),
+      '영업이익 ' + sgn(m.o1 - m.o0) + ' = 매출 효과 ' + sgn(revEff) + ' · 이익률 효과 ' + sgn(mgnEff) +
+      ' (OPM ' + (m0 * 100).toFixed(1) + '% → ' + (m1 * 100).toFixed(1) + '%)'];
+    var c0 = qVal(m.p, '합계', '매출원가'), c1 = qVal(m.q, '합계', '매출원가');
+    if(c0 !== null && c1 !== null)
+      parts.push('원가율 ' + (c0 / m.r0 * 100).toFixed(1) + '% → ' + (c1 / m.r1 * 100).toFixed(1) + '%');
+    if(m.n0 !== null && m.n1 !== null)
+      parts.push('순이익(지배) ' + sgn(m.n1 - m.n0) + ' — 영업외·세금 ' +
+        sgn((m.n1 - m.o1) - (m.n0 - m.o0)));
+    var note = qNote(m.q);
+    rows += '<tr><td style="vertical-align:top"><b>' + icCircled(i + 1) + ' ' + esc(m.q) + '</b>' +
+      '<div style="font-size:10.5px;color:#9CA3AF">vs ' + esc(m.p) + '</div></td>' +
+      '<td style="text-align:left;white-space:normal;vertical-align:top">' + tags + '</td>' +
+      '<td style="text-align:left;white-space:normal;vertical-align:top">' +
+        (note ? icRich(note.t) + (note.src ? '<div style="font-size:10.5px;color:#9CA3AF;margin-top:2px">출처: ' +
+          esc(note.src) + '</div>' : '')
+              : '<span style="color:#9CA3AF">사유 미기재 — MEMO.qnotes</span>') +
+        '<div style="font-size:10.5px;color:#6B7280;margin-top:4px">' + esc(parts.join(' · ')) + '</div></td></tr>';
+  });
+  return card('주요 변동 분기 — 직전 분기 대비',
+    '판정: 매출 ±20% · 영업이익 흑적 전환 또는 ±50%(매출의 3% 이상) · 순이익 급변의 절반 이상이 영업외 — ' +
+    '사유는 공시 출처, 아래 줄은 숫자에서 계산한 분해', UNITS.money,
+    '<div class="table-wrap"><table class="fm"><tr><th style="text-align:left">분기</th>' +
+    '<th style="text-align:left">변동</th><th style="text-align:left">사유 · 분해</th></tr>' +
+    rows + '</table></div>');
+}
+
+// ── 연도별 확정 실적 — 매출액·영업이익·당기순이익·당기순이익(지배) ──────
+function icAnnualTable(){
+  if(typeof LONGHIST !== 'object' || !LONGHIST || !LONGHIST.years) return '';
+  var L = LONGHIST, yrs = L.years;
+  var head = '<tr><th style="text-align:left">항목</th>';
+  yrs.forEach(function(y){ head += '<th>' + esc(y) + '</th>'; });
+  head += '</tr>';
+  var row = function(label, arr, cls, fmt){
+    if(!arr) return '';
+    var r = '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + esc(label) + '</td>';
+    arr.forEach(function(v){ r += '<td>' + (v === null || v === undefined ? '—' : esc(fmt ? fmt(v) : fmtSmart(v))) + '</td>'; });
+    return r + '</tr>';
+  };
+  var yoy = function(arr){
+    if(!arr) return '';
+    var r = '<tr><td class="qg">· YoY</td>';
+    arr.forEach(function(b, i){
+      var a = i > 0 ? arr[i - 1] : null;
+      if(a === null || b === null || a === undefined || b === undefined) r += '<td class="qg">—</td>';
+      else if(a > 0 && b < 0) r += '<td class="qg neg">적자 전환</td>';
+      else if(a <= 0 && b > 0) r += '<td class="qg pos">흑자 전환</td>';
+      else if(!(a > 0)) r += '<td class="qg">—</td>';
+      else { var g = b / a - 1;
+        r += '<td class="qg ' + (g >= 0 ? 'pos' : 'neg') + '">' + (g >= 0 ? '+' : '') + (g * 100).toFixed(1) + '%</td>'; }
+    });
+    return r + '</tr>';
+  };
+  var opm = L.rev.map(function(v, i){ return v ? L.op[i] / v : null; });
+  var body = row('매출액', L.rev, 'total') + yoy(L.rev) +
+    row('영업이익', L.op) + yoy(L.op) +
+    row('영업이익률', opm, null, function(v){ return (v * 100).toFixed(1) + '%'; }) +
+    row('당기순이익', L.ni) +
+    row('당기순이익(지배)', L.ni_ctrl, 'total') + yoy(L.ni_ctrl);
+  return card('연도별 확정 실적', yrs[0] + '~' + yrs[yrs.length - 1] +
+    ' · 사업보고서 연결 손익계산서(3개년 블록) · 지배 = 지배기업 소유주 귀속', UNITS.money,
+    '<div class="table-wrap"><table class="fm">' + head + body + '</table></div>');
+}
+
+// 아이디어별 확인지표. ideas[].track 이 있으면 화면이 계산한다."""
+
 
 def _cut_data_region(text: str) -> str:
     """YRS 선언 앞 주석부터 MODEL 리터럴 끝까지를 마커+예제로 교체한다."""
@@ -4810,6 +4995,10 @@ def main() -> None:
     p.sub("IC-23 막대 음수 스케일", OLD_IC23_SCALE, NEW_IC23_SCALE)
     p.sub("IC-23 막대 축 라벨·기준선", OLD_IC23_AXIS, NEW_IC23_AXIS)
     p.sub("IC-23 막대 음수 렌더", OLD_IC23_BARS, NEW_IC23_BARS)
+    p.sub("IC-24 분기 창 15개", OLD_IC24_KS, NEW_IC24_KS)
+    p.sub("IC-24 변동·연도별 카드 배치", OLD_IC24_MON, NEW_IC24_MON)
+    p.sub("IC-24 분기 표 순이익·변동 표지", OLD_IC24_ROWS, NEW_IC24_ROWS)
+    p.sub("IC-24 변동·연도별 구현", OLD_IC24_ANCHOR, NEW_IC24_ANCHOR)
 
     p.text = _cut_data_region(p.text)
     p.applied.append("DATA 데이터 블록 → 주입 마커")

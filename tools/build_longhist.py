@@ -45,6 +45,7 @@ def build(co: str) -> None:
     tol = TOL.get(co, 0.02)
 
     series: dict[int, tuple[float, float]] = {}
+    nis: dict[int, tuple] = {}    # (당기순이익, 지배순이익) — 연도별 표용
     fin: dict[int, dict] = {}     # 현금흐름·재무상태 — 같은 보고서들에서 온다
     srcs = []
     for fy, rcp in REPORTS[co]:
@@ -56,6 +57,8 @@ def build(co: str) -> None:
             if y in series:
                 continue          # 최신 보고서 우선
             series[y] = (r["rev"][k] / div, r["op"][k] / div)
+            nis[y] = (r["ni"][k] / div if r.get("ni") else None,
+                      r["ni_ctrl"][k] / div if r.get("ni_ctrl") else None)
         srcs.append(f"FY{fy} {rcp}")
 
         # 현금흐름표·재무상태표 — 실패해도 매출·이익 시계열은 산다.
@@ -85,6 +88,8 @@ def build(co: str) -> None:
     years = sorted(series)
     rev = [round(series[y][0], 2) for y in years]
     op = [round(series[y][1], 2) for y in years]
+    ni = [round(nis[y][0], 2) if nis[y][0] is not None else None for y in years]
+    ni_ctrl = [round(nis[y][1], 2) if nis[y][1] is not None else None for y in years]
 
     def fin_col(key):
         return [round(fin[y][key], 2) if y in fin and key in fin[y] else None
@@ -104,8 +109,14 @@ def build(co: str) -> None:
         if yi < 0:
             continue
         hi = hyrs.index(y)
-        for name, node, arr in (("매출", rev_key, rev), ("영업이익", "op_profit", op)):
+        for name, node, arr in (("매출", rev_key, rev), ("영업이익", "op_profit", op),
+                                ("지배순이익", "net_income", ni_ctrl)):
+            if node not in hist:
+                continue
             want = hist[node][hi]
+            if arr[yi] is None:
+                bad.append(f"{y} {name}: longhist 값 없음 (historicals {want:,.2f})")
+                continue
             if abs(arr[yi] - want) > tol:
                 bad.append(f"{y} {name}: longhist {arr[yi]:,.2f} ≠ historicals {want:,.2f}")
     if bad:
@@ -119,11 +130,13 @@ def build(co: str) -> None:
                  "소급 재작성이 있으면 블록 경계(예: 2022↔2023)에서 기준이 갈릴 수 있다. "
                  "모델 실적 구간과 겹치는 연도는 historicals와 대사 통과. "
                  "capex = 유형자산의 취득(크기), fcf = 영업CF − capex. "
-                 "liab·equity = 부채총계·자본총계(연말)."),
+                 "liab·equity = 부채총계·자본총계(연말). "
+                 "ni = 당기순이익(전체), ni_ctrl = 지배기업 소유주 귀속 순이익."),
         "_출처": srcs,
         "years": [str(y) for y in years],
         "rev": rev,
         "op": op,
+        "ni": ni, "ni_ctrl": ni_ctrl,
         "cfo": cfo, "cfi": cfi, "cff": cff, "capex": capex, "fcf": fcf,
         "liab": liab, "equity": equity,
     }

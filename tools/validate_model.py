@@ -478,6 +478,24 @@ def g11_memo(rep: dict) -> Result:
         if not isinstance(b.get("amt"), (int, float)):
             bad.append(f"MEMO.backlog[{i}].amt: 억원 숫자여야 한다")
 
+    # 3a-4) 주요 변동 분기의 사유 — 화면이 판정한 분기(엔진 qMoves)마다
+    #       출처 달린 사유가 있어야 한다. 판정 규칙은 엔진에만 있다.
+    qkeys = set(((rep.get("quarterly") or {}).get("quarters") or {}).keys())
+    qn = memo.get("qnotes") or []
+    for i, n in enumerate(qn):
+        if not re.fullmatch(r"\d{4}Q[1-4]", str(n.get("q") or "")):
+            bad.append(f"MEMO.qnotes[{i}].q: YYYYQn 형식이어야 한다")
+        elif qkeys and n["q"] not in qkeys:
+            bad.append(f"MEMO.qnotes[{i}].q {n['q']}: QUARTERLY에 없는 분기")
+        if not (n.get("t") or "").strip():
+            bad.append(f"MEMO.qnotes[{i}].t 없음")
+        if not (n.get("src") or "").strip():
+            bad.append(f"MEMO.qnotes[{i}].src 없음 — 사유는 공시 출처가 있어야 한다")
+    noted = {n.get("q") for n in qn}
+    missing = [q for q in (rep.get("qmoves") or []) if q not in noted]
+    if missing:
+        bad.append("주요 변동 분기 사유 누락(MEMO.qnotes): " + ", ".join(missing))
+
     # 3b) 목표배수·할인율의 근거인 피어가 있는가
     #     한 번 편집 중에 PEERS 블록이 통째로 사라졌는데 전 게이트가 통과했다.
     #     선택 블록이라도 "있다가 없어진 것"은 잡아야 한다.

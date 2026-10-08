@@ -48,10 +48,14 @@ ENGINE_NAMES = [
     "_excelNumberFormat",
     "depthOf",
     "pathOf",
+    # 분기 주요 변동 판정 — 화면과 G11이 같은 함수를 쓴다 (규칙의 정본은 엔진).
+    "qHas", "qKeys", "qYear", "qVal", "Q_WINDOW", "Q_MOVE", "qPrevKey", "qNi", "qMoves",
 ]
 
 # 템플릿 세대에만 있는 선언. 패치 전 원본에는 없으므로 없어도 넘어간다.
-OPTIONAL_NAMES = {"META", "UNITS", "evalAstAt", "MARKET", "MEMO", "SCENARIOS"}
+OPTIONAL_NAMES = {"META", "UNITS", "evalAstAt", "MARKET", "MEMO", "SCENARIOS",
+                  "qHas", "qKeys", "qYear", "qVal", "Q_WINDOW", "Q_MOVE", "qPrevKey",
+                  "qNi", "qMoves"}
 
 # 마커가 없는 파일(패치 전 원본)은 이름 단위로 되돌아간다.
 LEGACY_DATA_NAMES = ["META", "YRS", "HIST_N", "UNITS", "MODEL"]
@@ -87,6 +91,9 @@ const report = {
   peers:     (typeof PEERS === 'object' && PEERS) ? PEERS : null,
   consensus: (typeof CONSENSUS === 'object' && CONSENSUS) ? CONSENSUS : null,
   quarterly: (typeof QUARTERLY === 'object' && QUARTERLY) ? QUARTERLY : null,
+  // 화면이 "주요 변동"으로 판정하는 분기 — G11이 사유(MEMO.qnotes) 누락을 검사한다.
+  qmoves: (typeof qMoves === 'function' && typeof QUARTERLY === 'object' && QUARTERLY)
+    ? qMoves(qKeys().slice(-Q_WINDOW)).map(m => m.q) : null,
   costnature: (typeof COSTNATURE === 'object' && COSTNATURE) ? COSTNATURE : null,
   meta:      (typeof META === 'object' && META) ? META : null,
   market:    (typeof MARKET === 'object' && MARKET) ? MARKET : null,

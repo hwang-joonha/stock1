@@ -158,7 +158,7 @@ def to_text(raw: str) -> str:
 # 각 블록은 [부문명들] 다음에 [항목명 | 값 | 값 | 값 | 합계] 행이 온다.
 # 부문 순서를 헤더에서 읽어야 한다 — 값만 보고 순서를 가정하면 언젠가 틀린다.
 
-_PERIOD_RE = re.compile(r"(당|전)(분기|반기|기)(누적)?(?=\s*\|)")
+_PERIOD_RE = re.compile(r"(당|전)(분기|반기|기)(누적)?(?=\s*(\(단위[^)]*\))?\s*\|)")
 # 부문 이름이 해에 따라 바뀐다 — 통신모듈 중단영업 분류 전에는 "광학통신솔루션"이었다.
 # 표기를 정규화하지 않으면 옛 보고서에서 부문을 못 찾고 조용히 빈 결과가 나온다.
 _SEG_RE = re.compile(r"패키지솔루션|컴포넌트|광학[가-힣]*솔루션")
@@ -198,8 +198,22 @@ def segments(rcp_no: str, node_hint: str = "영업부문정보") -> dict:
     if not nodes:
         nodes = [n for n in toc(rcp_no) if node_hint in n["text"]]
     if not nodes:
-        raise SystemExit(f"{rcp_no}: '{node_hint}' 주석을 찾지 못했다")
-    text = document(nodes[0])
+        # 옛 보고서(삼성전기 2022~2023)는 주석이 목차에서 쪼개지지 않고
+        # "연결재무제표 주석" 한 덩어리다 — 그 안에서 영업부문 공시를 찾는다.
+        nodes = [n for n in toc(rcp_no) if "연결재무제표 주석" in n["text"]]
+        if not nodes:
+            raise SystemExit(f"{rcp_no}: '{node_hint}' 주석을 찾지 못했다")
+        full = document(nodes[0])
+        m0 = re.search(r"영업부문에 대한 공시|영업부문의 재무현황", full)
+        if not m0:
+            raise SystemExit(f"{rcp_no}: 주석 본문에 영업부문 손익 표가 없다")
+        text = full[m0.start():m0.start() + 30000]
+        # 다음 주석 번호(예: "4. 현금및현금성자산")에서 끊는다 — 뒤쪽 표의 같은 항목명 차단.
+        nxt = re.search(r"\s\d{1,2}\.\s*[가-힣]", text[200:])
+        if nxt:
+            text = text[:200 + nxt.start()]
+    else:
+        text = document(nodes[0])
 
     # "영업부문에 대한 공시" 이후만 본다. 앞쪽 고객 정보 표에도 숫자가 있다.
     at = text.find("영업부문에 대한 공시")
@@ -406,6 +420,8 @@ def iscum(rcp_no: str) -> dict:
     # 손익계산서 섹션 — 회사에 따라 '연결 손익계산서'와 '연결 포괄손익계산서'가
     # 나뉘거나 하나로 합쳐져 있다. 영업이익 행이 들어 있는 첫 섹션을 쓴다.
     starts = [m.start() for m in re.finditer(r"연결\s*(포괄)?\s*손익계산서", text)]
+    # '연결' 접두 없이 "포괄손익계산서"로만 적는 보고서가 있다 (티엘비 2023 3분기).
+    starts += [m.start() for m in re.finditer(r"(?<!연결)(?<!연결 )(포괄)?손익계산서", text)]
     body = None
     for s in starts:
         chunk = text[s:s + 12000]
@@ -459,8 +475,87 @@ def iscum(rcp_no: str) -> dict:
     # 매출원가·순이익은 선택 — 없는 공시(예: 성격별 단일 표시)는 None으로 둔다.
     cogs = row_value(_IS_COGS_LABELS)
     ni = row_value(None, _IS_NI_RE)
-    return {"rev": rev, "op": op, "cogs": cogs, "ni": ni,
+    ctrl_i = _ni_ctrl_line(lines, body)
+    if ctrl_i == -1:
+        ni_ctrl = ni
+    elif ctrl_i is None:
+        ni_ctrl = None
+    else:
+        ni_ctrl = _vals_after(lines, ctrl_i, ncols)
+        ni_ctrl = ni_ctrl[cum_idx] if ni_ctrl and len(ni_ctrl) > cum_idx else None
+    return {"rev": rev, "op": op, "cogs": cogs, "ni": ni, "ni_ctrl": ni_ctrl,
             "unit": unit, "ncols": ncols, "cum_idx": cum_idx}
+
+
+# 지배기업 소유주 귀속 순이익 — "당기순이익의 귀속" 아래 첫 "지배…" 행.
+# 순이익 행 다음에 처음 나오는 "지배…" 행이 순이익 귀속이다(총포괄이익 귀속은
+# 그 뒤에 온다). 비지배지분이 아예 없는 회사(귀속 공시 없음)는 −1을 돌려
+# 순이익 = 지배순이익으로 쓰게 하고, 귀속 공시가 있는데 못 읽으면 None.
+_NI_ATTR_RE = re.compile(r"^(연결)?\s*(당|분|반)기\s*순\s*(이익|손실)(\(손실\))?\s*의\s*귀속")
+
+
+def _ni_ctrl_line(lines: list[str], body: str):
+    # 귀속 공시 유무는 손익계산서 안에서만 본다 — 뒤에 붙는 자본변동표의
+    # "지배기업의 소유주에게 귀속되는 지분" 열을 귀속 공시로 오인하지 않게
+    # (케이엠더블유: 비지배지분 없음, 자본변동표에만 그 문구).
+    cut = re.search(r"자본변동표|재무상태표|현금흐름표", body[200:])
+    scope = body[:200 + cut.start()] if cut else body
+    has_attr = ("비지배" in scope) or ("귀속" in scope and "지배기업" in scope)
+    start = None
+    for i, ln in enumerate(lines):
+        base = ln.split("(주")[0].strip().replace("　", "").strip()
+        base = re.sub(r"^[IVXⅠ-Ⅻ]+\s*[.．]\s*", "", base)    # 옛 보고서 "XVI.당기순이익의 귀속"
+        if _NI_ATTR_RE.match(base):
+            start = i
+            break
+    if start is not None:
+        # 귀속 헤더 아래: "지배…" 행을 찾고, 없으면 비지배가 아닌 첫 값 행.
+        # 라벨 오기 대비 — 삼성전자 2025 1분기는 지배 행을 "분기순이익"으로 적었다.
+        first = None
+        for j in range(start + 1, min(len(lines), start + 30)):
+            base = lines[j].replace("　", "").strip()
+            if not base or _IS_NUM_RE.fullmatch(base):
+                continue
+            if "주당" in base or ("총포괄" in base and "귀속" in base):
+                break
+            if base.startswith("지배") or ("지배기업" in base and "비지배" not in base):
+                return j
+            if "비지배" in base:
+                continue
+            nxt = lines[j + 1].strip() if j + 1 < len(lines) else ""
+            if first is None and _IS_NUM_RE.fullmatch(nxt):
+                first = j
+        if first is not None:
+            return first
+    if start is None:
+        for i, ln in enumerate(lines):
+            base = re.sub(r"^[IVXⅠ-Ⅻ]+\s*[.．]\s*", "", ln.split("(주")[0].strip()).strip()
+            if _IS_NI_RE.fullmatch(base):
+                start = i
+                break
+    if start is None:
+        return None
+    for j in range(start + 1, min(len(lines), start + 80)):
+        base = lines[j].replace("　", "").strip()
+        if "총포괄" in base and "귀속" in base:
+            break
+        # "지배기업 소유주지분" 또는 "분기순이익(손실), 지배기업의 소유주에게 귀속되는 지분"
+        if base.startswith("지배") or ("지배기업" in base and "비지배" not in base
+                                        and "포괄" not in base):
+            return j
+    return None if has_attr else -1
+
+
+def _vals_after(lines: list[str], i: int, n: int) -> list[int] | None:
+    vals = []
+    for nxt in lines[i + 1:i + 3 + n]:
+        if _IS_NUM_RE.fullmatch(nxt):
+            vals.append(_to_int(nxt))
+            if len(vals) == n:
+                break
+        elif vals:
+            break
+    return vals or None
 
 
 def islong(rcp_no: str) -> dict:
@@ -520,7 +615,25 @@ def islong(rcp_no: str) -> dict:
     op = row_values(_IS_OP_LABELS)
     if rev is None or op is None:
         raise SystemExit(f"{rcp_no}: {ncol}개년 매출/영업이익 행을 읽지 못했다")
-    return {"rev": rev, "op": op, "unit": unit, "years": years or None}
+    # 당기순이익(전체)·지배순이익 — 선택. 못 읽으면 None (연도별 표에서 —).
+    ni = None
+    for i, ln in enumerate(lines):
+        base = re.sub(r"^[IVXⅠ-Ⅻ]+\s*[.．]\s*", "", ln.split("(주")[0].strip()).strip()
+        if _IS_NI_RE.fullmatch(base):
+            v = _vals_after(lines, i, ncol)
+            if v and len(v) == ncol:
+                ni = [-x if ("순손실" in base.replace(" ", "") and x > 0) else x for x in v]
+            break
+    ctrl_i = _ni_ctrl_line(lines, body)
+    if ctrl_i == -1:
+        ni_ctrl = list(ni) if ni else None
+    elif ctrl_i is None:
+        ni_ctrl = None
+    else:
+        v = _vals_after(lines, ctrl_i, ncol)
+        ni_ctrl = v if v and len(v) == ncol else None
+    return {"rev": rev, "op": op, "ni": ni, "ni_ctrl": ni_ctrl,
+            "unit": unit, "years": years or None}
 
 
 def _fin_text(rcp_no: str) -> str:
